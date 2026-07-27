@@ -1,4 +1,4 @@
-import { decodeMessage, encodeMessage, enumeration, message } from 'protons-runtime';
+import { decodeMessage, encodeMessage, enumeration, message, streamMessage } from 'protons-runtime';
 export var Message;
 (function (Message) {
     let Flag;
@@ -59,14 +59,45 @@ export var Message;
                     }
                 }
                 return obj;
+            }, function* (reader, length, prefix, opts = {}) {
+                const end = length == null ? reader.len : reader.pos + length;
+                while (reader.pos < end) {
+                    const tag = reader.uint32();
+                    switch (tag >>> 3) {
+                        case 1: {
+                            yield {
+                                field: `${prefix}.flag`,
+                                value: Message.Flag.codec().decode(reader)
+                            };
+                            break;
+                        }
+                        case 2: {
+                            yield {
+                                field: `${prefix}.message`,
+                                value: reader.bytes()
+                            };
+                            break;
+                        }
+                        default: {
+                            reader.skipType(tag & 7);
+                            break;
+                        }
+                    }
+                }
             });
         }
         return _codec;
     };
-    Message.encode = (obj) => {
+    function encode(obj) {
         return encodeMessage(obj, Message.codec());
-    };
-    Message.decode = (buf, opts) => {
+    }
+    Message.encode = encode;
+    function decode(buf, opts) {
         return decodeMessage(buf, Message.codec(), opts);
-    };
+    }
+    Message.decode = decode;
+    function stream(buf, opts) {
+        return streamMessage(buf, Message.codec(), opts);
+    }
+    Message.stream = stream;
 })(Message || (Message = {}));

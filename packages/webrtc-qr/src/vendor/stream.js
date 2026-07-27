@@ -1,15 +1,13 @@
-import { StreamStateError, TimeoutError } from '@libp2p/interface';
-import { AbstractStream } from '@libp2p/utils/abstract-stream';
-import { anySignal } from 'any-signal';
+import { StreamResetError, StreamStateError } from '@libp2p/interface';
+import { AbstractStream } from '@libp2p/utils';
 import * as lengthPrefixed from 'it-length-prefixed';
 import { pushable } from 'it-pushable';
-import pDefer from 'p-defer';
-import pTimeout from 'p-timeout';
-import { raceEvent } from 'race-event';
+import { pEvent } from 'p-event';
 import { raceSignal } from 'race-signal';
 import { Uint8ArrayList } from 'uint8arraylist';
-import { BUFFERED_AMOUNT_LOW_TIMEOUT, FIN_ACK_TIMEOUT, MAX_BUFFERED_AMOUNT, MAX_MESSAGE_SIZE, OPEN_TIMEOUT, PROTOBUF_OVERHEAD } from './constants.js';
-import { Message } from './pb-message.js';
+import { withArrayBuffer } from 'uint8arrays/with-array-buffer';
+import { DEFAULT_FIN_ACK_TIMEOUT, MAX_BUFFERED_AMOUNT, MAX_MESSAGE_SIZE, PROTOBUF_OVERHEAD } from "./constants.js";
+import { Message } from "./pb-message.js";
 export class WebRTCStream extends AbstractStream {
     /**
      * The data channel used to send and receive data
@@ -21,266 +19,207 @@ export class WebRTCStream extends AbstractStream {
      */
     incomingData;
     maxBufferedAmount;
-    bufferedAmountLowEventTimeout;
-    /**
-     * The maximum size of a message in bytes
-     */
-    maxMessageSize;
-    /**
-     * When this promise is resolved, the remote has sent us a FIN flag
-     */
-    receiveFinAck;
+    receivedFinAck;
     finAckTimeout;
-    openTimeout;
-    closeController;
     constructor(init) {
-        // override onEnd to send/receive FIN_ACK before closing the stream
-        const originalOnEnd = init.onEnd;
-        init.onEnd = (err) => {
-            this.log.trace('readable and writeable ends closed with status "%s"', this.status);
-            void Promise.resolve(async () => {
-                if (this.timeline.abort != null || this.timeline.reset !== null) {
-                    return;
-                }
-                // wait for FIN_ACK if we haven't received it already
-                try {
-                    await pTimeout(this.receiveFinAck.promise, {
-                        milliseconds: this.finAckTimeout
-                    });
-                }
-                catch (err) {
-                    this.log.error('error receiving FIN_ACK', err);
-                }
-            })
-                .then(() => {
-                // stop processing incoming messages
-                this.incomingData.end();
-                // final cleanup
-                originalOnEnd?.(err);
-            })
-                .catch(err => {
-                this.log.error('error ending stream', err);
-            })
-                .finally(() => {
-                this.channel.close();
-            });
-        };
-        super(init);
+        super({
+            ...init,
+            maxMessageSize: (init.maxMessageSize ?? MAX_MESSAGE_SIZE) - PROTOBUF_OVERHEAD
+        });
         this.channel = init.channel;
         this.channel.binaryType = 'arraybuffer';
         this.incomingData = pushable();
-        this.bufferedAmountLowEventTimeout = init.bufferedAmountLowEventTimeout ?? BUFFERED_AMOUNT_LOW_TIMEOUT;
         this.maxBufferedAmount = init.maxBufferedAmount ?? MAX_BUFFERED_AMOUNT;
-        this.maxMessageSize = (init.maxMessageSize ?? MAX_MESSAGE_SIZE) - PROTOBUF_OVERHEAD;
-        this.receiveFinAck = pDefer();
-        this.finAckTimeout = init.closeTimeout ?? FIN_ACK_TIMEOUT;
-        this.openTimeout = init.openTimeout ?? OPEN_TIMEOUT;
-        this.closeController = new AbortController();
-        // set up initial state
-        switch (this.channel.readyState) {
-            case 'open':
-                this.timeline.open = new Date().getTime();
-                break;
-            case 'closed':
-            case 'closing':
-                if (this.timeline.close === undefined || this.timeline.close === 0) {
-                    this.timeline.close = Date.now();
-                }
-                break;
-            case 'connecting':
-                // noop
-                break;
-            default:
-                this.log.error('unknown datachannel state %s', this.channel.readyState);
-                throw new StreamStateError('Unknown datachannel state');
-        }
+        this.finAckTimeout = init.finAckTimeout ?? DEFAULT_FIN_ACK_TIMEOUT;
         // handle RTCDataChannel events
-        this.channel.onopen = (_evt) => {
-            this.timeline.open = new Date().getTime();
-        };
-        this.channel.onclose = (_evt) => {
-            this.log.trace('received onclose event');
-            // stop any in-progress writes
-            this.closeController.abort();
-            // if the channel has closed we'll never receive a FIN_ACK so resolve the
-            // promise so we don't try to wait later
-            this.receiveFinAck.resolve();
-            void this.close().catch(err => {
-                this.log.error('error closing stream after channel closed', err);
-            });
+        this.channel.onclose = () => {
+            this.log.trace('received datachannel close event');
+            this.onRemoteCloseWrite();
+            this.onTransportClosed();
         };
         this.channel.onerror = (evt) => {
-            this.log.trace('received onerror event');
-            // stop any in-progress writes
-            this.closeController.abort();
             const err = evt.error;
+            this.log.trace('received datachannel error event - %e', err);
             this.abort(err);
         };
         this.channel.onmessage = async (event) => {
+            this.log('incoming message %d bytes', event.data.byteLength);
             const { data } = event;
             if (data === null || data.byteLength === 0) {
                 return;
             }
             this.incomingData.push(new Uint8Array(data, 0, data.byteLength));
         };
-        const self = this;
+        // dispatch drain event when the buffered amount drops to zero
+        this.channel.bufferedAmountLowThreshold = 0;
+        this.channel.onbufferedamountlow = () => {
+            if (this.writableNeedsDrain) {
+                this.safeDispatchEvent('drain');
+            }
+        };
         // pipe framed protobuf messages through a length prefixed decoder, and
         // surface data from the `Message.message` field through a source.
         Promise.resolve().then(async () => {
             for await (const buf of lengthPrefixed.decode(this.incomingData)) {
-                const message = self.processIncomingProtobuf(buf);
-                if (message != null) {
-                    self.sourcePush(new Uint8ArrayList(message));
-                }
+                this.processIncomingProtobuf(buf);
             }
         })
             .catch(err => {
-            this.log.error('error processing incoming data channel messages', err);
+            this.log.error('error processing incoming data channel messages - %e', err);
         });
+        // close when both writable ends are closed or an error occurs
+        const cleanUpDatachannelOnClose = () => {
+            if (this.channel.readyState === 'open') {
+                this.log.trace('stream closed, closing underlying datachannel');
+                this.channel.close();
+            }
+        };
+        this.addEventListener('close', cleanUpDatachannelOnClose);
+        // chrome can receive message events before the open even is fired - calling
+        // code needs to attach message event listeners before these events occur
+        // but we need to wait before sending any data so this has to be done async
+        if (this.channel.readyState !== 'open') {
+            this.log('channel ready state is "%s" and not "open", waiting for "open" event before sending data', this.channel.readyState);
+            pEvent(this.channel, 'open', {
+                rejectionEvents: [
+                    'close',
+                    'error'
+                ]
+            })
+                .then(() => {
+                this.log('channel ready state is now "%s", dispatching drain', this.channel.readyState);
+                this.safeDispatchEvent('drain');
+            })
+                .catch(err => {
+                this.abort(err.error ?? err);
+            });
+        }
     }
     sendNewStream() {
         // opening new streams is handled by WebRTC so this is a noop
     }
-    async _sendMessage(data, checkBuffer = true) {
-        if (this.channel.readyState === 'closed' || this.channel.readyState === 'closing') {
+    _sendMessage(data) {
+        if (this.channel.readyState !== 'open') {
             throw new StreamStateError(`Invalid datachannel state - ${this.channel.readyState}`);
         }
-        if (this.channel.readyState !== 'open') {
-            const timeout = AbortSignal.timeout(this.openTimeout);
-            const signal = anySignal([
-                this.closeController.signal,
-                timeout
-            ]);
-            try {
-                this.log('channel state is "%s" and not "open", waiting for "open" event before sending data', this.channel.readyState);
-                await raceEvent(this.channel, 'open', signal);
-            }
-            finally {
-                signal.clear();
-            }
-            this.log('channel state is now "%s", sending data', this.channel.readyState);
-        }
-        if (checkBuffer && this.channel.bufferedAmount > this.maxBufferedAmount) {
-            const timeout = AbortSignal.timeout(this.bufferedAmountLowEventTimeout);
-            const signal = anySignal([
-                this.closeController.signal,
-                timeout
-            ]);
-            try {
-                this.log('channel buffer is %d, wait for "bufferedamountlow" event', this.channel.bufferedAmount);
-                await raceEvent(this.channel, 'bufferedamountlow', signal);
-            }
-            catch (err) {
-                if (timeout.aborted) {
-                    throw new TimeoutError(`Timed out waiting for DataChannel buffer to clear after ${this.bufferedAmountLowEventTimeout}ms`);
-                }
-                throw err;
-            }
-            finally {
-                signal.clear();
-            }
-        }
+        this.log.trace('sending message, channel state "%s"', this.channel.readyState);
         try {
-            this.log.trace('sending message, channel state "%s"', this.channel.readyState);
             // send message without copying data
-            this.channel.send(data.subarray());
+            for (const buf of data) {
+                this.channel.send(withArrayBuffer(buf));
+            }
         }
         catch (err) {
-            this.log.error('error while sending message', err);
+            // channel.send can throw synchronously if the polyfill's cached readyState is stale
+            this.log.error('error sending datachannel message - %e', err);
+            this.abort(err);
         }
     }
-    async sendData(data) {
-        const bytesTotal = data.byteLength;
-        // sending messages is an async operation so use a copy of the list as it
-        // may be changed beneath us
-        data = data.sublist();
-        while (data.byteLength > 0) {
-            const toSend = Math.min(data.byteLength, this.maxMessageSize);
-            const buf = data.subarray(0, toSend);
-            const messageBuf = Message.encode({ message: buf });
-            const sendBuf = lengthPrefixed.encode.single(messageBuf);
-            this.log.trace('sending %d/%d bytes on channel', buf.byteLength, bytesTotal);
-            await this._sendMessage(sendBuf);
-            data.consume(toSend);
+    sendData(data) {
+        if (this.channel.readyState !== 'open') {
+            return {
+                sentBytes: 0,
+                canSendMore: false
+            };
         }
-        this.log.trace('finished sending data, channel state "%s"', this.channel.readyState);
+        // TODO: firefox can deliver small messages out of order - remove once a
+        // browser with https://bugzilla.mozilla.org/show_bug.cgi?id=1983831 is
+        // available in playwright-test
+        // ----
+        // this is also necessary to work with rust-libp2p 0.54 though 0.53 seems ok
+        this._sendMessage(lengthPrefixed.encode.single(Message.encode({
+            message: data.subarray()
+        })));
+        /*
+        // TODO: enable this when FF and rust-libp2p are not broken
+        // send message without copying data
+          for (const message of data) {
+            this._sendMessage(
+              lengthPrefixed.encode.single(Message.encode({
+                message
+              }))
+            )
+          }
+        }
+        */
+        return {
+            sentBytes: data.byteLength,
+            canSendMore: this.channel.bufferedAmount < this.maxBufferedAmount
+        };
     }
-    async sendReset() {
+    sendReset(err) {
         try {
-            await this._sendFlag(Message.Flag.RESET);
+            this.log.error('sending reset - %e', err);
+            this._sendFlag(Message.Flag.RESET);
+            this.receivedFinAck?.reject(err);
         }
         catch (err) {
             this.log.error('failed to send reset - %e', err);
         }
-        finally {
-            this.channel.close();
-        }
     }
     async sendCloseWrite(options) {
-        if (this.channel.readyState !== 'open') {
-            this.receiveFinAck.resolve();
-            return;
-        }
-        const sent = await this._sendFlag(Message.Flag.FIN);
-        if (sent) {
-            this.log.trace('awaiting FIN_ACK');
-            try {
-                await raceSignal(this.receiveFinAck.promise, options?.signal, {
-                    errorMessage: 'sending close-write was aborted before FIN_ACK was received',
-                    errorName: 'FinAckNotReceivedError'
-                });
-            }
-            catch (err) {
-                this.log.error('failed to await FIN_ACK', err);
-            }
-        }
-        else {
-            this.log.trace('sending FIN failed, not awaiting FIN_ACK');
-        }
-        // if we've attempted to receive a FIN_ACK, do not try again
-        this.receiveFinAck.resolve();
+        this._sendFlag(Message.Flag.FIN);
+        options?.signal?.throwIfAborted();
+        this.receivedFinAck = Promise.withResolvers();
+        // don't wait for FIN_ACK forever
+        const signal = options?.signal ?? AbortSignal.timeout(this.finAckTimeout);
+        // allow cleaning up event promises
+        const eventPromises = [
+            pEvent(this.channel, 'close', {
+                signal
+            }),
+            pEvent(this.channel, 'error', {
+                signal
+            })
+        ];
+        // wait for either:
+        // 1. the FIN_ACK to be received
+        // 2. the datachannel to close
+        // 3. timeout
+        await Promise.any([
+            raceSignal(this.receivedFinAck.promise, signal),
+            ...eventPromises
+        ])
+            .finally(() => {
+            eventPromises.forEach(p => p.cancel());
+        });
     }
-    async sendCloseRead() {
-        if (this.channel.readyState !== 'open') {
-            return;
-        }
-        await this._sendFlag(Message.Flag.STOP_SENDING);
+    async sendCloseRead(options) {
+        this._sendFlag(Message.Flag.STOP_SENDING);
+        options?.signal?.throwIfAborted();
     }
     /**
      * Handle incoming
      */
     processIncomingProtobuf(buffer) {
         const message = Message.decode(buffer);
+        // ignore data messages if we've closed the readable end already
+        if (message.message != null && (this.readStatus === 'readable' || this.readStatus === 'paused')) {
+            this.onData(new Uint8ArrayList(message.message));
+        }
         if (message.flag !== undefined) {
             this.log.trace('incoming flag %s, write status "%s", read status "%s"', message.flag, this.writeStatus, this.readStatus);
             if (message.flag === Message.Flag.FIN) {
-                // We should expect no more data from the remote, stop reading
-                this.remoteCloseWrite();
-                this.log.trace('sending FIN_ACK');
-                void this._sendFlag(Message.Flag.FIN_ACK)
-                    .catch(err => {
-                    this.log.error('error sending FIN_ACK immediately', err);
-                });
+                // we should expect no more data from the remote, stop reading
+                this._sendFlag(Message.Flag.FIN_ACK);
+                this.onRemoteCloseWrite();
             }
             if (message.flag === Message.Flag.RESET) {
-                // Stop reading and writing to the stream immediately
-                this.reset();
+                // stop reading and writing to the stream immediately
+                this.receivedFinAck?.reject(new StreamResetError('The stream was reset'));
+                this.onRemoteReset();
             }
             if (message.flag === Message.Flag.STOP_SENDING) {
-                // The remote has stopped reading
-                this.remoteCloseRead();
+                // the remote has stopped reading
+                this.onRemoteCloseRead();
             }
             if (message.flag === Message.Flag.FIN_ACK) {
-                this.log.trace('received FIN_ACK');
-                this.receiveFinAck.resolve();
+                // remote received our FIN
+                this.receivedFinAck?.resolve();
             }
         }
-        // ignore data messages if we've closed the readable end already
-        if (this.readStatus === 'ready') {
-            return message.message;
-        }
     }
-    async _sendFlag(flag) {
+    _sendFlag(flag) {
         if (this.channel.readyState !== 'open') {
             // flags can be sent while we or the remote are closing the datachannel so
             // if the channel isn't open, don't try to send it but return false to let
@@ -292,7 +231,7 @@ export class WebRTCStream extends AbstractStream {
         const messageBuf = Message.encode({ flag });
         const prefixedBuf = lengthPrefixed.encode.single(messageBuf);
         try {
-            await this._sendMessage(prefixedBuf, false);
+            this._sendMessage(prefixedBuf);
             return true;
         }
         catch (err) {
@@ -300,12 +239,19 @@ export class WebRTCStream extends AbstractStream {
         }
         return false;
     }
+    sendPause() {
+        // TODO: read backpressure?
+    }
+    sendResume() {
+        // TODO: read backpressure?
+    }
 }
 export function createStream(options) {
-    const { channel, direction, handshake } = options;
+    const { channel, direction, isHandshake } = options;
     return new WebRTCStream({
         ...options,
         id: `${channel.id}`,
-        log: options.log.newScope(`${handshake === true ? 'handshake' : direction}:${channel.id}`)
+        log: options.log.newScope(`${isHandshake === true ? 'handshake' : direction}:${channel.id}`),
+        protocol: ''
     });
 }

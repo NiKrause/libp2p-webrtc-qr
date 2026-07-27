@@ -12,10 +12,8 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const FILES = [
-  ['dist/src/maconn.js', 'maconn.js'],
   ['dist/src/muxer.js', 'muxer.js'],
   ['dist/src/stream.js', 'stream.js'],
-  ['dist/src/util.js', 'util.js'],
   ['dist/src/constants.js', 'constants.js'],
   ['dist/src/private-to-public/pb/message.js', 'pb-message.js']
 ]

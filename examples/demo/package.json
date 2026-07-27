@@ -15,14 +15,14 @@
   },
   "dependencies": {
     "@le-space/libp2p-webrtc-qr": "workspace:*",
-    "@libp2p/identify": "^3.0.27",
-    "@libp2p/ping": "^2.0.27",
-    "@multiformats/multiaddr": "^12.4.0",
-    "it-byte-stream": "^1.1.1",
+    "@libp2p/identify": "^4.1.11",
+    "@libp2p/peer-id": "^6.0.13",
+    "@libp2p/ping": "^3.1.10",
+    "@multiformats/multiaddr": "^13.0.3",
     "jsqr": "^1.4.0",
-    "libp2p": "^2.8.2",
+    "libp2p": "^3.3.7",
     "qrcode": "^1.5.1",
-    "uint8arrays": "^5.1.0"
+    "uint8arrays": "^6.1.1"
   },
   "devDependencies": {
     "@playwright/test": "1.61.1",

@@ -1,5 +1,5 @@
 import { encodingLength } from 'uint8-varint';
-import { Message } from './pb-message.js';
+import { Message } from "./pb-message.js";
 /**
  * STUN servers help clients discover their own public IPs.
  *
@@ -23,21 +23,9 @@ export const UFRAG_ALPHABET = Array.from('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL
  */
 export const UFRAG_PREFIX = 'libp2p+webrtc+v1/';
 /**
- * The multicodec code for webrtc-direct tuples
- */
-export const CODEC_WEBRTC_DIRECT = 0x0118;
-/**
- * The multicodec code for certhash tuples
- */
-export const CODEC_CERTHASH = 0x01d2;
-/**
  * How much can be buffered to the DataChannel at once
  */
 export const MAX_BUFFERED_AMOUNT = 2 * 1024 * 1024;
-/**
- * How long time we wait for the 'bufferedamountlow' event to be emitted
- */
-export const BUFFERED_AMOUNT_LOW_TIMEOUT = 30 * 1000;
 /**
  * Max message size that can be sent to the DataChannel. In browsers this is
  * 256KiB but go-libp2p and rust-libp2p only support 16KiB at the time of
@@ -47,6 +35,34 @@ export const BUFFERED_AMOUNT_LOW_TIMEOUT = 30 * 1000;
  * @see https://issues.webrtc.org/issues/40644524
  */
 export const MAX_MESSAGE_SIZE = 16 * 1024;
+/**
+ * The maximum number of bytes buffered for a single incoming data channel that
+ * arrives before the muxer has been created (`earlyDataChannels` in
+ * `muxer.ts`). A well-behaved remote only puts its multistream-select proposal
+ * on an early channel (well under 1 KB): `newStream` blocks on
+ * multistream-select before the application can write, and WebRTC does not
+ * pre-negotiate the stream protocol. If the `// TODO: pre-negotiate stream
+ * protocol` in `muxer.ts` is ever implemented the application could write
+ * immediately, so this assumption, and therefore this bound, must be revisited.
+ * It is set to one maximum WebRTC message so a single legitimately-sized frame
+ * is never rejected, even though the expected payload is far smaller. Channels
+ * that exceed this are closed.
+ */
+export const MAX_EARLY_DATA_CHANNEL_BYTES = MAX_MESSAGE_SIZE;
+/**
+ * Default for the `maxEarlyStreams` transport option, which caps both the data
+ * channels buffered before the muxer exists and the early streams the muxer
+ * surfaces on adoption. They are one budget - buffered channels become early
+ * streams on adoption, so a larger channel buffer would abort on hand-off.
+ */
+export const DEFAULT_MAX_EARLY_STREAMS = 10;
+/**
+ * Max buffered messages per early data channel. A legitimate early channel
+ * carries only the multistream-select proposal (one or two frames), so this
+ * bounds a flood of tiny or empty messages that would otherwise evade the byte
+ * cap by contributing ~0 bytes each.
+ */
+export const MAX_EARLY_DATA_CHANNEL_MESSAGES = 8;
 /**
  * max protobuf overhead:
  *
@@ -70,21 +86,14 @@ function calculateProtobufOverhead(maxMessageSize = MAX_MESSAGE_SIZE) {
  */
 export const PROTOBUF_OVERHEAD = calculateProtobufOverhead();
 /**
- * When closing streams we send a FIN then wait for the remote to
- * reply with a FIN_ACK. If that does not happen within this timeout
- * we close the stream anyway.
- */
-export const FIN_ACK_TIMEOUT = 5_000;
-/**
- * When sending data messages, if the channel is not in the "open" state, wait
- * this long for the "open" event to fire.
- */
-export const OPEN_TIMEOUT = 5_000;
-/**
  * When closing a stream, we wait for `bufferedAmount` to become 0 before
  * closing the underlying RTCDataChannel - this controls how long we wait in ms
  */
 export const DATA_CHANNEL_DRAIN_TIMEOUT = 30_000;
+/**
+ * Wait for the remote to acknowledge our FIN for this long
+ */
+export const DEFAULT_FIN_ACK_TIMEOUT = 10_000;
 /**
  * Set as the 'negotiated' muxer protocol name
  */

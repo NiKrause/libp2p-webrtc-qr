@@ -1,7 +1,7 @@
 import { identify, identifyPush } from '@libp2p/identify'
+import { peerIdFromString } from '@libp2p/peer-id'
 import { ping } from '@libp2p/ping'
 import { multiaddr } from '@multiformats/multiaddr'
-import { byteStream } from 'it-byte-stream'
 import jsQR from 'jsqr'
 import { createLibp2p } from 'libp2p'
 import QRCode from 'qrcode'
@@ -128,7 +128,8 @@ async function createNode () {
     }
   })
 
-  node.handle(CHAT_PROTOCOL, ({ stream, connection }) => {
+  // libp2p 3 passes the handler positional arguments, not a single object.
+  node.handle(CHAT_PROTOCOL, (stream, connection) => {
     attachChatStream(stream, `Incoming chat stream from ${connection.remotePeer}`)
   })
 
@@ -208,7 +209,13 @@ async function createOfferPayload () {
   const sessionId = crypto.randomUUID()
 
   // WebRTC needs at least one data channel before it will gather candidates.
-  const initDataChannel = peerConnection.createDataChannel('init')
+  // Negotiate it out-of-band so the remote peer never gets a `datachannel`
+  // event for it - otherwise the libp2p muxer adopts this unframed channel as
+  // an incoming stream and the real protocol streams never arrive.
+  const initDataChannel = peerConnection.createDataChannel('init', {
+    negotiated: true,
+    id: 1023
+  })
 
   const offer = await peerConnection.createOffer()
   await peerConnection.setLocalDescription(offer)
@@ -250,7 +257,10 @@ async function acceptOfferPayload (text) {
 
   const peerConnection = new RTCPeerConnection(getRtcConfiguration())
   const addr = remoteAddress(offerPayload.peerId)
-  const upgradeContext = createWebRTCUpgradeContext(node.components, peerConnection, addr)
+  // This peer answered the offer, so it is the inbound side of the session.
+  const upgradeContext = createWebRTCUpgradeContext(node.components, peerConnection, addr, {
+    direction: 'inbound'
+  })
 
   inboundPeerConnections.add(peerConnection)
   peerConnection.addEventListener('connectionstatechange', () => {
@@ -277,11 +287,31 @@ async function acceptOfferPayload (text) {
       throw new Error('WebRTC did not create an SDP answer')
     }
 
-    await node.components.upgrader.upgradeInbound(upgradeContext.connection, {
-      skipEncryption: true,
-      skipProtection: true,
-      muxerFactory: upgradeContext.muxerFactory,
-      signal: AbortSignal.timeout(CONNECTION_TIMEOUT)
+    // Upgrade only once the WebRTC connection is actually up. The offering peer
+    // does not attach its own muxer until it scans this answer, so upgrading
+    // any earlier means our identify stream is written into a connection with
+    // nothing on the other end - which tears the whole session down.
+    const upgraded = waitForConnected(peerConnection)
+      .then(async () => {
+        await node.components.upgrader.upgradeInbound(upgradeContext.connection, {
+          skipEncryption: true,
+          skipProtection: true,
+          // Skipping encryption means no handshake tells libp2p who the remote
+          // is, so it insists on being told. The peer id comes from the offer
+          // whose signature we just verified - that is what makes it safe.
+          remotePeer: peerIdFromString(offerPayload.peerId),
+          muxerFactory: upgradeContext.muxerFactory,
+          signal: AbortSignal.timeout(CONNECTION_TIMEOUT)
+        })
+
+        setStatus(`Connected to ${offerPayload.peerId}`)
+      })
+
+    upgraded.catch(error => {
+      inboundPeerConnections.delete(peerConnection)
+      peerConnection.close()
+      setStatus(`Connection failed: ${error.message}`)
+      appendLog(`Inbound upgrade failed: ${error.message}`)
     })
 
     return signPayload({
@@ -330,12 +360,11 @@ async function acceptAnswerPayload (text) {
   currentOfferSession.upgradeContext = createWebRTCUpgradeContext(
     node.components,
     currentOfferSession.peerConnection,
-    addr
+    addr,
+    { direction: 'outbound' }
   )
 
-  const stream = await node.dialProtocol(addr, CHAT_PROTOCOL, {
-    signal: AbortSignal.timeout(CONNECTION_TIMEOUT)
-  })
+  const stream = await dialChatStream(addr)
 
   attachChatStream(stream, `Outgoing chat stream to ${answerPayload.peerId}`)
   setStatus(`Connected to ${answerPayload.peerId}`)
@@ -343,24 +372,52 @@ async function acceptAnswerPayload (text) {
   return addr.toString()
 }
 
+/**
+ * Both peers reach the WebRTC `connected` state at the same moment, but the
+ * answering peer still has to attach its libp2p muxer. A stream opened into
+ * that gap negotiates and is then reset, so retry until one stays open.
+ */
+async function dialChatStream (addr, attempts = 15) {
+  let lastError = new Error('The remote peer never accepted a chat stream')
+
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      const stream = await node.dialProtocol(addr, CHAT_PROTOCOL, {
+        signal: AbortSignal.timeout(CONNECTION_TIMEOUT)
+      })
+
+      await new Promise(resolve => setTimeout(resolve, 200))
+
+      if (stream.status === 'open') {
+        return stream
+      }
+
+      lastError = new Error(`Chat stream was ${stream.status} right after opening`)
+    } catch (error) {
+      lastError = error
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 300))
+  }
+
+  throw lastError
+}
+
 function attachChatStream (stream, message) {
-  chatStream = byteStream(stream)
+  chatStream = stream
   appendLog(message)
   sendButton.disabled = false
 
-  readChatMessages(chatStream).catch(error => {
+  readChatMessages(stream).catch(error => {
     appendLog(`Chat stream closed: ${error.message}`)
   })
 }
 
+// libp2p 3 streams are message streams: iterate them for reads, `send()` for
+// writes. The old source/sink duplex - and the it-byte-stream wrapper around
+// it - is gone.
 async function readChatMessages (stream) {
-  while (true) {
-    const data = await stream.read()
-
-    if (data == null) {
-      return
-    }
-
+  for await (const data of stream) {
     const message = toString(data.subarray())
     testState.lastReceivedMessage = message
     testState.receivedMessages.push(message)
@@ -373,7 +430,7 @@ async function sendMessage (message) {
     throw new Error('No active chat stream')
   }
 
-  await chatStream.write(fromString(message))
+  await chatStream.send(fromString(message))
   appendLog(`Sent: ${message}`)
 }
 
@@ -712,5 +769,13 @@ window.__libp2pQrTest = {
   sendMessage,
   getLastReceivedMessage: () => testState.lastReceivedMessage,
   getReceivedMessages: () => [...testState.receivedMessages],
-  getConnections: () => node?.getConnections().length ?? 0
+  getConnections: () => node?.getConnections().length ?? 0,
+  debugStream: () => chatStream == null
+    ? null
+    : {
+        status: chatStream.status,
+        readStatus: chatStream.readStatus,
+        writeStatus: chatStream.writeStatus,
+        protocol: chatStream.protocol
+      }
 }

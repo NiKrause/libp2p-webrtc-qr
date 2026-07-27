@@ -18,7 +18,7 @@
     "vendor:sync": "node scripts/vendor-sync.mjs"
   },
   "devDependencies": {
-    "@libp2p/webrtc": "5.2.24",
+    "@libp2p/webrtc": "6.0.28",
     "@playwright/test": "1.61.1"
   }
 }
