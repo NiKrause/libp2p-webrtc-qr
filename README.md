@@ -4,7 +4,7 @@ Two browsers connect directly as libp2p peers with **no relay and no signaling
 server**. The WebRTC offer and answer are exchanged out-of-band as signed,
 compressed QR codes that one phone scans off another screen.
 
-**Live demo: <https://webrtc-qr.le-space.de>**
+**Live demo: <https://webrtc-qr.le-space.de>** · **[Roadmap](ROADMAP.md)**
 
 | Package | Description |
 | --- | --- |
@@ -59,25 +59,19 @@ pnpm test    # unit + both e2e suites
   the upstream package does not export. See
   [the vendor README](packages/webrtc-qr/src/vendor/README.md).
 
-## TODO: multi-frame QR for large candidate sets
+## What is next
 
-Everything above assumes the signed payload fits in **one** QR code. That holds
-today, but the budget is finite and the SDP grows with every ICE candidate. A
-peer on a multi-homed host, on IPv4 and IPv6 at once, or behind a TURN server
-can produce a candidate list that no single scannable code will hold.
+The payload is the binding constraint on everything else: how far away a code
+scans, on what camera, and how many ICE candidates a peer can have before it
+stops fitting. The most promising answer is not a bigger or animated code but a
+much smaller one - [QWBP](https://magarcia.github.io/qwbp/) does the same
+handshake in 41-100 bytes by sending a raw DTLS fingerprint plus binary-packed
+candidates and deriving the ICE credentials with HKDF, then upgrading over the
+DataChannel it opens.
 
-The intended answer is an animated sequence rather than a bigger code: split the
-payload into **BC-UR** parts, cycle them on the sending screen and reassemble
-them on the scanner. BC-UR is the multi-part QR encoding the Bitcoin hardware
-wallet ecosystem standardised on, and
-[`Le-Space/qrcode-scanner-svelte`](https://github.com/Le-Space/qrcode-scanner-svelte)
-already implements both sides of it.
-
-The trade-off is real and documented by others: an animated sequence asks the
-user to hold the phone still until the sequence completes, which is why some
-designs avoid it by shrinking the payload instead (see QWBP below). A
-size-adaptive path - single code while it fits, BC-UR sequence when it does not
-- keeps the fast case fast without a hard ceiling.
+See the **[roadmap](ROADMAP.md)** for that and the rest: multi-frame BC-UR as a
+fallback, removing the vendored subtree, moving the session orchestration into
+the package, a replay window, Firefox and WebKit in CI, and TURN.
 
 ## Origin and references
 
