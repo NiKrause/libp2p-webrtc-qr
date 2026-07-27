@@ -1,3 +1,7 @@
+import { withBitswap } from '@helia/bitswap'
+import { withLibp2p } from '@helia/libp2p'
+import { unixfs } from '@helia/unixfs'
+import { createHeliaLight } from 'helia'
 import { identify, identifyPush } from '@libp2p/identify'
 import { peerIdFromString } from '@libp2p/peer-id'
 import { ping } from '@libp2p/ping'
@@ -48,11 +52,16 @@ const sendButton = document.getElementById('send')
 const qrImage = document.getElementById('qr-image')
 const qrVideo = document.getElementById('qr-video')
 const scanStatus = document.getElementById('scan-status')
+const dropZone = document.getElementById('drop-zone')
+const fileInput = document.getElementById('file-input')
+const receivedFilesEl = document.getElementById('received-files')
 
 const qrCanvas = document.createElement('canvas')
 const qrCanvasContext = qrCanvas.getContext('2d', { willReadFrequently: true })
 
 let node = null
+let helia = null
+let fs = null
 let chatStream = null
 let currentOfferSession = null
 let scanStream = null
@@ -66,7 +75,8 @@ let scanSessionId = 0
 const inboundPeerConnections = new Set()
 const testState = {
   lastReceivedMessage: null,
-  receivedMessages: []
+  receivedMessages: [],
+  receivedFiles: []
 }
 
 function appendLog (text) {
@@ -132,6 +142,18 @@ async function createNode () {
   node.handle(CHAT_PROTOCOL, (stream, connection) => {
     attachChatStream(stream, `Incoming chat stream from ${connection.remotePeer}`)
   })
+
+  // Composed by hand rather than with `createHelia`, which is
+  // `withBitswap(withLibp2p(withHTTP(...)))`. The HTTP layer would add trustless
+  // gateways and delegated routing, so a dropped file could be fetched over the
+  // public internet instead of the connection we just built by scanning a code.
+  // Without it, bitswap over this one libp2p connection is the only way to get
+  // the bytes. `withLibp2p` takes the node as its second argument, and the node
+  // returned by `createHeliaLight` has to be started explicitly - the mixins
+  // only attach their block brokers during `start()`.
+  helia = withBitswap(withLibp2p(createHeliaLight(), node))
+  await helia.start()
+  fs = unixfs(helia)
 
   peerIdEl.textContent = node.peerId.toString()
   setStatus('Browser client started. Create or scan an offer.')
@@ -407,10 +429,21 @@ function attachChatStream (stream, message) {
   chatStream = stream
   appendLog(message)
   sendButton.disabled = false
+  setDropZoneEnabled(true)
 
   readChatMessages(stream).catch(error => {
     appendLog(`Chat stream closed: ${error.message}`)
+    setDropZoneEnabled(false)
   })
+}
+
+/**
+ * Chat messages are JSON envelopes so plain text and file announcements can
+ * share one stream. A file announcement carries only the CID and some metadata -
+ * the bytes themselves are pulled separately by bitswap.
+ */
+function envelope (payload) {
+  return fromString(JSON.stringify({ v: 1, ...payload }))
 }
 
 // libp2p 3 streams are message streams: iterate them for reads, `send()` for
@@ -418,10 +451,27 @@ function attachChatStream (stream, message) {
 // it - is gone.
 async function readChatMessages (stream) {
   for await (const data of stream) {
-    const message = toString(data.subarray())
-    testState.lastReceivedMessage = message
-    testState.receivedMessages.push(message)
-    appendLog(`Received: ${message}`)
+    const raw = toString(data.subarray())
+    let message
+
+    try {
+      message = JSON.parse(raw)
+    } catch {
+      appendLog(`Received an unreadable message: ${raw.slice(0, 80)}`)
+      continue
+    }
+
+    if (message.kind === 'file') {
+      appendLog(`Received a file announcement: ${message.name} (${message.size} bytes)`)
+      receiveFile(message).catch(error => {
+        appendLog(`Could not fetch ${message.name}: ${error.message}`)
+      })
+      continue
+    }
+
+    testState.lastReceivedMessage = message.text
+    testState.receivedMessages.push(message.text)
+    appendLog(`Received: ${message.text}`)
   }
 }
 
@@ -430,8 +480,120 @@ async function sendMessage (message) {
     throw new Error('No active chat stream')
   }
 
-  await chatStream.send(fromString(message))
+  await chatStream.send(envelope({ kind: 'text', text: message }))
   appendLog(`Sent: ${message}`)
+}
+
+const MAX_FILE_BYTES = 32 * 1024 * 1024
+
+function formatBytes (bytes) {
+  if (bytes < 1024) {
+    return `${bytes} B`
+  }
+
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function setDropZoneEnabled (enabled) {
+  dropZone.classList.toggle('is-disabled', !enabled)
+  dropZone.setAttribute('aria-disabled', String(!enabled))
+  fileInput.disabled = !enabled
+}
+
+/**
+ * Add the file to Helia and announce its CID over the chat stream. The bytes
+ * stay here - the other peer pulls them with bitswap over the same connection.
+ */
+async function sendFile (file) {
+  if (chatStream == null) {
+    throw new Error('Connect to a peer before sending a file')
+  }
+
+  if (file.size > MAX_FILE_BYTES) {
+    throw new Error(`${file.name} is larger than ${formatBytes(MAX_FILE_BYTES)}`)
+  }
+
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  const cid = await fs.addBytes(bytes)
+
+  await chatStream.send(envelope({
+    kind: 'file',
+    cid: cid.toString(),
+    name: file.name,
+    size: bytes.byteLength,
+    mime: file.type || 'application/octet-stream'
+  }))
+
+  appendLog(`Sent ${file.name} (${formatBytes(bytes.byteLength)}) as ${cid}`)
+
+  return cid.toString()
+}
+
+/**
+ * Pull an announced file out of the other peer's blockstore and offer it as a
+ * download. Nothing here mentions WebRTC - bitswap just uses the only libp2p
+ * connection this node has.
+ */
+async function receiveFile (announcement) {
+  const chunks = []
+
+  for await (const chunk of fs.cat(announcement.cid, {
+    session: false,
+    signal: AbortSignal.timeout(CONNECTION_TIMEOUT)
+  })) {
+    chunks.push(chunk)
+  }
+
+  const bytes = new Uint8Array(chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0))
+  let offset = 0
+
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+
+  renderReceivedFile(announcement, bytes)
+  testState.receivedFiles.push({
+    cid: announcement.cid,
+    name: announcement.name,
+    size: bytes.byteLength
+  })
+  appendLog(`Fetched ${announcement.name} (${formatBytes(bytes.byteLength)}) over bitswap`)
+
+  return bytes
+}
+
+function renderReceivedFile (announcement, bytes) {
+  const url = URL.createObjectURL(new Blob([bytes], { type: announcement.mime }))
+  const row = document.createElement('div')
+  row.className = 'received-file'
+
+  const link = document.createElement('a')
+  link.href = url
+  link.download = announcement.name
+  link.textContent = announcement.name
+  link.dataset.cid = announcement.cid
+
+  const meta = document.createElement('span')
+  meta.className = 'received-file-meta'
+  meta.textContent = `${formatBytes(bytes.byteLength)} · ${announcement.cid}`
+
+  row.append(link, meta)
+  receivedFilesEl.appendChild(row)
+}
+
+async function sendFiles (files) {
+  for (const file of files) {
+    try {
+      await sendFile(file)
+    } catch (error) {
+      appendLog(`Could not send ${file.name}: ${error.message}`)
+    }
+  }
 }
 
 async function renderPayload (text) {
@@ -734,6 +896,55 @@ sendButton.addEventListener('click', async () => {
   }
 })
 
+// Drag and drop, with the whole zone as a click target for keyboard and mobile.
+;['dragenter', 'dragover'].forEach(name => {
+  dropZone.addEventListener(name, event => {
+    event.preventDefault()
+
+    if (chatStream != null) {
+      dropZone.classList.add('is-hovered')
+    }
+  })
+})
+
+;['dragleave', 'drop'].forEach(name => {
+  dropZone.addEventListener(name, event => {
+    event.preventDefault()
+    dropZone.classList.remove('is-hovered')
+  })
+})
+
+dropZone.addEventListener('drop', event => {
+  const files = [...(event.dataTransfer?.files ?? [])]
+
+  if (files.length > 0) {
+    sendFiles(files)
+  }
+})
+
+dropZone.addEventListener('click', () => {
+  if (chatStream != null) {
+    fileInput.click()
+  }
+})
+
+dropZone.addEventListener('keydown', event => {
+  if ((event.key === 'Enter' || event.key === ' ') && chatStream != null) {
+    event.preventDefault()
+    fileInput.click()
+  }
+})
+
+fileInput.addEventListener('change', () => {
+  const files = [...fileInput.files]
+
+  if (files.length > 0) {
+    sendFiles(files).finally(() => {
+      fileInput.value = ''
+    })
+  }
+})
+
 window.addEventListener('beforeunload', () => {
   stopQrScanner()
   currentOfferSession?.peerConnection.close()
@@ -767,6 +978,18 @@ window.__libp2pQrTest = {
     })?.data ?? null
   },
   sendMessage,
+  sendFile: async (name, text, mime = 'text/plain') =>
+    sendFile(new File([fromString(text)], name, { type: mime })),
+  getReceivedFiles: () => [...testState.receivedFiles],
+  readReceivedFile: async cid => {
+    const link = receivedFilesEl.querySelector(`a[data-cid="${cid}"]`)
+
+    if (link == null) {
+      return null
+    }
+
+    return (await fetch(link.href)).text()
+  },
   getLastReceivedMessage: () => testState.lastReceivedMessage,
   getReceivedMessages: () => [...testState.receivedMessages],
   getConnections: () => node?.getConnections().length ?? 0,

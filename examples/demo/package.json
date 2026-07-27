@@ -14,11 +14,15 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@helia/bitswap": "^4.0.6",
+    "@helia/libp2p": "^1.0.6",
+    "@helia/unixfs": "^8.0.4",
     "@le-space/libp2p-webrtc-qr": "workspace:*",
     "@libp2p/identify": "^4.1.11",
     "@libp2p/peer-id": "^6.0.13",
     "@libp2p/ping": "^3.1.10",
     "@multiformats/multiaddr": "^13.0.3",
+    "helia": "^7.1.1",
     "jsqr": "^1.4.0",
     "libp2p": "^3.3.7",
     "qrcode": "^1.5.1",

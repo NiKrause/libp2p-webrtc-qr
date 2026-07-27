@@ -469,3 +469,81 @@ input[type='text']:focus {
     display: none;
   }
 }
+
+/* ---------- file transfer ---------- */
+
+.drop-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  text-align: center;
+  padding: 26px 18px;
+  border: 1px dashed var(--ls-bg-3);
+  border-radius: var(--ls-radius-sm);
+  background: var(--ls-bg-1);
+  color: var(--ls-text-dim);
+  font-size: 0.86rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.drop-zone strong {
+  color: var(--ls-text);
+  font-size: 0.95rem;
+}
+
+.drop-zone span {
+  max-width: 46ch;
+  color: var(--ls-text-faint);
+  font-size: 0.8rem;
+}
+
+.drop-zone:hover:not(.is-disabled),
+.drop-zone:focus-visible {
+  outline: none;
+  border-color: var(--ls-accent);
+  background: var(--ls-card-hover);
+}
+
+.drop-zone.is-hovered {
+  border-color: var(--ls-red);
+  border-style: solid;
+  background: rgba(255, 107, 91, 0.08);
+  box-shadow: var(--ls-glow-red);
+}
+
+.drop-zone.is-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.received-files:empty::after {
+  content: 'Nothing received yet.';
+  color: var(--ls-text-faint);
+  font-size: 0.82rem;
+}
+
+.received-file {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  border: 1px solid var(--ls-bg-3);
+  border-left: 2px solid var(--ls-green);
+  border-radius: 0 var(--ls-radius-sm) var(--ls-radius-sm) 0;
+  background: var(--ls-bg-1);
+  margin-bottom: 8px;
+}
+
+.received-file a {
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.received-file-meta {
+  font-family: var(--ls-font-mono);
+  font-size: 0.72rem;
+  color: var(--ls-text-faint);
+  overflow-wrap: anywhere;
+}

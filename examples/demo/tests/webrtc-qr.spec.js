@@ -8,6 +8,27 @@ async function openPeer (page, errors) {
   await expect(page.locator('#status')).toContainText('Browser client started')
 }
 
+async function connectPeers (offerer, answerer) {
+  await offerer.locator('#create-offer').click()
+  await expect(offerer.locator('#qr-image')).toBeVisible()
+  const offerPayload = await offerer.locator('#payload-display').inputValue()
+
+  await answerer.locator('#payload-display').fill(offerPayload)
+  await answerer.locator('#process-payload').click()
+  await expect(answerer.locator('#status')).toContainText('Answer created')
+  const answerPayload = await answerer.locator('#payload-display').inputValue()
+
+  await offerer.locator('#payload-display').fill(answerPayload)
+  await offerer.locator('#process-payload').click()
+  await expect(offerer.locator('#status')).toContainText('Connected')
+
+  for (const page of [offerer, answerer]) {
+    await expect.poll(() => page.evaluate(() => window.__libp2pQrTest.getConnections()), {
+      timeout: 20000
+    }).toBe(1)
+  }
+}
+
 async function sendAndExpect (sender, receiver, message) {
   await sender.evaluate(async value => {
     await window.__libp2pQrTest.sendMessage(value)
@@ -65,6 +86,48 @@ test.describe('signed QR WebRTC signaling', () => {
     } finally {
       await offerer.close()
       await answerer.close()
+    }
+  })
+
+  test('transfers a dropped file over bitswap and offers it as a download', async ({ browser }) => {
+    const sender = await browser.newPage()
+    const receiver = await browser.newPage()
+    const pageErrors = []
+    const CONTENT = 'these bytes were pulled over bitswap, not over a gateway'
+
+    try {
+      await openPeer(sender, pageErrors)
+      await openPeer(receiver, pageErrors)
+      await connectPeers(sender, receiver)
+
+      // Only the sender holds the block. The receiver has no routers and no
+      // gateways configured, so bitswap over the QR connection is the only way
+      // these bytes can arrive.
+      const cid = await sender.evaluate(text => {
+        return window.__libp2pQrTest.sendFile('notes.txt', text)
+      }, CONTENT)
+      expect(cid).toMatch(/^bafk|^bafy|^Qm/)
+
+      await expect.poll(async () => {
+        return receiver.evaluate(() => window.__libp2pQrTest.getReceivedFiles().length)
+      }, { timeout: 30000 }).toBe(1)
+
+      const received = await receiver.evaluate(() => window.__libp2pQrTest.getReceivedFiles()[0])
+      expect(received.cid).toBe(cid)
+      expect(received.name).toBe('notes.txt')
+
+      // The download link has to hand back the exact bytes, not just exist.
+      const downloaded = await receiver.evaluate(value => {
+        return window.__libp2pQrTest.readReceivedFile(value)
+      }, cid)
+      expect(downloaded).toBe(CONTENT)
+
+      await expect(receiver.locator(`#received-files a[data-cid="${cid}"]`)).toHaveAttribute('download', 'notes.txt')
+
+      expect(pageErrors).toEqual([])
+    } finally {
+      await sender.close()
+      await receiver.close()
     }
   })
 
