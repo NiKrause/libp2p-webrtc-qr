@@ -45,19 +45,24 @@ jobs:
         id: qr-e2e
         run: pnpm --filter @le-space/libp2p-webrtc-qr-demo test
 
+      - name: Run Helia file transfer E2E
+        id: helia-e2e
+        run: pnpm --filter @le-space/libp2p-webrtc-qr-helia-example test
+
       - name: Summarize E2E
         if: always()
         env:
           E2E_OUTCOME: ${{ steps.qr-e2e.outcome }}
           UNIT_OUTCOME: ${{ steps.qr-unit.outcome }}
+          HELIA_OUTCOME: ${{ steps.helia-e2e.outcome }}
         run: |
           {
             echo '## Signed QR WebRTC signaling tests'
             echo
-            if [ "${E2E_OUTCOME}" = 'success' ] && [ "${UNIT_OUTCOME}" = 'success' ]; then
+            if [ "${E2E_OUTCOME}" = 'success' ] && [ "${UNIT_OUTCOME}" = 'success' ] && [ "${HELIA_OUTCOME}" = 'success' ]; then
               echo '**Result:** ✅ passed'
             else
-              echo "**Result:** ❌ unit ${UNIT_OUTCOME}, e2e ${E2E_OUTCOME}"
+              echo "**Result:** ❌ unit ${UNIT_OUTCOME}, e2e ${E2E_OUTCOME}, helia ${HELIA_OUTCOME}"
             fi
             echo
             echo '| Verified behavior | Result |'
@@ -68,6 +73,7 @@ jobs:
             echo "| Chat messages transfer in both directions over a libp2p protocol stream | ${E2E_OUTCOME} |"
             echo "| A tampered signed offer is rejected as an invalid signature | ${E2E_OUTCOME} |"
             echo "| A peer refuses to dial itself with its own offer | ${E2E_OUTCOME} |"
+            echo "| Two Helia nodes transfer a file over the QR-negotiated connection, bitswap only | ${HELIA_OUTCOME} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
   build-and-deploy:

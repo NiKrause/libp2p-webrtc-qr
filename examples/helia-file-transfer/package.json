@@ -1,0 +1,32 @@
+{
+  "name": "@le-space/libp2p-webrtc-qr-helia-example",
+  "version": "0.1.0",
+  "description": "Two Helia nodes transferring a file over a QR-negotiated libp2p WebRTC connection",
+  "type": "module",
+  "private": true,
+  "license": "Apache-2.0 OR MIT",
+  "scripts": {
+    "start": "vite",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "playwright test",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@helia/bitswap": "^4.0.6",
+    "@helia/libp2p": "^1.0.6",
+    "@helia/unixfs": "^8.0.4",
+    "@le-space/libp2p-webrtc-qr": "workspace:*",
+    "@libp2p/identify": "^4.1.11",
+    "@libp2p/peer-id": "^6.0.13",
+    "@multiformats/multiaddr": "^13.0.3",
+    "helia": "^7.1.1",
+    "libp2p": "^3.3.7",
+    "uint8arrays": "^6.1.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1",
+    "vite": "^6.2.5"
+  }
+}

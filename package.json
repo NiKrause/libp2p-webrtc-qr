@@ -11,10 +11,13 @@
   },
   "scripts": {
     "build": "pnpm --filter @le-space/libp2p-webrtc-qr-demo build",
+    "build:helia": "pnpm --filter @le-space/libp2p-webrtc-qr-helia-example build",
     "start": "pnpm --filter @le-space/libp2p-webrtc-qr-demo start",
-    "test": "pnpm --filter @le-space/libp2p-webrtc-qr test && pnpm --filter @le-space/libp2p-webrtc-qr-demo test",
+    "start:helia": "pnpm --filter @le-space/libp2p-webrtc-qr-helia-example start",
+    "test": "pnpm test:unit && pnpm test:e2e && pnpm test:helia",
     "test:unit": "pnpm --filter @le-space/libp2p-webrtc-qr test",
     "test:e2e": "pnpm --filter @le-space/libp2p-webrtc-qr-demo test",
+    "test:helia": "pnpm --filter @le-space/libp2p-webrtc-qr-helia-example test",
     "vendor:sync": "node scripts/vendor-sync.mjs"
   },
   "devDependencies": {

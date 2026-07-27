@@ -10,6 +10,7 @@ compressed QR codes that one phone scans off another screen.
 | --- | --- |
 | [`packages/webrtc-qr`](packages/webrtc-qr) | `@le-space/libp2p-webrtc-qr` - the transport and the signed payload codec |
 | [`examples/demo`](examples/demo) | Browser demo: QR camera scanning, copy/paste fallback, chat over a libp2p stream |
+| [`examples/helia-file-transfer`](examples/helia-file-transfer) | Two Helia (IPFS) nodes transferring a file over the QR-negotiated connection, bitswap only |
 
 ## How it works
 
@@ -40,7 +41,7 @@ Browser A                             Browser B
 ```bash
 pnpm install
 pnpm start   # demo on http://localhost:5173
-pnpm test    # Playwright e2e: two real browser peers
+pnpm test    # unit + both e2e suites
 ```
 
 ## Status and known limits
