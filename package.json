@@ -1,0 +1,22 @@
+{
+  "name": "libp2p-webrtc-qr-monorepo",
+  "version": "0.1.0",
+  "description": "Relay-free libp2p WebRTC connections signalled over QR codes",
+  "type": "module",
+  "private": true,
+  "license": "Apache-2.0 OR MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NiKrause/libp2p-webrtc-qr.git"
+  },
+  "scripts": {
+    "build": "pnpm --filter @le-space/libp2p-webrtc-qr-demo build",
+    "start": "pnpm --filter @le-space/libp2p-webrtc-qr-demo start",
+    "test": "pnpm --filter @le-space/libp2p-webrtc-qr-demo test",
+    "vendor:sync": "node scripts/vendor-sync.mjs"
+  },
+  "devDependencies": {
+    "@libp2p/webrtc": "5.2.24",
+    "@playwright/test": "1.61.1"
+  }
+}

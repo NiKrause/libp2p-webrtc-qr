@@ -1,0 +1,31 @@
+{
+  "name": "@le-space/libp2p-webrtc-qr-demo",
+  "version": "0.1.0",
+  "description": "Browser demo for signed QR WebRTC signaling between two libp2p peers",
+  "type": "module",
+  "private": true,
+  "license": "Apache-2.0 OR MIT",
+  "scripts": {
+    "start": "vite",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "playwright test",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@le-space/libp2p-webrtc-qr": "workspace:*",
+    "@libp2p/identify": "^3.0.27",
+    "@libp2p/ping": "^2.0.27",
+    "@multiformats/multiaddr": "^12.4.0",
+    "it-byte-stream": "^1.1.1",
+    "jsqr": "^1.4.0",
+    "libp2p": "^2.8.2",
+    "qrcode": "^1.5.1",
+    "uint8arrays": "^5.1.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1",
+    "vite": "^6.2.5"
+  }
+}

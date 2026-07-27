@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>libp2p WebRTC QR</title>
+  </head>
+  <body>
+    <main>
+      <h1>libp2p WebRTC QR</h1>
+      <p>Connect two browsers directly by exchanging signed WebRTC offer and answer QR codes.</p>
+
+      <section>
+        <h2>1. Start browser peer</h2>
+        <button id="start-client">Start client</button>
+        <p><strong>Peer ID:</strong> <span id="peer-id">not started</span></p>
+      </section>
+
+      <section>
+        <h2>2. Exchange QR payloads</h2>
+        <p><strong>Browser A:</strong> create an offer. <strong>Browser B:</strong> scan A's offer and show the generated answer. <strong>Browser A:</strong> scan B's answer. Do not process a browser's own QR code.</p>
+        <button id="create-offer" disabled>Create offer QR</button>
+        <button id="scan-offer" disabled>Scan offer QR</button>
+        <button id="scan-answer" disabled>Scan answer QR</button>
+        <div>
+          <label for="payload-display">QR payload or copy/paste fallback</label><br />
+          <textarea id="payload-display" rows="8" cols="72" placeholder="A generated payload appears here. You can also paste a payload from the other browser."></textarea>
+        </div>
+        <button id="process-payload" disabled>Process pasted payload</button>
+        <button id="copy-payload" disabled>Copy payload</button>
+        <div id="qr-tools">
+          <img id="qr-image" alt="WebRTC signaling QR code" style="display:none; width:min(100%, 768px); margin-top:1rem; image-rendering:pixelated;" />
+          <video id="qr-video" autoplay playsinline muted style="display:none; width:100%; max-width:480px; margin-top:1rem; border:1px solid #ccc; border-radius:8px;"></video>
+          <button id="stop-scan" type="button" style="display:none;">Stop scanning</button>
+          <p id="scan-help">For reliable scanning, turn up the other screen's brightness, keep the QR code flat, and let it fill about half of the camera view.</p>
+          <div id="scan-status" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section>
+        <h2>3. Send data over libp2p</h2>
+        <div id="status" aria-live="polite">Not connected</div>
+        <label for="message">Message</label>
+        <input id="message" type="text" />
+        <button id="send" disabled>Send</button>
+        <div id="chat-log" aria-live="polite"></div>
+      </section>
+    </main>
+    <script type="module" src="./index.js"></script>
+  </body>
+</html>
