@@ -1,0 +1,471 @@
+/*
+ * Le-Space design tokens - Space theme.
+ * Mirrors packages/shared/src/tokens.css of the Le-Space landing monorepo so
+ * this standalone demo matches the brand without depending on it. Fonts are
+ * the system stack on purpose: no CDN request, so the build stays publishable
+ * to IPFS as-is.
+ */
+:root {
+  --ls-red: #ff6b5b;
+  --ls-red-bright: #ff8577;
+  --ls-accent: #58c7f3;
+  --ls-accent-2: #a78bfa;
+  --ls-green: #3edc97;
+  --ls-amber: #ffc24b;
+
+  --ls-bg-0: #0b0e15;
+  --ls-bg-1: #10141f;
+  --ls-bg-2: #141926;
+  --ls-bg-3: #232b3d;
+
+  --ls-text: #edf1f8;
+  --ls-text-dim: #a8b3c7;
+  --ls-text-faint: #5c677a;
+
+  --ls-card: rgba(255, 255, 255, 0.04);
+  --ls-card-border: rgba(255, 255, 255, 0.09);
+  --ls-card-hover: rgba(255, 255, 255, 0.08);
+
+  --ls-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --ls-font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+
+  --ls-max-width: 1120px;
+  --ls-radius: 14px;
+  --ls-radius-sm: 8px;
+
+  --ls-glow-red: 0 0 24px rgba(255, 107, 91, 0.35);
+  --ls-glow-accent: 0 0 20px rgba(88, 199, 243, 0.3);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 70% 50% at 12% -5%, rgba(255, 107, 91, 0.13), transparent 60%),
+    radial-gradient(ellipse 60% 45% at 92% 8%, rgba(88, 199, 243, 0.11), transparent 62%),
+    var(--ls-bg-0);
+  color: var(--ls-text);
+  font-family: var(--ls-font);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 {
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+a {
+  color: var(--ls-accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+code {
+  font-family: var(--ls-font-mono);
+  font-size: 0.92em;
+  color: var(--ls-accent);
+}
+
+/* ---------- nav ---------- */
+
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(11, 14, 21, 0.82);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--ls-card-border);
+}
+
+.nav-inner {
+  max-width: var(--ls-max-width);
+  margin: 0 auto;
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  color: var(--ls-text);
+}
+
+.brand:hover {
+  text-decoration: none;
+}
+
+.brand svg {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 12px rgba(255, 107, 91, 0.4));
+}
+
+.brand-name {
+  font-family: var(--ls-font-mono);
+  font-size: 1.02rem;
+  letter-spacing: 0.01em;
+}
+
+.brand-tag {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--ls-text-faint);
+  letter-spacing: 0.04em;
+}
+
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border: 1px solid var(--ls-card-border);
+  border-radius: 999px;
+  color: var(--ls-text-dim);
+  font-size: 0.86rem;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.nav-link:hover {
+  text-decoration: none;
+  color: var(--ls-text);
+  border-color: var(--ls-accent);
+  background: var(--ls-card);
+}
+
+.nav-link svg {
+  width: 17px;
+  height: 17px;
+}
+
+/* ---------- layout ---------- */
+
+main {
+  max-width: var(--ls-max-width);
+  margin: 0 auto;
+  padding: 48px 24px 96px;
+}
+
+.intro {
+  max-width: 660px;
+  margin-bottom: 44px;
+}
+
+.intro h1 {
+  font-size: clamp(1.9rem, 4.6vw, 2.9rem);
+  margin: 0 0 14px;
+}
+
+.intro p {
+  color: var(--ls-text-dim);
+  margin: 0;
+}
+
+/* One column, so the cards read in the order the steps happen. */
+.steps {
+  display: grid;
+  gap: 20px;
+  max-width: 820px;
+}
+
+.card {
+  background: var(--ls-card);
+  border: 1px solid var(--ls-card-border);
+  border-radius: var(--ls-radius);
+  padding: 24px;
+}
+
+.card h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.06rem;
+  margin: 0 0 6px;
+}
+
+.step-no {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid var(--ls-accent);
+  color: var(--ls-accent);
+  font-family: var(--ls-font-mono);
+  font-size: 0.8rem;
+}
+
+.hint {
+  color: var(--ls-text-dim);
+  font-size: 0.88rem;
+  margin: 0 0 18px;
+}
+
+/* ---------- controls ---------- */
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+button {
+  font-family: inherit;
+  font-size: 0.9rem;
+  padding: 9px 18px;
+  border-radius: var(--ls-radius-sm);
+  border: 1px solid var(--ls-card-border);
+  background: var(--ls-card);
+  color: var(--ls-text);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, opacity 0.15s;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--ls-accent);
+  background: var(--ls-card-hover);
+}
+
+button:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+button.primary {
+  border-color: transparent;
+  background: var(--ls-red);
+  color: #1a0f0d;
+  font-weight: 600;
+}
+
+button.primary:hover:not(:disabled) {
+  background: var(--ls-red-bright);
+  border-color: transparent;
+  box-shadow: var(--ls-glow-red);
+}
+
+label {
+  display: block;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ls-text-faint);
+  margin-bottom: 7px;
+}
+
+textarea,
+input[type='text'] {
+  width: 100%;
+  font-family: var(--ls-font-mono);
+  font-size: 0.82rem;
+  color: var(--ls-text);
+  background: var(--ls-bg-1);
+  border: 1px solid var(--ls-bg-3);
+  border-radius: var(--ls-radius-sm);
+  padding: 12px 14px;
+  resize: vertical;
+}
+
+input[type='text'] {
+  font-size: 0.9rem;
+}
+
+textarea:focus,
+input[type='text']:focus {
+  outline: none;
+  border-color: var(--ls-accent);
+  box-shadow: var(--ls-glow-accent);
+}
+
+.field {
+  margin-bottom: 14px;
+}
+
+.send-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.send-row .field {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+/* ---------- peer id + status ---------- */
+
+.peer {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.peer-label {
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ls-text-faint);
+}
+
+#peer-id {
+  font-family: var(--ls-font-mono);
+  font-size: 0.78rem;
+  color: var(--ls-green);
+  overflow-wrap: anywhere;
+}
+
+.status {
+  --dot: var(--ls-amber);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 0.88rem;
+  color: var(--ls-text-dim);
+  background: var(--ls-bg-1);
+  border: 1px solid var(--ls-bg-3);
+  border-radius: 999px;
+  padding: 8px 16px;
+  margin-bottom: 16px;
+}
+
+.status::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--dot);
+  box-shadow: 0 0 10px var(--dot);
+}
+
+.status.is-live {
+  --dot: var(--ls-green);
+  border-color: rgba(62, 220, 151, 0.4);
+}
+
+.status.is-error {
+  --dot: var(--ls-red);
+  border-color: rgba(255, 107, 91, 0.4);
+}
+
+/* ---------- QR ---------- */
+
+.qr-stage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: flex-start;
+  margin-top: 20px;
+}
+
+/* QR codes are scanned off this screen, so the code keeps its own white
+   surface and quiet zone regardless of the surrounding dark theme. */
+#qr-image {
+  width: min(100%, 340px);
+  background: #fff;
+  border-radius: var(--ls-radius-sm);
+  padding: 10px;
+  image-rendering: pixelated;
+}
+
+#qr-video {
+  width: min(100%, 340px);
+  border: 1px solid var(--ls-bg-3);
+  border-radius: var(--ls-radius-sm);
+  background: var(--ls-bg-1);
+}
+
+.scan-side {
+  flex: 1;
+  min-width: 240px;
+}
+
+#scan-status:not(:empty) {
+  display: block;
+  font-size: 0.84rem;
+  color: var(--ls-accent);
+  background: rgba(88, 199, 243, 0.08);
+  border-left: 2px solid var(--ls-accent);
+  border-radius: 0 var(--ls-radius-sm) var(--ls-radius-sm) 0;
+  padding: 10px 14px;
+  margin-top: 12px;
+}
+
+.scan-help {
+  font-size: 0.82rem;
+  color: var(--ls-text-faint);
+  margin: 12px 0 0;
+}
+
+/* ---------- chat ---------- */
+
+#chat-log {
+  font-family: var(--ls-font-mono);
+  font-size: 0.78rem;
+  color: var(--ls-text-dim);
+  background: var(--ls-bg-1);
+  border: 1px solid var(--ls-bg-3);
+  border-radius: var(--ls-radius-sm);
+  padding: 14px;
+  margin-top: 16px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+#chat-log:empty::after {
+  content: 'No activity yet.';
+  color: var(--ls-text-faint);
+}
+
+#chat-log > div {
+  padding: 2px 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- footer ---------- */
+
+.page-footer {
+  max-width: var(--ls-max-width);
+  margin: 0 auto;
+  padding: 0 24px 48px;
+  color: var(--ls-text-faint);
+  font-size: 0.84rem;
+}
+
+.page-footer p {
+  margin: 0;
+}
+
+@media (max-width: 560px) {
+  main {
+    padding: 32px 18px 64px;
+  }
+
+  .nav-inner {
+    padding: 10px 18px;
+  }
+
+  .card {
+    padding: 18px;
+  }
+
+  .nav-link span {
+    display: none;
+  }
+}

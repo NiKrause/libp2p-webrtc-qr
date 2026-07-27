@@ -3,49 +3,126 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>libp2p WebRTC QR</title>
+    <meta name="theme-color" content="#0B0E15" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <title>libp2p WebRTC over QR — Le-Space</title>
+    <meta name="description" content="Connect two browsers directly as libp2p peers by scanning a signed WebRTC handshake as a QR code. No relay, no signaling server." />
+    <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
+    <nav class="nav">
+      <div class="nav-inner">
+        <a class="brand" href="https://local-first.le-space.de" target="_blank" rel="noopener noreferrer">
+          <!-- Le-Space mark "Der erste Knoten": coral local node, cyan peers, dashed sync links -->
+          <svg viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Le-Space">
+            <line x1="42.7" y1="49.96" x2="58.56" y2="34.94" stroke="#58C7F3" stroke-width="4" stroke-linecap="round" />
+            <line x1="47.43" y1="63.58" x2="62.8" y2="64.98" stroke="#58C7F3" stroke-width="4" stroke-linecap="round" stroke-dasharray="0.1 8" />
+            <line x1="69.85" y1="38.36" x2="72.41" y2="55.37" stroke="#58C7F3" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="0.1 6" opacity="0.65" />
+            <circle cx="30" cy="62" r="15" fill="#FF6B5B" />
+            <circle cx="68" cy="26" r="8" fill="none" stroke="#58C7F3" stroke-width="5" />
+            <circle cx="74" cy="66" r="6.5" fill="none" stroke="#58C7F3" stroke-width="4.5" />
+            <circle cx="17" cy="21" r="2.6" fill="#58C7F3" opacity="0.55" />
+          </svg>
+          <span class="brand-name">
+            Le-Space
+            <span class="brand-tag">WebRTC over QR</span>
+          </span>
+        </a>
+
+        <a class="nav-link" href="https://github.com/NiKrause/libp2p-webrtc-qr" target="_blank" rel="noopener noreferrer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5a11 11 0 0 0-6 0C8 2 7 2 7 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 6 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
+            <path d="M9 18c-4.51 2-5-2-7-2" />
+          </svg>
+          <span>GitHub</span>
+        </a>
+      </div>
+    </nav>
+
     <main>
-      <h1>libp2p WebRTC QR</h1>
-      <p>Connect two browsers directly by exchanging signed WebRTC offer and answer QR codes.</p>
+      <div class="intro">
+        <h1>libp2p WebRTC over QR</h1>
+        <p>
+          Two browsers connect directly as libp2p peers — no relay, no signaling server. The WebRTC
+          offer and answer travel out-of-band as signed QR codes: one device scans the code off the
+          other screen.
+        </p>
+      </div>
 
-      <section>
-        <h2>1. Start browser peer</h2>
-        <button id="start-client">Start client</button>
-        <p><strong>Peer ID:</strong> <span id="peer-id">not started</span></p>
-      </section>
+      <div class="steps">
+        <section class="card">
+          <h2><span class="step-no">1</span> Start browser peer</h2>
+          <p class="hint">Creates a libp2p node with a fresh key pair. Its Peer ID signs every payload you show.</p>
+          <div class="actions">
+            <button id="start-client" class="primary">Start client</button>
+          </div>
+          <div class="peer">
+            <span class="peer-label">Peer ID</span>
+            <span id="peer-id">not started</span>
+          </div>
+        </section>
 
-      <section>
-        <h2>2. Exchange QR payloads</h2>
-        <p><strong>Browser A:</strong> create an offer. <strong>Browser B:</strong> scan A's offer and show the generated answer. <strong>Browser A:</strong> scan B's answer. Do not process a browser's own QR code.</p>
-        <button id="create-offer" disabled>Create offer QR</button>
-        <button id="scan-offer" disabled>Scan offer QR</button>
-        <button id="scan-answer" disabled>Scan answer QR</button>
-        <div>
-          <label for="payload-display">QR payload or copy/paste fallback</label><br />
-          <textarea id="payload-display" rows="8" cols="72" placeholder="A generated payload appears here. You can also paste a payload from the other browser."></textarea>
-        </div>
-        <button id="process-payload" disabled>Process pasted payload</button>
-        <button id="copy-payload" disabled>Copy payload</button>
-        <div id="qr-tools">
-          <img id="qr-image" alt="WebRTC signaling QR code" style="display:none; width:min(100%, 768px); margin-top:1rem; image-rendering:pixelated;" />
-          <video id="qr-video" autoplay playsinline muted style="display:none; width:100%; max-width:480px; margin-top:1rem; border:1px solid #ccc; border-radius:8px;"></video>
-          <button id="stop-scan" type="button" style="display:none;">Stop scanning</button>
-          <p id="scan-help">For reliable scanning, turn up the other screen's brightness, keep the QR code flat, and let it fill about half of the camera view.</p>
-          <div id="scan-status" aria-live="polite"></div>
-        </div>
-      </section>
+        <section class="card">
+          <h2><span class="step-no">2</span> Exchange QR payloads</h2>
+          <p class="hint">
+            <strong>Browser A:</strong> create an offer. <strong>Browser B:</strong> scan A's offer and show the
+            generated answer. <strong>Browser A:</strong> scan B's answer. A browser never processes its own QR code.
+          </p>
 
-      <section>
-        <h2>3. Send data over libp2p</h2>
-        <div id="status" aria-live="polite">Not connected</div>
-        <label for="message">Message</label>
-        <input id="message" type="text" />
-        <button id="send" disabled>Send</button>
-        <div id="chat-log" aria-live="polite"></div>
-      </section>
+          <div class="actions">
+            <button id="create-offer" disabled>Create offer QR</button>
+            <button id="scan-offer" disabled>Scan offer QR</button>
+            <button id="scan-answer" disabled>Scan answer QR</button>
+          </div>
+
+          <div class="field">
+            <label for="payload-display">QR payload or copy/paste fallback</label>
+            <textarea id="payload-display" rows="6" placeholder="A generated payload appears here. You can also paste a payload from the other browser."></textarea>
+          </div>
+
+          <div class="actions">
+            <button id="process-payload" disabled>Process pasted payload</button>
+            <button id="copy-payload" disabled>Copy payload</button>
+          </div>
+
+          <div class="qr-stage">
+            <img id="qr-image" alt="WebRTC signaling QR code" style="display:none;" />
+            <div class="scan-side">
+              <video id="qr-video" autoplay playsinline muted style="display:none;"></video>
+              <button id="stop-scan" type="button" style="display:none;">Stop scanning</button>
+              <p class="scan-help">
+                For reliable scanning, turn up the other screen's brightness, keep the QR code flat, and let it
+                fill about half of the camera view.
+              </p>
+              <div id="scan-status" aria-live="polite"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2><span class="step-no">3</span> Send data over libp2p</h2>
+          <p class="hint">Once the handshake completes, messages travel over a libp2p protocol stream on the WebRTC data channel.</p>
+          <div id="status" class="status" aria-live="polite">Not connected</div>
+          <div class="send-row">
+            <div class="field">
+              <label for="message">Message</label>
+              <input id="message" type="text" placeholder="Type a message…" />
+            </div>
+            <button id="send" disabled>Send</button>
+          </div>
+          <div id="chat-log" aria-live="polite"></div>
+        </section>
+      </div>
     </main>
+
+    <footer class="page-footer">
+      <p>
+        Le-Space ·
+        <a href="https://github.com/NiKrause/libp2p-webrtc-qr" target="_blank" rel="noopener noreferrer">Source</a> ·
+        <a href="https://local-first.le-space.de" target="_blank" rel="noopener noreferrer">local-first.le-space.de</a>
+      </p>
+    </footer>
+
     <script type="module" src="./index.js"></script>
   </body>
 </html>

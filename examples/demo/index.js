@@ -73,10 +73,15 @@ function appendLog (text) {
   const line = document.createElement('div')
   line.textContent = text
   chatLogEl.appendChild(line)
+  chatLogEl.scrollTop = chatLogEl.scrollHeight
 }
 
 function setStatus (text) {
   statusEl.textContent = text
+  // Colour the status dot from the message itself, so every existing call site
+  // keeps working and the text the e2e suite asserts on stays untouched.
+  statusEl.classList.toggle('is-live', /connected to |webrtc connected/i.test(text))
+  statusEl.classList.toggle('is-error', /failed|timed out|cancelled/i.test(text))
 }
 
 function getRtcConfiguration () {
