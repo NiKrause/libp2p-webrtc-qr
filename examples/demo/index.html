@@ -101,7 +101,11 @@
 
         <section class="card">
           <h2><span class="step-no">3</span> Send data over libp2p</h2>
-          <p class="hint">Once the handshake completes, messages travel over a libp2p protocol stream on the WebRTC data channel.</p>
+          <p class="hint">
+            Once the handshake completes, messages travel over a libp2p protocol stream on the WebRTC data
+            channel. Files go through Helia: the sender adds the bytes and announces the CID, the receiver
+            pulls them with bitswap over the same connection.
+          </p>
           <div id="status" class="status" aria-live="polite">Not connected</div>
           <div class="send-row">
             <div class="field">
@@ -110,6 +114,21 @@
             </div>
             <button id="send" disabled>Send</button>
           </div>
+
+          <div class="field">
+            <label for="drop-zone">Send a file</label>
+            <div id="drop-zone" class="drop-zone is-disabled" role="button" tabindex="0" aria-disabled="true">
+              <strong>Drop a file here</strong>
+              <span>or click to choose one — it is added to Helia and its CID is sent over the chat stream</span>
+            </div>
+            <input id="file-input" type="file" multiple hidden />
+          </div>
+
+          <div class="field">
+            <label>Received files</label>
+            <div id="received-files" class="received-files"></div>
+          </div>
+
           <div id="chat-log" aria-live="polite"></div>
         </section>
       </div>
