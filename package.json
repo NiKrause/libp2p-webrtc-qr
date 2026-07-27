@@ -12,7 +12,9 @@
   "scripts": {
     "build": "pnpm --filter @le-space/libp2p-webrtc-qr-demo build",
     "start": "pnpm --filter @le-space/libp2p-webrtc-qr-demo start",
-    "test": "pnpm --filter @le-space/libp2p-webrtc-qr-demo test",
+    "test": "pnpm --filter @le-space/libp2p-webrtc-qr test && pnpm --filter @le-space/libp2p-webrtc-qr-demo test",
+    "test:unit": "pnpm --filter @le-space/libp2p-webrtc-qr test",
+    "test:e2e": "pnpm --filter @le-space/libp2p-webrtc-qr-demo test",
     "vendor:sync": "node scripts/vendor-sync.mjs"
   },
   "devDependencies": {

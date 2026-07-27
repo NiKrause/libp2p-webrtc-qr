@@ -28,6 +28,12 @@
     "src"
   ],
   "sideEffects": false,
+  "scripts": {
+    "test": "node --test test/signaling.test.js"
+  },
+  "devDependencies": {
+    "@libp2p/crypto": "^5.1.8"
+  },
   "dependencies": {
     "@libp2p/interface": "^2.11.0",
     "@libp2p/peer-id": "^5.1.9",

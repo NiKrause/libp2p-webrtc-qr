@@ -105,6 +105,10 @@ importers:
       uint8arrays:
         specifier: ^5.1.0
         version: 5.1.1
+    devDependencies:
+      '@libp2p/crypto':
+        specifier: ^5.1.8
+        version: 5.1.21
 
 packages:
 

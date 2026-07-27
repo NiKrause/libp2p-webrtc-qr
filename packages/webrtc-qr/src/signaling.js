@@ -52,8 +52,12 @@ export async function compress (json) {
     .stream()
     .pipeThrough(new CompressionStream('deflate'))
   const compressed = new Uint8Array(await new Response(stream).arrayBuffer())
+  const packed = `${COMPRESSED_PREFIX}${toString(compressed, 'base64url')}`
 
-  return `${COMPRESSED_PREFIX}${toString(compressed, 'base64url')}`
+  // base64url costs 4 characters per 3 bytes, so deflate only pays off once the
+  // payload is big enough to squeeze. Below that the "compressed" form is the
+  // longer one - send whichever is actually shorter. decompress() accepts both.
+  return packed.length < json.length ? packed : json
 }
 
 export async function decompress (text) {
