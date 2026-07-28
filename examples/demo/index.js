@@ -76,7 +76,8 @@ const inboundPeerConnections = new Set()
 const testState = {
   lastReceivedMessage: null,
   receivedMessages: [],
-  receivedFiles: []
+  receivedFiles: [],
+  busyObserved: new Set()
 }
 
 function appendLog (text) {
@@ -84,6 +85,34 @@ function appendLog (text) {
   line.textContent = text
   chatLogEl.appendChild(line)
   chatLogEl.scrollTop = chatLogEl.scrollHeight
+}
+
+/**
+ * Put a button into a pending state: it keeps its width, shows a spinner and
+ * announces itself as busy. `updateControls()` owns `disabled` afterwards, so
+ * the busy flag is tracked separately and cleared in a `finally`.
+ */
+function setButtonBusy (button, label) {
+  if (button.dataset.idleLabel == null) {
+    button.dataset.idleLabel = button.textContent
+  }
+
+  button.style.minWidth = `${button.offsetWidth}px`
+  button.textContent = label
+  button.classList.add('is-busy')
+  button.setAttribute('aria-busy', 'true')
+  button.disabled = true
+  testState.busyObserved.add(button.id)
+}
+
+function clearButtonBusy (button) {
+  if (button.dataset.idleLabel != null) {
+    button.textContent = button.dataset.idleLabel
+  }
+
+  button.style.minWidth = ''
+  button.classList.remove('is-busy')
+  button.setAttribute('aria-busy', 'false')
 }
 
 function setStatus (text) {
@@ -605,10 +634,13 @@ async function renderPayload (text) {
     return
   }
 
+  // Rendered well above its display size: a phone at 3x DPR showing the code
+  // full-bleed asks for over 1100 device pixels, and upscaling a dense code
+  // blurs exactly the module edges a camera needs.
   qrImage.src = await QRCode.toDataURL(text, {
     errorCorrectionLevel: 'M',
     margin: 4,
-    width: 768
+    width: 1280
   })
   qrImage.style.display = 'block'
   appendLog(`QR payload size: ${text.length} characters.`)
@@ -834,15 +866,22 @@ startButton.addEventListener('click', async () => {
 })
 
 createOfferButton.addEventListener('click', async () => {
+  // Gathering ICE candidates can take seconds, and until it finishes there is
+  // nothing on screen. Without a pending state the button looks like it was
+  // never pressed, so people press it again.
+  setButtonBusy(createOfferButton, 'Creating offer…')
+
   try {
     const payload = await createOfferPayload()
     await renderPayload(payload)
     setStatus('Offer created. Show this QR to the other browser.')
     appendLog('Created a signed WebRTC offer.')
-    updateControls()
   } catch (error) {
     setStatus(`Offer failed: ${error.message}`)
     appendLog(`Offer failed: ${error.message}`)
+  } finally {
+    clearButtonBusy(createOfferButton)
+    updateControls()
   }
 })
 
@@ -981,6 +1020,7 @@ window.__libp2pQrTest = {
   sendFile: async (name, text, mime = 'text/plain') =>
     sendFile(new File([fromString(text)], name, { type: mime })),
   getReceivedFiles: () => [...testState.receivedFiles],
+  wasBusy: id => testState.busyObserved.has(id),
   readReceivedFile: async cid => {
     const link = receivedFilesEl.querySelector(`a[data-cid="${cid}"]`)
 

@@ -25,9 +25,13 @@ keeps scanning. A browser also rejects its own offer or answer before attempting
 a libp2p self-dial. The payload text area is a copy/paste fallback for desktop
 testing.
 
-For reliable camera scanning, maximize the brightness of the screen showing the
-QR code, avoid reflections, keep both devices steady and let the code fill about
-half of the camera view. The scanner uses the browser's native `BarcodeDetector`
+For reliable camera scanning, **show the code as large as the screen allows**.
+Module size is what decides whether a scan catches: a code squeezed into a
+narrow column has to be pinch-zoomed before a camera can resolve it, which is
+the single most common reason a scan fails. On phones the demo therefore renders
+the code edge to edge, breaking out of the page margins on purpose. Beyond that,
+maximize the brightness of the screen showing the code, avoid reflections, keep
+both devices steady and let the code fill about half of the camera view. The scanner uses the browser's native `BarcodeDetector`
 when available and a throttled, downscaled `jsQR` fallback elsewhere. Scan
 attempts are displayed so a stalled scan is visible instead of appearing
 unresponsive.

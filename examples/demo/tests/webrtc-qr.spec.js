@@ -131,6 +131,55 @@ test.describe('signed QR WebRTC signaling', () => {
     }
   })
 
+  test('shows a pending state while the offer is being created', async ({ browser }) => {
+    const page = await browser.newPage()
+    const pageErrors = []
+
+    try {
+      await openPeer(page, pageErrors)
+
+      const createOffer = page.locator('#create-offer')
+      await expect(createOffer).toHaveText('Create offer QR')
+
+      await createOffer.click()
+      await expect(page.locator('#qr-image')).toBeVisible()
+
+      // Gathering ICE is too fast here to catch the spinner mid-flight, so the
+      // page records that the state was entered at all. Asserting only the end
+      // state would pass even if the pending state were never shown.
+      expect(await page.evaluate(() => window.__libp2pQrTest.wasBusy('create-offer'))).toBe(true)
+
+      // ...and it has to be handed back, not left spinning.
+      await expect(createOffer).toHaveAttribute('aria-busy', 'false')
+      await expect(createOffer).toHaveText('Create offer QR')
+      await expect(createOffer).toBeEnabled()
+
+      expect(pageErrors).toEqual([])
+    } finally {
+      await page.close()
+    }
+  })
+
+  test('renders the QR code edge to edge on a phone', async ({ browser }) => {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } })
+    const pageErrors = []
+
+    try {
+      await openPeer(page, pageErrors)
+      await page.locator('#create-offer').click()
+      await expect(page.locator('#qr-image')).toBeVisible()
+
+      // Module size decides whether a scan catches. Anything much below the
+      // full viewport width is width given away to page margins.
+      const width = await page.locator('#qr-image').evaluate(img => img.clientWidth)
+      expect(width).toBe(390)
+
+      expect(pageErrors).toEqual([])
+    } finally {
+      await page.close()
+    }
+  })
+
   test('rejects a modified signed offer', async ({ browser }) => {
     const offerer = await browser.newPage()
     const answerer = await browser.newPage()

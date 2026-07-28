@@ -375,9 +375,11 @@ input[type='text']:focus {
 }
 
 /* QR codes are scanned off this screen, so the code keeps its own white
-   surface and quiet zone regardless of the surrounding dark theme. */
+   surface and quiet zone regardless of the surrounding dark theme.
+   Module size is what decides whether a scan catches, so the code is given as
+   much width as the layout allows. */
 #qr-image {
-  width: min(100%, 340px);
+  width: min(100%, 440px);
   background: #fff;
   border-radius: var(--ls-radius-sm);
   padding: 10px;
@@ -452,6 +454,41 @@ input[type='text']:focus {
   margin: 0;
 }
 
+/* ---------- pending buttons ---------- */
+
+button.is-busy {
+  position: relative;
+  padding-left: 38px;
+  /* a pending action should not look as dead as a disabled one */
+  opacity: 0.75;
+}
+
+button.is-busy::before {
+  content: '';
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin-top: -6px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: ls-spin 0.7s linear infinite;
+}
+
+@keyframes ls-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button.is-busy::before {
+    animation-duration: 2.4s;
+  }
+}
+
 @media (max-width: 560px) {
   main {
     padding: 32px 18px 64px;
@@ -467,6 +504,21 @@ input[type='text']:focus {
 
   .nav-link span {
     display: none;
+  }
+
+  /* Break the QR out of the card and page padding. On a 390px phone that is
+     316px against 390px of screen - a quarter of the available module size
+     given away to margins, for a code nobody reads but a camera. */
+  #qr-image {
+    width: 100vw;
+    max-width: none;
+    margin-left: calc(50% - 50vw);
+    padding: 8px;
+    border-radius: 0;
+  }
+
+  .qr-stage {
+    gap: 16px;
   }
 }
 
