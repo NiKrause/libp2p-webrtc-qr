@@ -69,6 +69,27 @@ rendered QR image decodes back to the exact signed payload, transfers data in
 both directions, moves a file over bitswap and checks the download link hands
 back the exact bytes, and rejects modified signed signaling payloads.
 
+## Link previews and the canonical URL
+
+The same build is served from `webrtc-qr.le-space.de` **and** from every IPFS
+gateway that resolves the CID. That is genuine duplicate content across a dozen
+hosts, so the page declares a canonical pointing at the custom domain.
+
+Open Graph and Twitter image URLs are **absolute** for the same reason: a
+crawler that found the page under `/ipfs/<cid>/` resolves a relative asset to a
+path that does not exist there, and the preview silently shows nothing.
+
+The card itself is checked in at `public/og-image.png` rather than generated
+during the build - a social image should change when someone decides it should,
+not as a side effect. Regenerate it with:
+
+```bash
+pnpm og-image
+```
+
+The QR code on the card is real and resolves to the demo, so it works even when
+someone points a phone at a screenshot of it.
+
 ## Publish to IPFS
 
 The Vite build uses relative asset URLs and can be published below an IPFS

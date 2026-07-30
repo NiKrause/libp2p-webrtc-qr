@@ -11,7 +11,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "playwright test",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "og-image": "node scripts/build-og-image.mjs"
   },
   "dependencies": {
     "@helia/bitswap": "^4.0.6",
