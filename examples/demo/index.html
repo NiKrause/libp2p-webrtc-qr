@@ -7,6 +7,32 @@
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <title>libp2p WebRTC over QR — Le-Space</title>
     <meta name="description" content="Connect two browsers directly as libp2p peers by scanning a signed WebRTC handshake as a QR code. No relay, no signaling server." />
+
+    <!--
+      The identical build is served from the custom domain and from every IPFS
+      gateway that resolves the CID, so a canonical is not boilerplate here - it
+      is what stops a dozen hosts looking like a dozen copies.
+    -->
+    <link rel="canonical" href="https://webrtc-qr.le-space.de/" />
+
+    <!--
+      Absolute URLs on purpose: crawlers resolve these from whichever gateway
+      path they found the page on, where a relative asset URL would not exist.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Le-Space" />
+    <meta property="og:url" content="https://webrtc-qr.le-space.de/" />
+    <meta property="og:title" content="libp2p WebRTC over QR" />
+    <meta property="og:description" content="Two browsers connect directly as libp2p peers by scanning a signed WebRTC handshake off each other's screen. No relay, no signaling server." />
+    <meta property="og:image" content="https://webrtc-qr.le-space.de/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="libp2p WebRTC over QR — no relay, no signaling server, scan to connect." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="libp2p WebRTC over QR" />
+    <meta name="twitter:description" content="Two browsers connect directly as libp2p peers by scanning a signed WebRTC handshake off each other's screen. No relay, no signaling server." />
+    <meta name="twitter:image" content="https://webrtc-qr.le-space.de/og-image.png" />
+
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
