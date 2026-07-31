@@ -217,6 +217,47 @@ test.describe('signed QR WebRTC signaling', () => {
     }
   })
 
+  test('a reply opened in a second tab reports back what happened', async ({ browser }) => {
+    // BroadcastChannel is per browser context, so all three pages share one.
+    const context = await browser.newContext()
+    const offerer = await context.newPage()
+    const answerer = await context.newPage()
+    const pageErrors = []
+
+    try {
+      await openPeer(offerer, pageErrors)
+      await openPeer(answerer, pageErrors)
+
+      const invite = await createInvite(offerer)
+      await useLink(answerer, invite)
+      const reply = await replyLinkOf(answerer)
+
+      // Tapping a reply link in a messenger opens a fresh tab, which can never
+      // finish the handshake itself - the pending connection lives in the tab
+      // that made the invite. It hands it over, and then has to say so, or it
+      // looks like a page where nothing happened.
+      const secondTab = await context.newPage()
+      secondTab.on('pageerror', error => pageErrors.push(error.message))
+      const url = new URL(reply)
+      url.search = '?ice=host'
+      await secondTab.goto(url.toString())
+
+      const banner = secondTab.locator('#handoff-banner')
+      await expect(banner).toBeVisible()
+      await expect(banner).toContainText('Connected in your other tab', { timeout: 30000 })
+      await expect(banner).toContainText('close this one')
+
+      // ...and the connection really is in the original tab, not this one.
+      await expect.poll(() => offerer.evaluate(() => window.__libp2pQrTest.getConnections()), {
+        timeout: 20000
+      }).toBe(1)
+
+      expect(pageErrors).toEqual([])
+    } finally {
+      await context.close()
+    }
+  })
+
   test('shows how fresh the invite is', async ({ browser }) => {
     const page = await browser.newPage()
     const pageErrors = []

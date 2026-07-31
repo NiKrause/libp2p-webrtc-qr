@@ -65,6 +65,7 @@ const inviteBoxEl = document.getElementById('invite-box')
 const inviteLinkEl = document.getElementById('invite-link')
 const inviteFreshnessEl = document.getElementById('invite-freshness')
 const createOfferAgainButton = document.getElementById('create-offer-again')
+const handoffBannerEl = document.getElementById('handoff-banner')
 
 const qrCanvas = document.createElement('canvas')
 const qrCanvasContext = qrCanvas.getContext('2d', { willReadFrequently: true })
@@ -650,6 +651,13 @@ let inviteCountdown = null
 const handoff = typeof BroadcastChannel === 'undefined'
   ? null
   : new BroadcastChannel('libp2p-webrtc-qr')
+
+function showBanner (text, state) {
+  handoffBannerEl.textContent = text
+  handoffBannerEl.className = `handoff-banner is-${state}`
+  handoffBannerEl.hidden = false
+  handoffBannerEl.scrollIntoView({ block: 'start', behavior: 'smooth' })
+}
 
 function linkFor (param, payload) {
   const url = new URL(window.location.href)
@@ -1243,6 +1251,14 @@ handoff?.addEventListener('message', async event => {
   handoff.postMessage({ kind: 'reply-taken' })
   appendLog('A reply arrived from another tab.')
   await useIncoming(payload)
+
+  // Tell the other tab how it went. Without this it waits forever on a page
+  // that, by design, does nothing else.
+  handoff.postMessage({
+    kind: 'reply-result',
+    ok: (node?.getConnections().length ?? 0) > 0,
+    message: statusEl.textContent
+  })
 })
 
 function handOffReply (payload) {
@@ -1287,7 +1303,22 @@ async function consumeLink () {
   history.replaceState(null, '', window.location.pathname + window.location.search)
 
   if (reply != null && await handOffReply(reply)) {
-    setStatus('Reply handed to the tab where you created the invite - switch back to it.')
+    setStatus('Reply handed to the tab where you created the invite.')
+    showBanner('Handed to the tab where you created the invite. Waiting for it to connect…', 'waiting')
+
+    handoff.addEventListener('message', event => {
+      if (event.data?.kind !== 'reply-result') {
+        return
+      }
+
+      showBanner(
+        event.data.ok
+          ? 'Connected in your other tab. You can close this one.'
+          : `Your other tab could not connect: ${event.data.message}`,
+        event.data.ok ? 'ok' : 'error'
+      )
+    })
+
     return
   }
 

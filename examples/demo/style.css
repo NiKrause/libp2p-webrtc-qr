@@ -672,3 +672,50 @@ button.is-busy::before {
   color: var(--ls-text-faint);
   margin: 8px 0;
 }
+
+/* ---------- handoff banner ---------- */
+
+.handoff-banner {
+  /* The nav is sticky, so scrolling this to the top would tuck it underneath. */
+  scroll-margin-top: 88px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px;
+  margin-bottom: 28px;
+  border: 1px solid var(--ls-bg-3);
+  border-left: 3px solid var(--ls-amber);
+  border-radius: var(--ls-radius-sm);
+  background: var(--ls-bg-1);
+  color: var(--ls-text);
+  font-size: 0.95rem;
+}
+
+.handoff-banner::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--ls-amber);
+  box-shadow: 0 0 12px currentColor;
+  color: var(--ls-amber);
+}
+
+.handoff-banner.is-ok {
+  border-left-color: var(--ls-green);
+}
+
+.handoff-banner.is-ok::before {
+  background: var(--ls-green);
+  color: var(--ls-green);
+}
+
+.handoff-banner.is-error {
+  border-left-color: var(--ls-red);
+}
+
+.handoff-banner.is-error::before {
+  background: var(--ls-red);
+  color: var(--ls-red);
+}

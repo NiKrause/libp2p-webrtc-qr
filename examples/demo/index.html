@@ -82,6 +82,11 @@
     </nav>
 
     <main>
+      <!-- Sits above everything: a tab that handed its reply elsewhere has
+           nothing else worth looking at, and the status line further down is
+           below the fold on a phone. -->
+      <div id="handoff-banner" class="handoff-banner" role="status" aria-live="assertive" hidden></div>
+
       <div class="intro">
         <h1>libp2p WebRTC over QR</h1>
         <p>
