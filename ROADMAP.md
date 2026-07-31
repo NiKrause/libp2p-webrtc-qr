@@ -151,7 +151,9 @@ as long as the offerer's peer connection lives. For a demo that is fine; for
 production it is not. A signed `notBefore`/`notAfter` pair, checked during
 verification, closes it.
 
-This is small and self-contained - a good first contribution.
+This is small and self-contained - a good first contribution. It is also a
+**prerequisite for item 8**: once signaling travels over the wire instead of
+across a camera, nothing else bounds how long a captured payload stays usable.
 
 ---
 
@@ -180,6 +182,40 @@ detecting the failure early enough to say *why* it failed rather than timing
 out.
 
 ---
+
+---
+
+## 8. Multi-peer sessions and mesh bootstrapping
+
+**Tracked in [#14](https://github.com/NiKrause/libp2p-webrtc-qr/issues/14).**
+
+By impact this belongs near the top - it unlocks every group use case at once -
+but it is blocked on item 5, so it sits here. The numbering is order of
+approach, not of value.
+
+A browser peer holds exactly one QR session today, so three or more devices
+cannot form a network. The limitation is in the demo rather than the package:
+the transport's `getOutboundSession(remotePeerId)` is already a lookup by peer
+id, while `examples/demo/index.js` keeps a single `currentOfferSession` and
+closes the previous peer connection whenever a new offer is created.
+
+A full mesh is the wrong target. Every link costs two scans, because the answer
+has to be scanned back, so the human cost grows quadratically - three devices
+need six scans, five need twenty, eight need fifty-six.
+
+The approach is to let **QR bootstrap and the wire complete**. Once one libp2p
+connection exists, no camera is needed: `@libp2p/webrtc`'s private-to-private
+transport already exchanges SDP over an existing libp2p stream. If A-B and A-C
+were scanned, B and C can signal *through A* and form a direct link without
+anyone lifting a phone. That is item 1's two-layer idea generalised to a group,
+and it brings the cost down to n-1 links by camera.
+
+Two consequences are worth stating up front. The **security property survives**:
+a relaying peer cannot substitute the SDP it forwards, because the signature
+binds it to the originator's Peer ID and would have to be forged. But a relaying
+peer **can replay a stale payload** - while scanning, the human eye was the
+freshness guarantee, and over the wire that disappears. That is why item 5 is a
+prerequisite here rather than a refinement.
 
 ## Not planned
 
