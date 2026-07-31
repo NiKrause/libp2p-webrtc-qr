@@ -41,7 +41,7 @@ Browser A                             Browser B
 ```bash
 pnpm install
 pnpm start   # demo on http://localhost:5173
-pnpm test    # unit + both e2e suites
+pnpm test    # unit + both e2e suites, on Chromium, Firefox and WebKit
 ```
 
 ## Status and known limits
@@ -54,7 +54,10 @@ pnpm test    # unit + both e2e suites
   Real ICE with STUN candidates produces larger SDP, and therefore larger QR
   payloads, than the suite measures. Measured on the live demo: 933 characters
   host-only, 1057 with STUN, against a 2200 budget.
-- **Chromium only** in CI. Firefox and WebKit are untested.
+- **The camera path is not covered by any test.** Every automated test exchanges
+  payloads by copy/paste or programmatically. `getUserMedia`, `BarcodeDetector`
+  and the `jsQR` fallback are only ever exercised by hand. Adding more browsers
+  to CI did not change this - it is the one part a headless browser cannot run.
 - `packages/webrtc-qr/src/vendor` is a copy of `@libp2p/webrtc` internals that
   the upstream package does not export. See
   [the vendor README](packages/webrtc-qr/src/vendor/README.md).
@@ -71,7 +74,7 @@ DataChannel it opens.
 
 See the **[roadmap](ROADMAP.md)** for that and the rest: multi-frame BC-UR as a
 fallback, removing the vendored subtree, moving the session orchestration into
-the package, a replay window, Firefox and WebKit in CI, and TURN.
+the package, a replay window, multi-peer mesh bootstrapping, and TURN.
 
 ## Origin and references
 

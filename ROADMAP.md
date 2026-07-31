@@ -161,11 +161,21 @@ across a camera, nothing else bounds how long a captured payload stays usable.
 
 **Tracked in [#10](https://github.com/NiKrause/libp2p-webrtc-qr/issues/10).**
 
-CI runs Chromium only. Firefox and WebKit are untested, which for a project
-whose entire premise is a browser API is a real gap. Adding the two Playwright
-projects is easy; the interesting part is what breaks - `BarcodeDetector`
-availability, `CompressionStream`, and negotiated data channel behaviour all
-differ.
+**Done.** All three engines run the full suite on every push, in the Playwright
+container that already ships them.
+
+Nothing broke. `CompressionStream`, `RTCPeerConnection` and negotiated data
+channels behave the same in Firefox and WebKit as in Chromium, and the signed
+handshake, the chat protocol and the bitswap file transfer all pass unchanged.
+
+Two things the run clarified. `BarcodeDetector` is exposed by **none** of the
+three Playwright builds, including Chromium - so the `jsQR` fallback is the
+only path CI ever takes, and the native detector remains untested regardless of
+how many engines are added. And more importantly, **the camera path itself is
+still untested everywhere**: every automated test exchanges payloads by
+copy/paste or programmatically, so `getUserMedia` and live scanning are only
+ever verified by hand. More browsers did not close that gap, because it is not
+a browser-coverage gap.
 
 ---
 

@@ -41,6 +41,8 @@ jobs:
         id: qr-unit
         run: pnpm --filter @le-space/libp2p-webrtc-qr test
 
+      # The Playwright container ships Chromium, Firefox and WebKit, so both
+      # suites run on all three without an install step.
       - name: Run signed QR signaling E2E
         id: qr-e2e
         run: pnpm --filter @le-space/libp2p-webrtc-qr-demo test
@@ -68,7 +70,7 @@ jobs:
             echo '| Verified behavior | Result |'
             echo '| --- | --- |'
             echo "| Signature codec: round trip, tampering, replay and field smuggling | ${UNIT_OUTCOME} |"
-            echo "| Two browser libp2p peers connect over a QR-signalled WebRTC session | ${E2E_OUTCOME} |"
+            echo "| Two browser libp2p peers connect over a QR-signalled WebRTC session, on Chromium, Firefox and WebKit | ${E2E_OUTCOME} |"
             echo "| A rendered QR image decodes back to the exact signed payload | ${E2E_OUTCOME} |"
             echo "| Chat messages transfer in both directions over a libp2p protocol stream | ${E2E_OUTCOME} |"
             echo "| A tampered signed offer is rejected as an invalid signature | ${E2E_OUTCOME} |"
