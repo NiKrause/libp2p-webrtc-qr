@@ -55,6 +55,10 @@ const scanStatus = document.getElementById('scan-status')
 const dropZone = document.getElementById('drop-zone')
 const fileInput = document.getElementById('file-input')
 const receivedFilesEl = document.getElementById('received-files')
+const inviteBoxEl = document.getElementById('invite-box')
+const inviteLinkEl = document.getElementById('invite-link')
+const inviteFreshnessEl = document.getElementById('invite-freshness')
+const createOfferAgainButton = document.getElementById('create-offer-again')
 
 const qrCanvas = document.createElement('canvas')
 const qrCanvasContext = qrCanvas.getContext('2d', { willReadFrequently: true })
@@ -625,36 +629,181 @@ async function sendFiles (files) {
   }
 }
 
-async function renderPayload (text) {
-  payloadDisplay.value = text
+const INVITE_PARAM = 'i'
+const REPLY_PARAM = 'r'
+// An offer's ICE candidates go stale as NAT bindings expire, so a link that sat
+// in a chat for half an hour will not connect. We cannot prevent that - but we
+// can say it out loud instead of failing cryptically half an hour later.
+const INVITE_FRESH_MS = 5 * 60 * 1000
 
-  if (text.length > MAX_QR_PAYLOAD_LENGTH) {
-    qrImage.style.display = 'none'
-    appendLog('Payload is too large for a reliable QR code. Use copy/paste instead.')
-    return
+let inviteCreatedAt = null
+let inviteCountdown = null
+
+const handoff = typeof BroadcastChannel === 'undefined'
+  ? null
+  : new BroadcastChannel('libp2p-webrtc-qr')
+
+function linkFor (param, payload) {
+  const url = new URL(window.location.href)
+  url.hash = `${param}=${encodeURIComponent(payload)}`
+  url.search = ''
+
+  return url.toString()
+}
+
+/**
+ * Accept anything a person might paste: a full invite or reply link, or the raw
+ * payload. Messengers wrap long strings, so internal whitespace is stripped -
+ * without this a wrapped paste fails as "cannot be decoded", which reads like a
+ * corrupt payload rather than a line break.
+ */
+function payloadFrom (text) {
+  const trimmed = text.trim()
+
+  if (trimmed.length === 0) {
+    return ''
   }
 
-  // Rendered well above its display size: a phone at 3x DPR showing the code
-  // full-bleed asks for over 1100 device pixels, and upscaling a dense code
-  // blurs exactly the module edges a camera needs.
-  qrImage.src = await QRCode.toDataURL(text, {
+  try {
+    const hash = new URL(trimmed).hash.replace(/^#/, '')
+    const params = new URLSearchParams(hash)
+    const fromLink = params.get(INVITE_PARAM) ?? params.get(REPLY_PARAM)
+
+    if (fromLink != null) {
+      return fromLink.replace(/\s+/g, '')
+    }
+  } catch {
+    // not a URL - fall through and treat it as a raw payload
+  }
+
+  return trimmed.replace(/\s+/g, '')
+}
+
+/**
+ * Turn the raw WebRTC and libp2p failures into something that says what to do.
+ * The originals - "Called in wrong state: stable", "entered state failed" -
+ * are accurate and useless to the person reading them.
+ */
+function explain (error) {
+  const message = error?.message ?? String(error)
+
+  if (/wrong state: stable/i.test(message)) {
+    return 'This reply does not belong to your invite. Create a new invite and send that link instead.'
+  }
+
+  if (/Create an offer before accepting an answer/i.test(message)) {
+    return 'You opened a reply, but this page has no invite waiting. Open the reply in the tab where you created the invite, or start over with a new invite.'
+  }
+
+  if (/entered state (failed|closed)/i.test(message) || /timed out/i.test(message)) {
+    return 'The connection could not be established - the invite was probably too old. Create a new invite and send the fresh link.'
+  }
+
+  if (/signature is invalid/i.test(message)) {
+    return 'This link was altered on the way. Ask for a freshly created one.'
+  }
+
+  if (/cannot be decoded/i.test(message)) {
+    return 'That does not look like an invite link. Copy the whole link, including the part after the # sign.'
+  }
+
+  if (/belongs to this browser/i.test(message)) {
+    return 'That is your own link. Send it to the other person and paste the one they send back.'
+  }
+
+  return message
+}
+
+function inviteAgeLabel () {
+  if (inviteCreatedAt == null) {
+    return ''
+  }
+
+  const remaining = INVITE_FRESH_MS - (Date.now() - inviteCreatedAt)
+
+  if (remaining <= 0) {
+    return 'This invite is probably too old to connect - create a new one.'
+  }
+
+  return `This invite stays fresh for about ${Math.ceil(remaining / 60000)} more minute(s).`
+}
+
+function startInviteCountdown () {
+  clearInterval(inviteCountdown)
+  inviteCreatedAt = Date.now()
+
+  const tick = () => {
+    inviteFreshnessEl.textContent = inviteAgeLabel()
+    inviteFreshnessEl.classList.toggle('is-stale', Date.now() - inviteCreatedAt >= INVITE_FRESH_MS)
+  }
+
+  tick()
+  inviteCountdown = setInterval(tick, 15000)
+}
+
+async function shareOrCopy (text, what) {
+  if (navigator.share != null) {
+    try {
+      await navigator.share({ text })
+      appendLog(`Shared the ${what}.`)
+      return 'shared'
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        return 'cancelled'
+      }
+      // fall through to the clipboard
+    }
+  }
+
+  try {
+    await navigator.clipboard.writeText(text)
+    appendLog(`Copied the ${what} to the clipboard.`)
+    return 'copied'
+  } catch {
+    appendLog(`Could not copy automatically - select the ${what} and copy it by hand.`)
+    return 'failed'
+  }
+}
+
+/**
+ * Publish an outbound payload as a link. The QR encodes the *link*, not the raw
+ * payload, so a phone's own camera app opens the page with everything loaded -
+ * the in-app scanner is no longer the only way in.
+ */
+async function renderOutbound (payload, kind) {
+  const link = linkFor(kind === QR_TYPE_OFFER ? INVITE_PARAM : REPLY_PARAM, payload)
+
+  inviteLinkEl.value = link
+  inviteBoxEl.hidden = false
+  startInviteCountdown()
+
+  if (link.length > MAX_QR_PAYLOAD_LENGTH) {
+    qrImage.style.display = 'none'
+    appendLog('Link is too long for a reliable QR code - send it as a link instead.')
+    return link
+  }
+
+  qrImage.src = await QRCode.toDataURL(link, {
     errorCorrectionLevel: 'M',
     margin: 4,
     width: 1280
   })
   qrImage.style.display = 'block'
-  appendLog(`QR payload size: ${text.length} characters.`)
+  appendLog(`QR payload size: ${payload.length} characters.`)
+
+  return link
 }
 
-async function handleReceivedPayload (text, expectedType) {
+async function handleReceivedPayload (input, expectedType) {
+  const text = payloadFrom(input)
   const parsed = await parsePayload(text)
   const type = expectedType ?? parsed.type
 
   if (type === QR_TYPE_OFFER) {
     const answerPayload = await acceptOfferPayload(text)
-    await renderPayload(answerPayload)
-    setStatus('Answer created. Return this QR to the offering browser.')
-    appendLog('Verified offer and created a signed answer.')
+    await renderOutbound(answerPayload, QR_TYPE_ANSWER)
+    setStatus('Answer created. Send the link below back to them.')
+    appendLog('Verified their invite and created a reply link.')
     return answerPayload
   }
 
@@ -671,10 +820,11 @@ async function handleReceivedPayload (text, expectedType) {
 function updateControls () {
   const started = node != null
   createOfferButton.disabled = !started
+  createOfferAgainButton.disabled = !started
   scanOfferButton.disabled = !started
   scanAnswerButton.disabled = !started || currentOfferSession == null
-  processPayloadButton.disabled = !started
-  copyPayloadButton.disabled = payloadDisplay.value.length === 0
+  processPayloadButton.disabled = !started || payloadFrom(payloadDisplay.value).length === 0
+  copyPayloadButton.disabled = inviteLinkEl.value.length === 0
 }
 
 async function startQrScanner (expectedType) {
@@ -865,25 +1015,28 @@ startButton.addEventListener('click', async () => {
   }
 })
 
-createOfferButton.addEventListener('click', async () => {
+async function createInvite (button) {
   // Gathering ICE candidates can take seconds, and until it finishes there is
   // nothing on screen. Without a pending state the button looks like it was
   // never pressed, so people press it again.
-  setButtonBusy(createOfferButton, 'Creating offer…')
+  setButtonBusy(button, 'Creating link…')
 
   try {
     const payload = await createOfferPayload()
-    await renderPayload(payload)
-    setStatus('Offer created. Show this QR to the other browser.')
-    appendLog('Created a signed WebRTC offer.')
+    await renderOutbound(payload, QR_TYPE_OFFER)
+    setStatus('Invite ready. Send the link to the other person.')
+    appendLog('Created a signed invite link.')
   } catch (error) {
-    setStatus(`Offer failed: ${error.message}`)
-    appendLog(`Offer failed: ${error.message}`)
+    setStatus(explain(error))
+    appendLog(`Invite failed: ${error.message}`)
   } finally {
-    clearButtonBusy(createOfferButton)
+    clearButtonBusy(button)
     updateControls()
   }
-})
+}
+
+createOfferButton.addEventListener('click', () => createInvite(createOfferButton))
+createOfferAgainButton.addEventListener('click', () => createInvite(createOfferAgainButton))
 
 scanOfferButton.addEventListener('click', () => {
   startQrScanner(QR_TYPE_OFFER).catch(error => {
@@ -903,19 +1056,41 @@ stopScanButton.addEventListener('click', () => {
   setStatus('QR scan cancelled.')
 })
 
-processPayloadButton.addEventListener('click', async () => {
+async function useIncoming (text) {
+  setButtonBusy(processPayloadButton, 'Connecting…')
+
   try {
-    await handleReceivedPayload(payloadDisplay.value.trim())
-    updateControls()
+    await handleReceivedPayload(text)
   } catch (error) {
-    setStatus(`Payload failed: ${error.message}`)
-    appendLog(`Payload failed: ${error.message}`)
+    setStatus(explain(error))
+    appendLog(`Link failed: ${error.message}`)
+  } finally {
+    clearButtonBusy(processPayloadButton)
+    updateControls()
+  }
+}
+
+processPayloadButton.addEventListener('click', () => useIncoming(payloadDisplay.value))
+
+// Pasting is the whole interaction, so it should not need a second click. The
+// button stays for keyboard and for anyone who types the link by hand.
+payloadDisplay.addEventListener('paste', event => {
+  const pasted = event.clipboardData?.getData('text') ?? ''
+
+  if (payloadFrom(pasted).length > 0) {
+    event.preventDefault()
+    payloadDisplay.value = pasted
+    updateControls()
+    useIncoming(pasted)
   }
 })
 
 copyPayloadButton.addEventListener('click', async () => {
-  await navigator.clipboard.writeText(payloadDisplay.value)
-  appendLog('Payload copied to clipboard.')
+  const result = await shareOrCopy(inviteLinkEl.value, 'invite link')
+
+  if (result === 'copied') {
+    setStatus('Link copied. Paste it into your chat with the other person.')
+  }
 })
 
 payloadDisplay.addEventListener('input', updateControls)
@@ -1042,3 +1217,81 @@ window.__libp2pQrTest = {
         protocol: chatStream.protocol
       }
 }
+
+/**
+ * A reply link belongs to the tab that created the invite - only that tab holds
+ * the pending RTCPeerConnection. Tapping the link in a messenger usually opens a
+ * *new* tab, which cannot finish the handshake no matter what it does. So the
+ * new tab hands the reply to the original one over BroadcastChannel, and only
+ * falls back to explaining itself when nobody answers.
+ */
+handoff?.addEventListener('message', async event => {
+  const { kind, payload } = event.data ?? {}
+
+  if (kind !== 'reply' || currentOfferSession == null) {
+    return
+  }
+
+  handoff.postMessage({ kind: 'reply-taken' })
+  appendLog('A reply arrived from another tab.')
+  await useIncoming(payload)
+})
+
+function handOffReply (payload) {
+  if (handoff == null) {
+    return Promise.resolve(false)
+  }
+
+  return new Promise(resolve => {
+    const timer = setTimeout(() => {
+      handoff.removeEventListener('message', onAck)
+      resolve(false)
+    }, 1500)
+
+    function onAck (event) {
+      if (event.data?.kind === 'reply-taken') {
+        clearTimeout(timer)
+        handoff.removeEventListener('message', onAck)
+        resolve(true)
+      }
+    }
+
+    handoff.addEventListener('message', onAck)
+    handoff.postMessage({ kind: 'reply', payload })
+  })
+}
+
+/**
+ * Opening a link is the whole interaction: start the node and use it. Nobody
+ * should have to press "start" first and then find where to paste.
+ */
+async function consumeLink () {
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+  const invite = params.get(INVITE_PARAM)
+  const reply = params.get(REPLY_PARAM)
+  const incoming = invite ?? reply
+
+  if (incoming == null) {
+    return
+  }
+
+  // Drop the fragment, so a reload does not replay a payload that is spent.
+  history.replaceState(null, '', window.location.pathname + window.location.search)
+
+  if (reply != null && await handOffReply(reply)) {
+    setStatus('Reply handed to the tab where you created the invite - switch back to it.')
+    return
+  }
+
+  startButton.disabled = true
+
+  try {
+    await createNode()
+    await useIncoming(incoming)
+  } catch (error) {
+    setStatus(explain(error))
+    appendLog(`Opening the link failed: ${error.message}`)
+  }
+}
+
+consumeLink()
