@@ -30,7 +30,12 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.61.1-noble
-    timeout-minutes: 15
+    timeout-minutes: 25
+    env:
+      # Firefox refuses to start when $HOME is not owned by the current user,
+      # which is the case for the default HOME inside this container. Playwright
+      # names this fix in its own launch error.
+      HOME: /root
     steps:
       - uses: actions/checkout@v6
 
