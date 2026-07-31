@@ -153,10 +153,16 @@ jobs:
             echo
             echo "**IPFS CID:** ${CID}"
             echo
-            echo "**Test it here:** https://ipfs.public.aleph.sh/ipfs/${CID}/"
+            echo "**Test it here:** https://ipfs.aleph.cloud/ipfs/${CID}/"
             echo
-            echo 'The gateway is HTTPS, so camera access and the share sheet both work,'
-            echo 'and invite links generated there point back to the same gateway path.'
+            echo "Alternative: https://${CID}.ipfs.dweb.link/"
+            echo
+            echo 'Not ipfs.public.aleph.sh - that host serves an incomplete certificate'
+            echo 'chain for its own name, so it fails outside a browser. It is fine as the'
+            echo 'CNAME target for a custom domain, where a different certificate is used.'
+            echo
+            echo 'Both gateways are HTTPS, so camera access and the share sheet work, and'
+            echo 'invite links generated there point back to the same gateway path.'
           } >> "$GITHUB_STEP_SUMMARY"
 
   link-domain:
