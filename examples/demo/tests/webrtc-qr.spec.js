@@ -89,6 +89,74 @@ test.describe('signed QR WebRTC signaling', () => {
     }
   })
 
+  test('folds the setup steps away once connected, and back if it drops', async ({ browser, browserName }) => {
+    skipWithoutWebRTC(test, browserName)
+
+    const offerer = await browser.newPage()
+    const answerer = await browser.newPage()
+    const pageErrors = []
+
+    try {
+      await openPeer(offerer, pageErrors)
+      await openPeer(answerer, pageErrors)
+
+      for (const id of ['#step-start', '#step-connect']) {
+        await expect(offerer.locator(id)).not.toHaveClass(/is-collapsed/)
+      }
+
+      await connectPeers(offerer, answerer)
+
+      // Setup is finished business once a connection exists, and on a phone it
+      // pushes the only useful part below the fold.
+      for (const page of [offerer, answerer]) {
+        for (const id of ['#step-start', '#step-connect']) {
+          await expect(page.locator(id)).toHaveClass(/is-collapsed/)
+        }
+        await expect(page.locator('#step-data')).not.toHaveClass(/is-collapsed/)
+      }
+
+      // Folded away, not gone: the heading stays and brings the step back.
+      await offerer.locator('#step-connect .step-heading').click()
+      await expect(offerer.locator('#step-connect')).not.toHaveClass(/is-collapsed/)
+      await expect(offerer.locator('#step-connect .step-heading')).toHaveAttribute('aria-expanded', 'true')
+
+      expect(pageErrors).toEqual([])
+    } finally {
+      await offerer.close()
+      await answerer.close()
+    }
+  })
+
+  test('sends a message when Enter is pressed', async ({ browser, browserName }) => {
+    skipWithoutWebRTC(test, browserName)
+
+    const offerer = await browser.newPage()
+    const answerer = await browser.newPage()
+    const pageErrors = []
+
+    try {
+      await openPeer(offerer, pageErrors)
+      await openPeer(answerer, pageErrors)
+      await connectPeers(offerer, answerer)
+
+      // Enter is what everyone tries first next to a single-line field.
+      await offerer.locator('#message').fill('sent with the keyboard')
+      await offerer.locator('#message').press('Enter')
+
+      await expect.poll(async () => {
+        return answerer.evaluate(() => window.__libp2pQrTest.getLastReceivedMessage())
+      }, { timeout: 20000 }).toBe('sent with the keyboard')
+
+      // ...and the field is cleared, so the next message does not append.
+      await expect(offerer.locator('#message')).toHaveValue('')
+
+      expect(pageErrors).toEqual([])
+    } finally {
+      await offerer.close()
+      await answerer.close()
+    }
+  })
+
   test('the invite is a link, and the QR encodes that link', async ({ browser }) => {
     const page = await browser.newPage()
     const pageErrors = []
@@ -104,10 +172,15 @@ test.describe('signed QR WebRTC signaling', () => {
       // The QR carries the link too, so a phone's own camera app opens the page
       // with the payload already loaded instead of needing the in-app scanner.
       await expect(page.locator('#qr-image')).toBeVisible()
-      const decoded = await page.evaluate(async dataUrl => {
-        return window.__libp2pQrTest.decodeQrDataUrl(dataUrl)
-      }, await page.locator('#qr-image').getAttribute('src'))
-      expect(decoded).toBe(invite)
+      // Polled, not read once: decoding a dense code off a canvas occasionally
+      // sees a frame that has not finished painting and yields null. Retrying
+      // does not weaken the assertion - a QR with the wrong contents still
+      // never matches.
+      await expect.poll(async () => {
+        return page.evaluate(async dataUrl => {
+          return window.__libp2pQrTest.decodeQrDataUrl(dataUrl)
+        }, await page.locator('#qr-image').getAttribute('src'))
+      }, { timeout: 20000 }).toBe(invite)
 
       expect(pageErrors).toEqual([])
     } finally {

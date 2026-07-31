@@ -675,6 +675,12 @@ button.is-busy::before {
 
 /* ---------- handoff banner ---------- */
 
+/* `display` here beats the user agent's `[hidden] { display: none }`, so the
+   hidden state has to be restated or an empty banner sits on every page. */
+.handoff-banner[hidden] {
+  display: none;
+}
+
 .handoff-banner {
   /* The nav is sticky, so scrolling this to the top would tuck it underneath. */
   scroll-margin-top: 88px;
@@ -718,4 +724,52 @@ button.is-busy::before {
 .handoff-banner.is-error::before {
   background: var(--ls-red);
   color: var(--ls-red);
+}
+
+/* ---------- collapsed setup steps ---------- */
+
+.step-heading {
+  cursor: pointer;
+  user-select: none;
+}
+
+.step-heading:focus-visible {
+  outline: 2px solid var(--ls-accent);
+  outline-offset: 4px;
+  border-radius: var(--ls-radius-sm);
+}
+
+/* A collapsed card keeps only its heading, so the step it replaced stays
+   findable and can be brought back. */
+.card.is-collapsed > *:not(h2) {
+  display: none;
+}
+
+.card.is-collapsed {
+  padding: 14px 24px;
+  opacity: 0.72;
+}
+
+.card.is-collapsed h2 {
+  margin: 0;
+}
+
+.card.is-collapsed:hover {
+  opacity: 1;
+}
+
+.card.is-collapsed .step-no {
+  border-color: var(--ls-green);
+  color: var(--ls-green);
+}
+
+.card.is-collapsed h2::after {
+  content: 'done - tap to reopen';
+  margin-left: auto;
+  font-family: var(--ls-font);
+  font-size: 0.72rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--ls-text-faint);
+  text-transform: none;
 }

@@ -66,6 +66,8 @@ const inviteLinkEl = document.getElementById('invite-link')
 const inviteFreshnessEl = document.getElementById('invite-freshness')
 const createOfferAgainButton = document.getElementById('create-offer-again')
 const handoffBannerEl = document.getElementById('handoff-banner')
+const setupCards = [document.getElementById('step-start'), document.getElementById('step-connect')]
+const dataCard = document.getElementById('step-data')
 
 const qrCanvas = document.createElement('canvas')
 const qrCanvasContext = qrCanvas.getContext('2d', { willReadFrequently: true })
@@ -472,10 +474,14 @@ function attachChatStream (stream, message) {
   appendLog(message)
   sendButton.disabled = false
   setDropZoneEnabled(true)
+  setStepsCollapsed(true)
+  messageInput.focus()
 
   readChatMessages(stream).catch(error => {
     appendLog(`Chat stream closed: ${error.message}`)
     setDropZoneEnabled(false)
+    // Connecting again is the only thing left to do, so put the steps back.
+    setStepsCollapsed(false)
   })
 }
 
@@ -651,6 +657,39 @@ let inviteCountdown = null
 const handoff = typeof BroadcastChannel === 'undefined'
   ? null
   : new BroadcastChannel('libp2p-webrtc-qr')
+
+/**
+ * Once a connection exists the setup steps are finished business, and on a
+ * phone they push the only useful part - sending things - below the fold. They
+ * fold away rather than disappear: the heading stays, and clicking it brings
+ * the step back for anyone who wants to connect to someone else.
+ */
+function setStepsCollapsed (collapsed) {
+  for (const card of setupCards) {
+    card.classList.toggle('is-collapsed', collapsed)
+    card.querySelector('.step-heading')?.setAttribute('aria-expanded', String(!collapsed))
+  }
+
+  if (collapsed) {
+    dataCard.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }
+}
+
+for (const card of setupCards) {
+  const heading = card.querySelector('.step-heading')
+
+  heading?.addEventListener('click', () => {
+    const nowCollapsed = !card.classList.toggle('is-collapsed')
+    heading.setAttribute('aria-expanded', String(nowCollapsed))
+  })
+
+  heading?.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      heading.click()
+    }
+  })
+}
 
 function showBanner (text, state) {
   handoffBannerEl.textContent = text
@@ -1111,7 +1150,7 @@ copyPayloadButton.addEventListener('click', async () => {
 
 payloadDisplay.addEventListener('input', updateControls)
 
-sendButton.addEventListener('click', async () => {
+async function submitMessage () {
   const message = messageInput.value.trim()
 
   if (message.length === 0) {
@@ -1123,6 +1162,17 @@ sendButton.addEventListener('click', async () => {
     messageInput.value = ''
   } catch (error) {
     appendLog(`Send failed: ${error.message}`)
+  }
+}
+
+sendButton.addEventListener('click', submitMessage)
+
+// Enter sends. In a single-line field with a Send button next to it, pressing
+// Enter is what everyone tries first, and nothing happened.
+messageInput.addEventListener('keydown', event => {
+  if (event.key === 'Enter' && !event.isComposing) {
+    event.preventDefault()
+    submitMessage()
   }
 })
 
