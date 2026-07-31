@@ -10,6 +10,14 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
+      link_domain:
+        description: >-
+          Point the custom domain at this build. Off by default so a branch
+          preview cannot take over the production domain - the CID this run
+          publishes is enough to test it.
+        type: boolean
+        required: false
+        default: false
       domain:
         description: >-
           Aleph custom domain to link (e.g. webrtc-qr.le-space.de).
@@ -22,7 +30,12 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.61.1-noble
-    timeout-minutes: 15
+    timeout-minutes: 25
+    env:
+      # Firefox refuses to start when $HOME is not owned by the current user,
+      # which is the case for the default HOME inside this container. Playwright
+      # names this fix in its own launch error.
+      HOME: /root
     steps:
       - uses: actions/checkout@v6
 
@@ -117,7 +130,7 @@ jobs:
           ALEPH_VM_MODE: site-publish
           ALEPH_SITE_DIRECTORY: ${{ github.workspace }}/examples/demo/dist
           ALEPH_SITE_PIN: 'true'
-          ALEPH_SITE_NAME: webrtc-qr
+          ALEPH_SITE_NAME: ${{ github.ref == 'refs/heads/main' && 'webrtc-qr' || 'webrtc-qr-preview' }}
           ALEPH_SITE_CHANNEL: ALEPH-CLOUDSOLUTIONS
           ALEPH_PRIVATE_KEY: ${{ secrets.ALEPH_PRIVATE_KEY }}
         run: |
@@ -132,9 +145,37 @@ jobs:
             sleep $((attempt * 15))
           done
 
+      - name: Summarize the published build
+        if: steps.publish.outputs.ipfs_cid != ''
+        env:
+          CID: ${{ steps.publish.outputs.ipfs_cid }}
+          REF: ${{ github.ref_name }}
+        run: |
+          {
+            echo '## Published build'
+            echo
+            echo "**Branch:** ${REF}"
+            echo
+            echo "**IPFS CID:** ${CID}"
+            echo
+            echo "**Test it here:** https://ipfs.aleph.cloud/ipfs/${CID}/"
+            echo
+            echo "Alternative: https://${CID}.ipfs.dweb.link/"
+            echo
+            echo 'Not ipfs.public.aleph.sh - that host serves an incomplete certificate'
+            echo 'chain for its own name, so it fails outside a browser. It is fine as the'
+            echo 'CNAME target for a custom domain, where a different certificate is used.'
+            echo
+            echo 'Both gateways are HTTPS, so camera access and the share sheet work, and'
+            echo 'invite links generated there point back to the same gateway path.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   link-domain:
     needs: build-and-deploy
+    # The domain follows main. A dispatch from a branch has to ask for it
+    # explicitly, so a preview cannot silently replace what people are using.
     if: >-
+      (github.ref == 'refs/heads/main' || inputs.link_domain) &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       needs.build-and-deploy.outputs.item_hash != '' &&
       needs.build-and-deploy.outputs.store_processed == 'true'

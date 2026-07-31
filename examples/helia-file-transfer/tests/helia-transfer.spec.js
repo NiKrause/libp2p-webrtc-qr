@@ -2,6 +2,19 @@ import { test, expect } from '@playwright/test'
 
 const CONTENT = 'the bytes travelled over a QR-negotiated WebRTC connection'
 
+/**
+ * Playwright's WebKit build for Linux has no working WebRTC, so anything that
+ * needs a connection to come up cannot be verified there - it passes on the
+ * macOS build, which is closer to real Safari. Everything that does not need a
+ * peer connection still runs on WebKit everywhere, which is most of the suite.
+ */
+function skipWithoutWebRTC (test, browserName) {
+  test.skip(
+    browserName === 'webkit' && process.platform === 'linux',
+    'Playwright WebKit on Linux cannot establish a WebRTC connection'
+  )
+}
+
 async function openPeer (page, errors) {
   page.on('pageerror', error => errors.push(error.message))
   await page.goto('/?ice=host')
@@ -11,7 +24,9 @@ async function openPeer (page, errors) {
 }
 
 test.describe('Helia over QR WebRTC', () => {
-  test('transfers a file between two Helia nodes', async ({ browser }) => {
+  test('transfers a file between two Helia nodes', async ({ browser, browserName }) => {
+    skipWithoutWebRTC(test, browserName)
+
     const adder = await browser.newPage()
     const fetcher = await browser.newPage()
     const pageErrors = []

@@ -605,3 +605,117 @@ button.is-busy::before {
   color: var(--ls-text-faint);
   overflow-wrap: anywhere;
 }
+
+/* ---------- connect lanes ---------- */
+
+.lane {
+  border: 1px solid var(--ls-card-border);
+  border-radius: var(--ls-radius-sm);
+  padding: 18px;
+  margin-bottom: 16px;
+}
+
+.lane-title {
+  font-size: 0.95rem;
+  margin: 0 0 4px;
+}
+
+.lane-hint {
+  color: var(--ls-text-faint);
+  font-size: 0.82rem;
+  margin: 0 0 14px;
+}
+
+.invite-box {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--ls-card-border);
+}
+
+#invite-link {
+  width: 100%;
+  font-family: var(--ls-font-mono);
+  font-size: 0.78rem;
+  color: var(--ls-accent);
+  background: var(--ls-bg-1);
+  border: 1px solid var(--ls-bg-3);
+  border-radius: var(--ls-radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+
+.freshness {
+  font-size: 0.8rem;
+  color: var(--ls-text-faint);
+  margin: 0 0 14px;
+}
+
+.freshness.is-stale {
+  color: var(--ls-amber);
+}
+
+.peer {
+  display: block;
+  margin-top: 16px;
+}
+
+.peer summary {
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ls-text-faint);
+  cursor: pointer;
+}
+
+.peer-note {
+  font-size: 0.8rem;
+  color: var(--ls-text-faint);
+  margin: 8px 0;
+}
+
+/* ---------- handoff banner ---------- */
+
+.handoff-banner {
+  /* The nav is sticky, so scrolling this to the top would tuck it underneath. */
+  scroll-margin-top: 88px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px;
+  margin-bottom: 28px;
+  border: 1px solid var(--ls-bg-3);
+  border-left: 3px solid var(--ls-amber);
+  border-radius: var(--ls-radius-sm);
+  background: var(--ls-bg-1);
+  color: var(--ls-text);
+  font-size: 0.95rem;
+}
+
+.handoff-banner::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--ls-amber);
+  box-shadow: 0 0 12px currentColor;
+  color: var(--ls-amber);
+}
+
+.handoff-banner.is-ok {
+  border-left-color: var(--ls-green);
+}
+
+.handoff-banner.is-ok::before {
+  background: var(--ls-green);
+  color: var(--ls-green);
+}
+
+.handoff-banner.is-error {
+  border-left-color: var(--ls-red);
+}
+
+.handoff-banner.is-error::before {
+  background: var(--ls-red);
+  color: var(--ls-red);
+}

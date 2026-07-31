@@ -82,6 +82,11 @@
     </nav>
 
     <main>
+      <!-- Sits above everything: a tab that handed its reply elsewhere has
+           nothing else worth looking at, and the status line further down is
+           below the fold on a phone. -->
+      <div id="handoff-banner" class="handoff-banner" role="status" aria-live="assertive" hidden></div>
+
       <div class="intro">
         <h1>libp2p WebRTC over QR</h1>
         <p>
@@ -98,44 +103,63 @@
           <div class="actions">
             <button id="start-client" class="primary">Start client</button>
           </div>
-          <div class="peer">
-            <span class="peer-label">Peer ID</span>
+          <details class="peer">
+            <summary>Your peer identity</summary>
+            <p class="peer-note">
+              This is not what you send to anyone - it is the key your invite links are signed with.
+            </p>
             <span id="peer-id">not started</span>
-          </div>
+          </details>
         </section>
 
         <section class="card">
-          <h2><span class="step-no">2</span> Exchange QR payloads</h2>
+          <h2><span class="step-no">2</span> Connect to someone</h2>
           <p class="hint">
-            <strong>Browser A:</strong> create an offer. <strong>Browser B:</strong> scan A's offer and show the
-            generated answer. <strong>Browser A:</strong> scan B's answer. A browser never processes its own QR code.
+            Two ways in, and they end up in the same place: send an invite link, or scan a code. You only
+            ever do <strong>one</strong> of the two boxes below - whichever matches what you have.
           </p>
 
-          <div class="actions">
-            <button id="create-offer" disabled>Create offer QR</button>
-            <button id="scan-offer" disabled>Scan offer QR</button>
-            <button id="scan-answer" disabled>Scan answer QR</button>
+          <div class="lane">
+            <h3 class="lane-title">I want to invite someone</h3>
+            <div class="actions">
+              <button id="create-offer" class="primary" disabled>Create invite link</button>
+              <button id="scan-offer" disabled>Scan their code instead</button>
+            </div>
+
+            <div id="invite-box" class="invite-box" hidden>
+              <label for="invite-link">Send this link to the other person</label>
+              <input id="invite-link" type="text" readonly />
+              <div class="actions">
+                <button id="copy-payload" class="primary">Send link…</button>
+                <button id="create-offer-again">New link</button>
+              </div>
+              <p id="invite-freshness" class="freshness"></p>
+              <img id="qr-image" alt="Invite QR code" style="display:none;" />
+              <p class="scan-help">
+                They can also point a phone camera at this code - it opens the same link.
+              </p>
+            </div>
           </div>
 
-          <div class="field">
-            <label for="payload-display">QR payload or copy/paste fallback</label>
-            <textarea id="payload-display" rows="6" placeholder="A generated payload appears here. You can also paste a payload from the other browser."></textarea>
-          </div>
-
-          <div class="actions">
-            <button id="process-payload" disabled>Process pasted payload</button>
-            <button id="copy-payload" disabled>Copy payload</button>
+          <div class="lane">
+            <h3 class="lane-title">Someone sent me a link</h3>
+            <p class="lane-hint">
+              Opening their link does everything by itself. Only paste here if tapping the link did not work.
+            </p>
+            <div class="field">
+              <label for="payload-display">Paste the link they sent you</label>
+              <textarea id="payload-display" rows="3" placeholder="https://webrtc-qr.le-space.de/#i=…"></textarea>
+            </div>
+            <div class="actions">
+              <button id="process-payload" disabled>Use this link</button>
+              <button id="scan-answer" disabled>Scan their code</button>
+            </div>
           </div>
 
           <div class="qr-stage">
-            <img id="qr-image" alt="WebRTC signaling QR code" style="display:none;" />
             <div class="scan-side">
               <video id="qr-video" autoplay playsinline muted style="display:none;"></video>
               <button id="stop-scan" type="button" style="display:none;">Stop scanning</button>
-              <p class="scan-help">
-                For reliable scanning, turn up the other screen's brightness, keep the QR code flat, and let it
-                fill about half of the camera view.
-              </p>
               <div id="scan-status" aria-live="polite"></div>
             </div>
           </div>
