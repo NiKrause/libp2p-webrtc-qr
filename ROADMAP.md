@@ -6,9 +6,16 @@ for someone using it, not by how hard it is.
 Nothing here is scheduled. It is a record of the open questions, so the next
 person - including future us - does not have to rediscover them.
 
+Each item has an issue: this file holds the reasoning, the issues hold the work.
+Start at [the roadmap label](https://github.com/NiKrause/libp2p-webrtc-qr/labels/roadmap)
+if you are looking for something to pick up - [#9](https://github.com/NiKrause/libp2p-webrtc-qr/issues/9)
+is marked `good first issue`.
+
 ---
 
 ## 1. Adopt QWBP-style compact payloads
+
+**Tracked in [#6](https://github.com/NiKrause/libp2p-webrtc-qr/issues/6).**
 
 **Today:** the signed offer is around **1057 characters** with STUN candidates
 (933 host-only), against a 2200 budget. The whole SDP is transported, deflated
@@ -68,6 +75,8 @@ reconstruction; and how a peer signals which format it speaks.
 
 ## 2. Multi-frame QR with BC-UR
 
+**Tracked in [#12](https://github.com/NiKrause/libp2p-webrtc-qr/issues/12).**
+
 A fallback for payloads that will not fit one code: split into
 [BC-UR](https://github.com/BlockchainCommons/Research/blob/master/papers/bcr-2020-005-ur.md)
 parts, cycle them on the sending screen, reassemble on the scanner.
@@ -86,6 +95,8 @@ when it does not.
 ---
 
 ## 3. Remove the vendored `@libp2p/webrtc` subtree
+
+**Tracked in [#7](https://github.com/NiKrause/libp2p-webrtc-qr/issues/7).**
 
 `packages/webrtc-qr/src/vendor` copies **698 lines** from
 `@libp2p/webrtc@6.0.28` because that package declares only `"."` in its
@@ -112,6 +123,8 @@ upstream version.
 
 ## 4. Move the session orchestration into the package
 
+**Tracked in [#8](https://github.com/NiKrause/libp2p-webrtc-qr/issues/8).**
+
 The package currently ships the transport and the signaling codec. The state
 machine that drives them - create offer, gather ICE, wait for `connected`,
 upgrade in the right direction, retry the dial while the peer attaches its muxer
@@ -131,6 +144,8 @@ currently tangled with.
 
 ## 5. Add a replay window
 
+**Tracked in [#9](https://github.com/NiKrause/libp2p-webrtc-qr/issues/9).**
+
 Payloads carry a `sessionId` but no timestamp, so a signed offer stays valid for
 as long as the offerer's peer connection lives. For a demo that is fine; for
 production it is not. A signed `notBefore`/`notAfter` pair, checked during
@@ -142,6 +157,8 @@ This is small and self-contained - a good first contribution.
 
 ## 6. Firefox and WebKit in CI
 
+**Tracked in [#10](https://github.com/NiKrause/libp2p-webrtc-qr/issues/10).**
+
 CI runs Chromium only. Firefox and WebKit are untested, which for a project
 whose entire premise is a browser API is a real gap. Adding the two Playwright
 projects is easy; the interesting part is what breaks - `BarcodeDetector`
@@ -151,6 +168,8 @@ differ.
 ---
 
 ## 7. TURN, and being honest about NAT
+
+**Tracked in [#11](https://github.com/NiKrause/libp2p-webrtc-qr/issues/11).**
 
 There is no TURN server, so two peers behind restrictive or symmetric NATs can
 still fail to connect after a perfectly good scan - which is a confusing
