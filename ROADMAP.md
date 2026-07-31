@@ -161,10 +161,21 @@ across a camera, nothing else bounds how long a captured payload stays usable.
 
 **Tracked in [#10](https://github.com/NiKrause/libp2p-webrtc-qr/issues/10).**
 
-**Done.** All three engines run the full suite on every push, in the Playwright
-container that already ships them.
+**Done, with one honest gap.** All three engines now run on every push.
 
-Nothing broke. `CompressionStream`, `RTCPeerConnection` and negotiated data
+This took two corrections. The three projects were not running three engines
+at all: a leftover `browserName: 'chromium'` in the shared `use` block
+overrode every project, so all three launched Chromium wearing borrowed
+user-agent strings. And once the real engines started, Firefox could not
+launch in the container until `HOME` was set - an error that had never
+appeared, because Firefox had never actually run.
+
+The gap: Playwright's **WebKit build for Linux has no working WebRTC**, so CI
+runs every WebKit spec that does not need a peer connection and skips the four
+that do. WebKit end to end is verified locally on macOS, where the build is
+closer to real Safari. Chromium and Firefox are verified end to end in CI.
+
+Otherwise nothing broke. `CompressionStream`, `RTCPeerConnection` and negotiated data
 channels behave the same in Firefox and WebKit as in Chromium, and the signed
 handshake, the chat protocol and the bitswap file transfer all pass unchanged.
 

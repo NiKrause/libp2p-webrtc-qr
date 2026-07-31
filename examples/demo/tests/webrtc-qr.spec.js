@@ -1,5 +1,18 @@
 import { test, expect } from '@playwright/test'
 
+/**
+ * Playwright's WebKit build for Linux has no working WebRTC, so anything that
+ * needs a connection to come up cannot be verified there - it passes on the
+ * macOS build, which is closer to real Safari. Everything that does not need a
+ * peer connection still runs on WebKit everywhere, which is most of the suite.
+ */
+function skipWithoutWebRTC (test, browserName) {
+  test.skip(
+    browserName === 'webkit' && process.platform === 'linux',
+    'Playwright WebKit on Linux cannot establish a WebRTC connection'
+  )
+}
+
 async function openPeer (page, errors) {
   page.on('pageerror', error => errors.push(error.message))
   await page.goto('/?ice=host')
@@ -54,7 +67,9 @@ async function sendAndExpect (sender, receiver, message) {
 }
 
 test.describe('signed QR WebRTC signaling', () => {
-  test('connects two browser libp2p peers and transfers data both ways', async ({ browser }) => {
+  test('connects two browser libp2p peers and transfers data both ways', async ({ browser, browserName }) => {
+    skipWithoutWebRTC(test, browserName)
+
     const offerer = await browser.newPage()
     const answerer = await browser.newPage()
     const pageErrors = []
@@ -100,7 +115,9 @@ test.describe('signed QR WebRTC signaling', () => {
     }
   })
 
-  test('opening an invite link connects without pressing anything', async ({ browser }) => {
+  test('opening an invite link connects without pressing anything', async ({ browser, browserName }) => {
+    skipWithoutWebRTC(test, browserName)
+
     const offerer = await browser.newPage()
     const answerer = await browser.newPage()
     const pageErrors = []
@@ -222,7 +239,9 @@ test.describe('signed QR WebRTC signaling', () => {
     }
   })
 
-  test('a reply opened in a second tab reports back what happened', async ({ browser }) => {
+  test('a reply opened in a second tab reports back what happened', async ({ browser, browserName }) => {
+    skipWithoutWebRTC(test, browserName)
+
     // BroadcastChannel is per browser context, so all three pages share one.
     const context = await browser.newContext()
     const offerer = await context.newPage()
@@ -327,7 +346,9 @@ test.describe('signed QR WebRTC signaling', () => {
     }
   })
 
-  test('transfers a dropped file over bitswap and offers it as a download', async ({ browser }) => {
+  test('transfers a dropped file over bitswap and offers it as a download', async ({ browser, browserName }) => {
+    skipWithoutWebRTC(test, browserName)
+
     const sender = await browser.newPage()
     const receiver = await browser.newPage()
     const pageErrors = []

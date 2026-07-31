@@ -54,6 +54,10 @@ pnpm test    # unit + both e2e suites, on Chromium, Firefox and WebKit
   Real ICE with STUN candidates produces larger SDP, and therefore larger QR
   payloads, than the suite measures. Measured on the live demo: 933 characters
   host-only, 1057 with STUN, against a 2200 budget.
+- **WebKit's WebRTC is only verified on macOS.** Playwright's WebKit build for
+  Linux has no working WebRTC, so CI runs every WebKit spec that does not need
+  a peer connection and skips the ones that do. Chromium and Firefox are
+  verified end to end in CI; WebKit end to end only locally on macOS.
 - **The camera path is not covered by any test.** Every automated test exchanges
   payloads by copy/paste or programmatically. `getUserMedia`, `BarcodeDetector`
   and the `jsQR` fallback are only ever exercised by hand. Adding more browsers
