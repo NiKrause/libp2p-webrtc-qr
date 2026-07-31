@@ -187,6 +187,36 @@ test.describe('signed QR WebRTC signaling', () => {
     }
   })
 
+  test('the answering peer waits on a messenger timescale, not a same-room one', async ({ browser }) => {
+    const offerer = await browser.newPage()
+    const answerer = await browser.newPage()
+    const pageErrors = []
+
+    try {
+      await openPeer(offerer, pageErrors)
+      await openPeer(answerer, pageErrors)
+
+      const invite = await createInvite(offerer)
+      await useLink(answerer, invite)
+      await replyLinkOf(answerer)
+
+      // The answering peer used to close its own connection 30 seconds after
+      // replying, which is guaranteed to expire while the other person is still
+      // switching apps - and then their reply could never land. Nothing may tear
+      // the connection down while the reply is in transit.
+      await answerer.waitForTimeout(35000)
+      await expect(answerer.locator('#status')).not.toContainText('expired')
+
+      await useLink(offerer, await replyLinkOf(answerer))
+      await expect(offerer.locator('#status')).toContainText('Connected')
+
+      expect(pageErrors).toEqual([])
+    } finally {
+      await offerer.close()
+      await answerer.close()
+    }
+  })
+
   test('shows how fresh the invite is', async ({ browser }) => {
     const page = await browser.newPage()
     const pageErrors = []

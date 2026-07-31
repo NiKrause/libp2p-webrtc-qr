@@ -25,6 +25,12 @@ import {
 const CHAT_PROTOCOL = '/libp2p/examples/webrtc-qr-chat/1.0.0'
 const ICE_GATHERING_TIMEOUT = 15000
 const CONNECTION_TIMEOUT = 30000
+// How long the answering peer keeps its side open while waiting for the other
+// person to open the reply. 30 seconds is right for two phones in one room and
+// hopelessly short over a messenger, where switching apps and reading a message
+// takes minutes - and a timeout here closes the connection, so the reply can
+// never land afterwards.
+const ANSWER_WAIT_TIMEOUT = 6 * 60 * 1000
 const MAX_QR_PAYLOAD_LENGTH = 2200
 const SCAN_INTERVAL = 140
 const SCAN_CANVAS_MAX_WIDTH = 960
@@ -220,7 +226,7 @@ async function waitForIceGatheringComplete (peerConnection) {
   })
 }
 
-async function waitForConnected (peerConnection) {
+async function waitForConnected (peerConnection, timeoutMs = CONNECTION_TIMEOUT) {
   if (peerConnection.connectionState === 'connected') {
     return
   }
@@ -229,7 +235,7 @@ async function waitForConnected (peerConnection) {
     const timeout = setTimeout(() => {
       cleanup()
       reject(new Error('WebRTC connection timed out'))
-    }, CONNECTION_TIMEOUT)
+    }, timeoutMs)
 
     function cleanup () {
       clearTimeout(timeout)
@@ -346,7 +352,7 @@ async function acceptOfferPayload (text) {
     // does not attach its own muxer until it scans this answer, so upgrading
     // any earlier means our identify stream is written into a connection with
     // nothing on the other end - which tears the whole session down.
-    const upgraded = waitForConnected(peerConnection)
+    const upgraded = waitForConnected(peerConnection, ANSWER_WAIT_TIMEOUT)
       .then(async () => {
         await node.components.upgrader.upgradeInbound(upgradeContext.connection, {
           skipEncryption: true,
@@ -365,7 +371,9 @@ async function acceptOfferPayload (text) {
     upgraded.catch(error => {
       inboundPeerConnections.delete(peerConnection)
       peerConnection.close()
-      setStatus(`Connection failed: ${error.message}`)
+      setStatus(/timed out/i.test(error.message)
+        ? 'They never opened your reply, so this attempt expired. Ask them for a fresh invite link.'
+        : explain(error))
       appendLog(`Inbound upgrade failed: ${error.message}`)
     })
 
@@ -802,7 +810,7 @@ async function handleReceivedPayload (input, expectedType) {
   if (type === QR_TYPE_OFFER) {
     const answerPayload = await acceptOfferPayload(text)
     await renderOutbound(answerPayload, QR_TYPE_ANSWER)
-    setStatus('Answer created. Send the link below back to them.')
+    setStatus('Verified. Send the reply link back and keep this tab open.')
     appendLog('Verified their invite and created a reply link.')
     return answerPayload
   }
@@ -1024,7 +1032,7 @@ async function createInvite (button) {
   try {
     const payload = await createOfferPayload()
     await renderOutbound(payload, QR_TYPE_OFFER)
-    setStatus('Invite ready. Send the link to the other person.')
+    setStatus('Invite ready. Send the link, then keep this tab open until they reply.')
     appendLog('Created a signed invite link.')
   } catch (error) {
     setStatus(explain(error))
