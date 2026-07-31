@@ -56,6 +56,14 @@ test.describe('social preview and canonical', () => {
     expect(height).toBeGreaterThanOrEqual(630)
   })
 
+  test('the handoff banner stays out of sight until it has something to say', async ({ page }) => {
+    await page.goto('/')
+
+    // Setting `display` on a hidden element overrides the user agent's
+    // `[hidden] { display: none }`, which put an empty banner on every load.
+    await expect(page.locator('#handoff-banner')).toBeHidden()
+  })
+
   test('the nav links to the roadmap and the repository', async ({ page }) => {
     await page.goto('/')
 

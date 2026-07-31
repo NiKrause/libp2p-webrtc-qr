@@ -97,8 +97,8 @@
       </div>
 
       <div class="steps">
-        <section class="card">
-          <h2><span class="step-no">1</span> Start browser peer</h2>
+        <section class="card" id="step-start">
+          <h2 class="step-heading" tabindex="0" role="button" aria-expanded="true"><span class="step-no">1</span> Start browser peer</h2>
           <p class="hint">Creates a libp2p node with a fresh key pair. Its Peer ID signs every payload you show.</p>
           <div class="actions">
             <button id="start-client" class="primary">Start client</button>
@@ -112,8 +112,8 @@
           </details>
         </section>
 
-        <section class="card">
-          <h2><span class="step-no">2</span> Connect to someone</h2>
+        <section class="card" id="step-connect">
+          <h2 class="step-heading" tabindex="0" role="button" aria-expanded="true"><span class="step-no">2</span> Connect to someone</h2>
           <p class="hint">
             Two ways in, and they end up in the same place: send an invite link, or scan a code. You only
             ever do <strong>one</strong> of the two boxes below - whichever matches what you have.
@@ -165,7 +165,7 @@
           </div>
         </section>
 
-        <section class="card">
+        <section class="card" id="step-data">
           <h2><span class="step-no">3</span> Send data over libp2p</h2>
           <p class="hint">
             Once the handshake completes, messages travel over a libp2p protocol stream on the WebRTC data
