@@ -64,7 +64,8 @@ it, bitswap over that one libp2p connection is the only way the bytes can move.
 pnpm test
 ```
 
-The Playwright suite creates two real browser libp2p peers, verifies that a
+The Playwright suite runs on **Chromium, Firefox and WebKit**. It creates two
+real browser libp2p peers, verifies that a
 rendered QR image decodes back to the exact signed payload, transfers data in
 both directions, moves a file over bitswap and checks the download link hands
 back the exact bytes, and rejects modified signed signaling payloads.
