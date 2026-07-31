@@ -56,6 +56,25 @@ test.describe('social preview and canonical', () => {
     expect(height).toBeGreaterThanOrEqual(630)
   })
 
+  test('the nav links to the roadmap and the repository', async ({ page }) => {
+    await page.goto('/')
+
+    // Both are external documents that can be moved or renamed. A nav link
+    // pointing at a 404 is invisible until someone clicks it.
+    const roadmap = page.locator('.nav-links a[href$="ROADMAP.md"]')
+    await expect(roadmap).toHaveAttribute('target', '_blank')
+    await expect(roadmap).toHaveAttribute('rel', /noopener/)
+    await expect(roadmap).toContainText('Roadmap')
+
+    await expect(page.locator('.nav-links a[href$="libp2p-webrtc-qr"]')).toContainText('GitHub')
+
+    // On phones the visible label is hidden, which also removes it from the
+    // accessibility tree - so each link carries its own name.
+    for (const link of await page.locator('.nav-links a').all()) {
+      expect((await link.getAttribute('aria-label'))?.length).toBeGreaterThan(0)
+    }
+  })
+
   test('titles and descriptions are present and not empty', async ({ page }) => {
     await page.goto('/')
 
