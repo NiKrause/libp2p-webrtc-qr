@@ -126,6 +126,12 @@ code {
   letter-spacing: 0.04em;
 }
 
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .nav-link {
   display: inline-flex;
   align-items: center;
