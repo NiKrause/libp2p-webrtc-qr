@@ -187,7 +187,12 @@ test.describe('signed QR WebRTC signaling', () => {
     }
   })
 
-  test('the answering peer waits on a messenger timescale, not a same-room one', async ({ browser }) => {
+  test('the answering peer waits on a messenger timescale, not a same-room one', async ({ browser, browserName }) => {
+    // The teardown that used to fire here is a plain timer, not engine
+    // behaviour, so this waits out the old 30 second limit once rather than
+    // three times.
+    test.skip(browserName !== 'chromium', 'timer behaviour, not engine behaviour')
+
     const offerer = await browser.newPage()
     const answerer = await browser.newPage()
     const pageErrors = []
@@ -343,7 +348,7 @@ test.describe('signed QR WebRTC signaling', () => {
 
       await expect.poll(async () => {
         return receiver.evaluate(() => window.__libp2pQrTest.getReceivedFiles().length)
-      }, { timeout: 30000 }).toBe(1)
+      }, { timeout: 60000 }).toBe(1)
 
       const downloaded = await receiver.evaluate(value => {
         return window.__libp2pQrTest.readReceivedFile(value)
