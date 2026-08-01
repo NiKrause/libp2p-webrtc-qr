@@ -32,6 +32,11 @@ const payload = await decodeSignedPayload(text, QR_TYPE_OFFER)
 scannable QR size. Fields outside the canonical set are dropped, so a verified
 payload never carries data the signature did not cover.
 
+Signed payloads are valid for five minutes by default. Verification allows two
+minutes of clock skew between devices. Pass `{ lifetimeMs }` when encoding or
+`{ clockSkewMs }` when decoding to override either default; both functions also
+accept `now` for deterministic callers and tests.
+
 Use `parsePayload` only to decide how to route a scanned code - it does **not**
 verify anything.
 
@@ -78,8 +83,8 @@ Peer ID - the same binding `certhash` provides in WebRTC-Direct. If you accept
 unsigned SDP, this guarantee is gone and you must run a normal encryption
 handshake instead.
 
-Payloads carry a session id but no timestamp, so they do not expire on their
-own. Add a replay window if that matters for your threat model.
+Payload validity timestamps are covered by the signature. Verification rejects
+expired and not-yet-valid payloads before their SDP reaches the caller.
 
 ## Vendored upstream code
 

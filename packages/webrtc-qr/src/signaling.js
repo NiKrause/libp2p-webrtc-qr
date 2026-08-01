@@ -4,6 +4,8 @@ import { fromString, toString } from 'uint8arrays'
 export const PAYLOAD_VERSION = 1
 export const QR_TYPE_OFFER = 'offer'
 export const QR_TYPE_ANSWER = 'answer'
+export const DEFAULT_PAYLOAD_LIFETIME_MS = 5 * 60 * 1000
+export const DEFAULT_CLOCK_SKEW_MS = 2 * 60 * 1000
 
 const SIGNATURE_PREFIX = 'libp2p-webrtc-qr-payload-v1:'
 const COMPRESSED_PREFIX = 'libp2p-webrtc-qr:1:'
@@ -20,6 +22,8 @@ function canonicalPayload (payload) {
       type: payload.type,
       sessionId: payload.sessionId,
       peerId: payload.peerId,
+      notBefore: payload.notBefore,
+      notAfter: payload.notAfter,
       sdp: payload.sdp
     }
   }
@@ -30,6 +34,8 @@ function canonicalPayload (payload) {
     sessionId: payload.sessionId,
     peerId: payload.peerId,
     offerPeerId: payload.offerPeerId,
+    notBefore: payload.notBefore,
+    notAfter: payload.notAfter,
     sdp: payload.sdp
   }
 }
@@ -90,11 +96,19 @@ export async function parsePayload (text) {
   }
 }
 
-export async function encodeSignedPayload (privateKey, payload) {
-  const signature = await privateKey.sign(signingBytes(payload))
+export async function encodeSignedPayload (privateKey, payload, options = {}) {
+  const notBefore = payload.notBefore ?? options.now ?? Date.now()
+  const notAfter = payload.notAfter ?? notBefore + (options.lifetimeMs ?? DEFAULT_PAYLOAD_LIFETIME_MS)
+  const timedPayload = { ...payload, notBefore, notAfter }
+
+  if (!Number.isFinite(notBefore) || !Number.isFinite(notAfter) || notAfter <= notBefore) {
+    throw new Error('The QR payload has an invalid validity window')
+  }
+
+  const signature = await privateKey.sign(signingBytes(timedPayload))
 
   return compress(JSON.stringify({
-    ...canonicalPayload(payload),
+    ...canonicalPayload(timedPayload),
     signature: toString(signature, 'base64url')
   }))
 }
@@ -105,7 +119,7 @@ export async function encodeSignedPayload (privateKey, payload) {
  * the WebRTC session to that peer id - which is what lets the transport skip
  * the usual connection encryption handshake.
  */
-export async function decodeSignedPayload (text, expectedType) {
+export async function decodeSignedPayload (text, expectedType, options = {}) {
   const payload = await parsePayload(text)
 
   if (payload?.version !== PAYLOAD_VERSION || payload.type !== expectedType) {
@@ -118,6 +132,10 @@ export async function decodeSignedPayload (text, expectedType) {
 
   if (requiredStrings.some(field => typeof payload[field] !== 'string' || payload[field].length === 0)) {
     throw new Error('The QR payload is missing required fields')
+  }
+
+  if (!Number.isFinite(payload.notBefore) || !Number.isFinite(payload.notAfter) || payload.notAfter <= payload.notBefore) {
+    throw new Error('The QR payload has an invalid validity window')
   }
 
   const payloadPeerId = peerIdFromString(payload.peerId)
@@ -133,6 +151,21 @@ export async function decodeSignedPayload (text, expectedType) {
 
   if (!valid) {
     throw new Error('The QR payload signature is invalid')
+  }
+
+  const now = options.now ?? Date.now()
+  const clockSkewMs = options.clockSkewMs ?? DEFAULT_CLOCK_SKEW_MS
+
+  if (!Number.isFinite(now) || !Number.isFinite(clockSkewMs) || clockSkewMs < 0) {
+    throw new Error('The QR payload verifier has invalid timing options')
+  }
+
+  if (payload.notBefore > now + clockSkewMs) {
+    throw new Error('The QR payload is not yet valid')
+  }
+
+  if (payload.notAfter < now - clockSkewMs) {
+    throw new Error('The QR payload has expired')
   }
 
   return payload

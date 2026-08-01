@@ -4,6 +4,8 @@ import { generateKeyPair } from '@libp2p/crypto/keys'
 import { peerIdFromPrivateKey } from '@libp2p/peer-id'
 import {
   compress,
+  DEFAULT_CLOCK_SKEW_MS,
+  DEFAULT_PAYLOAD_LIFETIME_MS,
   decompress,
   decodeSignedPayload,
   encodeSignedPayload,
@@ -61,14 +63,57 @@ async function reencode (payload) {
 
 test('an offer survives a signing and verification round trip', async () => {
   const alice = await peer()
-  const text = await encodeSignedPayload(alice.privateKey, offer(alice))
-  const decoded = await decodeSignedPayload(text, QR_TYPE_OFFER)
+  const now = 1_754_000_000_000
+  const text = await encodeSignedPayload(alice.privateKey, offer(alice), { now })
+  const decoded = await decodeSignedPayload(text, QR_TYPE_OFFER, { now })
 
   assert.equal(decoded.type, QR_TYPE_OFFER)
   assert.equal(decoded.version, PAYLOAD_VERSION)
   assert.equal(decoded.peerId, alice.peerId)
   assert.equal(decoded.sdp, SDP)
   assert.equal(decoded.sessionId, '6f1c0b2a-0f2f-4d33-9c1f-2c4f0b9a7e51')
+  assert.equal(decoded.notBefore, now)
+  assert.equal(decoded.notAfter, now + DEFAULT_PAYLOAD_LIFETIME_MS)
+})
+
+test('an expired payload is refused with a readable error', async () => {
+  const alice = await peer()
+  const now = 1_754_000_000_000
+  const text = await encodeSignedPayload(alice.privateKey, offer(alice, {
+    notBefore: now - DEFAULT_PAYLOAD_LIFETIME_MS - DEFAULT_CLOCK_SKEW_MS - 1,
+    notAfter: now - DEFAULT_CLOCK_SKEW_MS - 1
+  }))
+
+  await assert.rejects(
+    decodeSignedPayload(text, QR_TYPE_OFFER, { now }),
+    /payload has expired/
+  )
+})
+
+test('a payload that is not yet valid is refused with a readable error', async () => {
+  const alice = await peer()
+  const now = 1_754_000_000_000
+  const text = await encodeSignedPayload(alice.privateKey, offer(alice, {
+    notBefore: now + DEFAULT_CLOCK_SKEW_MS + 1,
+    notAfter: now + DEFAULT_CLOCK_SKEW_MS + DEFAULT_PAYLOAD_LIFETIME_MS
+  }))
+
+  await assert.rejects(
+    decodeSignedPayload(text, QR_TYPE_OFFER, { now }),
+    /payload is not yet valid/
+  )
+})
+
+test('rewriting the validity window invalidates the signature', async () => {
+  const alice = await peer()
+  const text = await encodeSignedPayload(alice.privateKey, offer(alice))
+  const payload = await parsePayload(text)
+  payload.notAfter += DEFAULT_PAYLOAD_LIFETIME_MS
+
+  await assert.rejects(
+    decodeSignedPayload(await reencode(payload), QR_TYPE_OFFER),
+    /signature is invalid/
+  )
 })
 
 test('an answer round trip keeps the peer it was created for', async () => {
