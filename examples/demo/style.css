@@ -829,3 +829,23 @@ button.is-busy::before {
   border: none;
   text-decoration: underline;
 }
+
+.peer-health {
+  font-size: 0.72rem;
+  font-family: var(--ls-font-mono);
+  color: var(--ls-text-faint);
+  white-space: nowrap;
+}
+
+.peer-health.is-connected {
+  color: var(--ls-green);
+}
+
+.peer-health.is-disconnected {
+  color: var(--ls-amber);
+}
+
+.peer-health.is-failed,
+.peer-health.is-closed {
+  color: var(--ls-red);
+}

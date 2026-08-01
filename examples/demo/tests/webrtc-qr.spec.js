@@ -215,6 +215,38 @@ test.describe('signed QR WebRTC signaling', () => {
     }
   })
 
+  test('says when a connection is lost instead of going quiet', async ({ browser, browserName }) => {
+    skipWithoutWebRTC(test, browserName)
+    // WebRTC takes about half a minute of failed consent checks before it calls
+    // a connection dead, and that timing is not engine-specific.
+
+    const alice = await browser.newPage()
+    const bob = await browser.newPage()
+    const pageErrors = []
+
+    try {
+      await openPeer(alice, pageErrors)
+      await openPeer(bob, pageErrors)
+      await connectPeers(alice, bob)
+
+      await expect(alice.locator('.peer-health')).toContainText('connected')
+
+      // A phone whose radio slept, or whose peer went away, comes back to a
+      // page that used to look perfectly fine and say nothing.
+      // A phone whose radio slept, or a tab the OS discarded: the connection
+      // ends underneath a page that otherwise keeps looking perfectly fine.
+      const peerId = await alice.evaluate(() => window.__libp2pQrTest.getPeers()[0])
+      await alice.evaluate(id => window.__libp2pQrTest.simulateConnectionLoss(id), peerId)
+
+      await expect(alice.locator('#status')).toContainText('Lost the connection')
+      await expect(alice.locator('#status')).toContainText('create a new invite')
+
+      expect(pageErrors).toEqual([])
+    } finally {
+      await alice.close()
+    }
+  })
+
   test('the invite is a link, and the QR encodes that link', async ({ browser }) => {
     const page = await browser.newPage()
     const pageErrors = []

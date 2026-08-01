@@ -81,6 +81,12 @@ let fs = null
 // as well - an outgoing offer does not know who will take it.
 const offerSessions = new Map()
 const chatStreams = new Map()
+// Kept per peer so the page can say what happened to each connection while it
+// was in the background, instead of going quiet.
+const peerConnections = new Map()
+// Peers the user dropped on purpose, so the same teardown is not reported as a
+// loss they need to do something about.
+const intentionalDrops = new Set()
 let scanStream = null
 let scanAnimationFrame = null
 let scanMode = null
@@ -300,6 +306,7 @@ async function createOfferPayload () {
 
   offerSessions.set(sessionId, {
     sessionId,
+    createdAt: Date.now(),
     peerConnection,
     initDataChannel,
     remotePeerId: null,
@@ -377,6 +384,7 @@ async function acceptOfferPayload (text) {
           signal: AbortSignal.timeout(CONNECTION_TIMEOUT)
         })
 
+        watchConnection(offerPayload.peerId, peerConnection)
         setStatus(`Connected to ${offerPayload.peerId}`)
       })
 
@@ -425,11 +433,25 @@ async function acceptAnswerPayload (text) {
     throw new Error('The answer was not created for this peer')
   }
 
+  const ageSeconds = Math.round((Date.now() - session.createdAt) / 1000)
+  appendLog(`Reply arrived ${ageSeconds}s after the invite was created.`)
+
   await session.peerConnection.setRemoteDescription({
     type: 'answer',
     sdp: answerPayload.sdp
   })
-  await waitForConnected(session.peerConnection)
+
+  try {
+    await waitForConnected(session.peerConnection)
+  } catch (error) {
+    // A NAT keeps a UDP binding open for as long as packets flow through it -
+    // often well under two minutes. The candidates in an invite that sat in a
+    // chat can point at bindings that no longer exist, and the connection then
+    // fails with signalling that went through perfectly.
+    throw ageSeconds > 90
+      ? new Error(`WebRTC connection failed after the invite sat for ${ageSeconds}s - it was probably too old. Create a new invite and send it straight away.`)
+      : error
+  }
   session.initDataChannel.close()
 
   const addr = remoteAddress(answerPayload.peerId)
@@ -443,6 +465,7 @@ async function acceptAnswerPayload (text) {
 
   const stream = await dialChatStream(addr)
 
+  watchConnection(answerPayload.peerId, session.peerConnection)
   attachChatStream(stream, answerPayload.peerId, `Connected to ${shortPeer(answerPayload.peerId)}.`)
   setStatus(`Connected to ${answerPayload.peerId}`)
 
@@ -478,6 +501,31 @@ async function dialChatStream (addr, attempts = 15) {
   }
 
   throw lastError
+}
+
+function watchConnection (peerId, peerConnection) {
+  peerConnections.set(peerId, peerConnection)
+
+  peerConnection.addEventListener('connectionstatechange', () => {
+    const state = peerConnection.connectionState
+
+    // 'disconnected' is not fatal - a phone whose radio slept often comes back
+    // on its own once the screen is on again. Only say something on the states
+    // that end it.
+    if (state === 'failed' || state === 'closed') {
+      peerConnections.delete(peerId)
+
+      if (intentionalDrops.delete(peerId)) {
+        appendLog(`Disconnected from ${shortPeer(peerId)}.`)
+      } else {
+        appendLog(`Connection to ${shortPeer(peerId)} ended (${state}).`)
+        // Say it when it happens, not only when someone comes back to the tab.
+        setStatus(`Lost the connection to ${shortPeer(peerId)} - create a new invite to reconnect.`)
+      }
+    }
+
+    renderPeers()
+  })
 }
 
 function attachChatStream (stream, peerId, message) {
@@ -522,16 +570,24 @@ function renderPeers () {
     name.textContent = shortPeer(peerId)
     name.title = peerId
 
+    const state = peerConnections.get(peerId)?.connectionState ?? 'connected'
+    const health = document.createElement('span')
+    health.className = `peer-health is-${state}`
+    health.textContent = state === 'disconnected' ? 'reconnecting…' : state
+
     const drop = document.createElement('button')
     drop.type = 'button'
     drop.className = 'peer-drop'
     drop.textContent = 'Disconnect'
     drop.setAttribute('aria-label', `Disconnect from ${peerId}`)
     drop.addEventListener('click', () => {
+      // Closing only the stream left the WebRTC connection open behind it.
+      intentionalDrops.add(peerId)
       chatStreams.get(peerId)?.close().catch(() => {})
+      peerConnections.get(peerId)?.close()
     })
 
-    row.append(name, drop)
+    row.append(name, health, drop)
     peerListEl.appendChild(row)
   }
 
@@ -1358,6 +1414,29 @@ fileInput.addEventListener('change', () => {
   }
 })
 
+/**
+ * Coming back from the background is the moment to say what happened. Phones
+ * suspend timers and let radios sleep, so a connection can be mid-recovery, or
+ * already gone, and the page would otherwise sit there looking fine.
+ */
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') {
+    return
+  }
+
+  renderPeers()
+
+  const lost = [...chatStreams.keys()].filter(peerId => {
+    const state = peerConnections.get(peerId)?.connectionState
+
+    return state === 'failed' || state === 'closed'
+  })
+
+  if (lost.length > 0) {
+    setStatus(`${lost.length === 1 ? 'A connection was' : `${lost.length} connections were`} lost while you were away - create a new invite to reconnect.`)
+  }
+})
+
 // There is deliberately no `beforeunload` teardown.
 //
 // This app *requires* leaving the page: you create an invite, switch to a
@@ -1411,6 +1490,16 @@ window.__libp2pQrTest = {
   getReceivedWithSenders: () => [...testState.receivedMessages],
   getConnections: () => node?.getConnections().length ?? 0,
   classifyScanned,
+  // A local close() deliberately does *not* fire connectionstatechange - only a
+  // real failure does, after roughly thirty seconds of failed consent checks.
+  // The test drives the event the browser would send, so it covers the handling
+  // written here rather than the browser's timing.
+  simulateConnectionLoss: peerId => {
+    const peerConnection = peerConnections.get(peerId)
+
+    peerConnection?.close()
+    peerConnection?.dispatchEvent(new Event('connectionstatechange'))
+  },
   getPeers: () => [...chatStreams.keys()],
   debugStreams: () => [...chatStreams].map(([peerId, stream]) => ({
     peerId,
