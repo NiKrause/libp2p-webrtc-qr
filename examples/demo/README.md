@@ -67,6 +67,37 @@ trustless gateways and delegated routing, so a dropped file could arrive over
 the public internet instead of the connection built by scanning a code. Without
 it, bitswap over that one libp2p connection is the only way the bytes can move.
 
+## When it will not connect
+
+Confirmed by hand across several setups:
+
+| Setup | Result |
+| --- | --- |
+| Two or three browsers on one machine | works - host candidates |
+| Phone and laptop on the same wifi | works |
+| Laptop on wifi, phone on **mobile data** | **fails** without a TURN server |
+
+The last row is not a bug to fix in code. Mobile carriers put subscribers behind
+carrier-grade NAT that is usually symmetric, and a symmetric NAT defeats the
+reflexive (`srflx`) candidates that STUN provides - the port the STUN server saw
+is not the port used towards a different destination. A failure logs what ICE
+had to work with, and a run with no `relay` candidate on either side is this
+case:
+
+```
+ICE candidates - local: 6 host, 1 srflx; remote: 6 host, 2 srflx; ice: disconnected
+```
+
+A TURN server can be supplied per visit to test it:
+
+```
+?turn=turn:example.org:3478&turnUser=alice&turnPass=secret
+```
+
+It is off by default on purpose. A relay is infrastructure, and the point of
+this project is a connection that needs none - but it only relays the media.
+The signalling still travels between the two people and nowhere else.
+
 ## Network behavior
 
 - WebRTC DTLS encrypts the data channel.

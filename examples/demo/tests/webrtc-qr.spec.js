@@ -247,6 +247,54 @@ test.describe('signed QR WebRTC signaling', () => {
     }
   })
 
+  test('a third peer closes the mesh without anyone scanning again', async ({ browser, browserName }) => {
+    skipWithoutWebRTC(test, browserName)
+    test.setTimeout(120000)
+
+    const hub = await browser.newPage()
+    const bob = await browser.newPage()
+    const carol = await browser.newPage()
+    const pageErrors = []
+
+    try {
+      for (const page of [hub, bob, carol]) {
+        await openPeer(page, pageErrors)
+      }
+
+      // Only the hub's two links are ever exchanged by a human.
+      await connectPeers(hub, bob)
+      await connectPeers(hub, carol)
+
+      const bobId = await bob.locator('#peer-id').textContent()
+      const carolId = await carol.locator('#peer-id').textContent()
+
+      // Bob and Carol have never seen each other's code. They learn of one
+      // another over their connections to the hub, exchange signed payloads
+      // through it, and end up connected directly.
+      await expect.poll(() => bob.evaluate(() => window.__libp2pQrTest.getPeers().length), {
+        timeout: 60000
+      }).toBe(2)
+      await expect.poll(() => carol.evaluate(() => window.__libp2pQrTest.getPeers().length), {
+        timeout: 60000
+      }).toBe(2)
+
+      expect(await bob.evaluate(() => window.__libp2pQrTest.getPeers())).toContain(carolId.trim())
+      expect(await carol.evaluate(() => window.__libp2pQrTest.getPeers())).toContain(bobId.trim())
+
+      // ...and it is a real connection, not just an entry in a list.
+      await carol.evaluate(() => window.__libp2pQrTest.sendMessage('straight to you, Bob'))
+      await expect.poll(() => bob.evaluate(() => {
+        return window.__libp2pQrTest.getReceivedWithSenders().at(-1)
+      }), { timeout: 30000 }).toMatchObject({ from: carolId.trim(), text: 'straight to you, Bob' })
+
+      expect(pageErrors).toEqual([])
+    } finally {
+      await hub.close()
+      await bob.close()
+      await carol.close()
+    }
+  })
+
   test('the invite is a link, and the QR encodes that link', async ({ browser }) => {
     const page = await browser.newPage()
     const pageErrors = []

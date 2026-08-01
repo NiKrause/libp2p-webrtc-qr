@@ -146,9 +146,41 @@ function setStatus (text) {
   statusEl.classList.toggle('is-error', /failed|timed out|cancelled/i.test(text))
 }
 
+/**
+ * A TURN server can be supplied per visit:
+ *
+ *   ?turn=turn:example.org:3478&turnUser=alice&turnPass=secret
+ *
+ * Off by default, deliberately: a relay is infrastructure, and this project
+ * exists to show a connection that needs none. But srflx candidates cannot
+ * traverse the symmetric carrier-grade NAT a phone on mobile data usually sits
+ * behind, and no amount of code changes that - so being able to try one turns
+ * a diagnosis into an answer.
+ *
+ * Note the trade: TURN relays the *media*, so a third party carries the bytes.
+ * It never sees the signalling, which still travels only between the two
+ * people.
+ */
 function getRtcConfiguration () {
-  if (new URLSearchParams(window.location.search).get('ice') === 'host') {
+  const params = new URLSearchParams(window.location.search)
+
+  if (params.get('ice') === 'host') {
     return { iceServers: [] }
+  }
+
+  const turn = params.get('turn')
+
+  if (turn != null && turn.length > 0) {
+    return {
+      iceServers: [
+        ...RTC_CONFIGURATION.iceServers,
+        {
+          urls: turn,
+          username: params.get('turnUser') ?? undefined,
+          credential: params.get('turnPass') ?? undefined
+        }
+      ]
+    }
   }
 
   return RTC_CONFIGURATION
@@ -304,7 +336,12 @@ async function waitForConnected (peerConnection, timeoutMs = CONNECTION_TIMEOUT)
         cleanup()
 
         if (peerConnection.connectionState === 'failed') {
-          appendLog(`ICE candidates - ${describeIce(peerConnection)}`)
+          const summary = describeIce(peerConnection)
+          appendLog(`ICE candidates - ${summary}`)
+
+          if (!summary.includes('relay')) {
+            appendLog('No relay candidate on either side. Networks like mobile data usually need a TURN server - see the readme for ?turn=.')
+          }
         }
 
         reject(new Error(`WebRTC connection entered state ${peerConnection.connectionState}`))
@@ -569,8 +606,18 @@ function watchConnection (peerId, peerConnection) {
 }
 
 function attachChatStream (stream, peerId, message) {
+  const existing = [...chatStreams.keys()]
+
   chatStreams.set(peerId, stream)
+  meshAttempts.delete(peerId)
   appendLog(message)
+
+  // Both directions, so a mesh closes itself no matter who joined last.
+  announcePeers(peerId)
+
+  for (const other of existing) {
+    sendTo(other, { kind: 'peers', peers: [peerId] }).catch(() => {})
+  }
   sendButton.disabled = false
   setDropZoneEnabled(true)
   setStepsCollapsed(true)
@@ -648,6 +695,119 @@ function envelope (payload) {
 // libp2p 3 streams are message streams: iterate them for reads, `send()` for
 // writes. The old source/sink duplex - and the it-byte-stream wrapper around
 // it - is gone.
+
+/**
+ * Mesh bootstrapping.
+ *
+ * Scanning is only needed for the *first* link. Once a peer is reachable, the
+ * signalling for further links travels over the connection that already exists:
+ * B and C, both connected to A, exchange their signed payloads through A and
+ * end up connected directly, with nobody lifting a phone.
+ *
+ * A relaying peer cannot tamper with what it forwards - the signature binds the
+ * payload to its originator's Peer ID and is verified end to end. What it could
+ * do is replay something old, which is why payloads expire (#9): over the wire
+ * the human eye is no longer the freshness guarantee.
+ */
+const meshAttempts = new Set()
+
+async function sendTo (peerId, payload) {
+  const stream = chatStreams.get(peerId)
+
+  if (stream == null) {
+    return false
+  }
+
+  await stream.send(envelope(payload))
+
+  return true
+}
+
+function announcePeers (toPeerId) {
+  const peers = [...chatStreams.keys()].filter(peerId => peerId !== toPeerId)
+
+  if (peers.length > 0) {
+    sendTo(toPeerId, { kind: 'peers', peers }).catch(() => {})
+  }
+}
+
+/**
+ * Both ends learn about each other at the same moment, so without a rule both
+ * would offer at once and neither answer. The lower peer id initiates - any
+ * total order does, as long as both sides compute the same one.
+ */
+function shouldInitiateTo (peerId) {
+  return node.peerId.toString() < peerId
+}
+
+async function meshConnect (target, via) {
+  if (chatStreams.has(target) || meshAttempts.has(target) || target === node.peerId.toString()) {
+    return
+  }
+
+  meshAttempts.add(target)
+  appendLog(`Reaching ${shortPeer(target)} through ${shortPeer(via)}…`)
+
+  try {
+    const offer = await createOfferPayload()
+
+    if (!await sendTo(via, { kind: 'relay', to: target, payload: offer })) {
+      throw new Error(`${shortPeer(via)} is no longer reachable`)
+    }
+  } catch (error) {
+    meshAttempts.delete(target)
+    appendLog(`Could not reach ${shortPeer(target)}: ${error.message}`)
+  }
+}
+
+async function handleMeshMessage (message, from) {
+  if (message.kind === 'peers') {
+    for (const peerId of message.peers) {
+      if (shouldInitiateTo(peerId)) {
+        meshConnect(peerId, from)
+      }
+    }
+
+    return true
+  }
+
+  if (message.kind === 'relay') {
+    // Forwarding only. The payload is opaque here and stays signed.
+    const delivered = await sendTo(message.to, {
+      kind: 'relayed',
+      from,
+      payload: message.payload
+    })
+
+    if (!delivered) {
+      appendLog(`Cannot forward to ${shortPeer(message.to)} - not connected to them.`)
+    }
+
+    return true
+  }
+
+  if (message.kind === 'relayed') {
+    const parsed = await parsePayload(payloadFrom(message.payload))
+
+    try {
+      if (parsed.type === QR_TYPE_OFFER) {
+        const answer = await acceptOfferPayload(message.payload)
+        await sendTo(from, { kind: 'relay', to: parsed.peerId, payload: answer })
+      } else {
+        await acceptAnswerPayload(message.payload)
+        meshAttempts.delete(parsed.peerId)
+      }
+    } catch (error) {
+      meshAttempts.delete(parsed.peerId)
+      appendLog(`Mesh handshake with ${shortPeer(parsed.peerId)} failed: ${error.message}`)
+    }
+
+    return true
+  }
+
+  return false
+}
+
 async function readChatMessages (stream, from) {
   for await (const data of stream) {
     const raw = toString(data.subarray())
@@ -657,6 +817,10 @@ async function readChatMessages (stream, from) {
       message = JSON.parse(raw)
     } catch {
       appendLog(`Received an unreadable message: ${raw.slice(0, 80)}`)
+      continue
+    }
+
+    if (await handleMeshMessage(message, from)) {
       continue
     }
 
