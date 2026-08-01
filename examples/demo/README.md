@@ -88,7 +88,13 @@ case:
 ICE candidates - local: 6 host, 1 srflx; remote: 6 host, 2 srflx; ice: disconnected
 ```
 
-A TURN server can be supplied per visit to test it:
+**IPv6 is the way out that needs no infrastructure.** Carrier-grade NAT is an
+IPv4 problem; most mobile networks hand out a globally routable IPv6 address
+alongside it. Two peers that both have one connect directly, because there is no
+address translation to defeat - only a stateful firewall, which the outbound
+half of ICE opens exactly as it would a NAT binding.
+
+A TURN server can be supplied per visit to test the IPv4-only case:
 
 ```
 ?turn=turn:example.org:3478&turnUser=alice&turnPass=secret
@@ -97,6 +103,46 @@ A TURN server can be supplied per visit to test it:
 It is off by default on purpose. A relay is infrastructure, and the point of
 this project is a connection that needs none - but it only relays the media.
 The signalling still travels between the two people and nowhere else.
+
+## What the three LEDs mean
+
+Starting the peer runs a throwaway `RTCPeerConnection` against both STUN servers
+and reads the candidates per address family:
+
+| LED | Green when |
+| --- | --- |
+| IPv4 | one reflexive port for the family - the mapping does not change per destination |
+| IPv6 | STUN answered from a global unicast address (`2000::/3`) |
+| Result | either of the two is green |
+
+Either family being usable is enough, so the summary is green if either one is.
+Amber means only peers on this same network are reachable.
+
+The base address behind a reflexive candidate is masked - every engine reports
+`raddr 0.0.0.0 rport 0` - so candidates can only be grouped by family. That has
+one blind spot: two interfaces in the same family, a VPN next to wifi, have
+different base ports and read as symmetric. The check errs pessimistic, and
+nothing in the UI is disabled on the strength of it.
+
+### Why two of the STUN servers are IPv6 literals
+
+A reflexive candidate exists only for an address family that a STUN transaction
+actually used. The browser reports the address *the server saw*; it does not
+enumerate its own interfaces, and the IPv6 host candidate that would give the
+game away is hidden behind an mDNS `.local` name like every other host
+candidate. So if `stun.l.google.com` resolves to A but not AAAA in the browser's
+own resolver - which a private DNS or DoH setting can decide - a machine with
+working IPv6 gathers no IPv6 candidate whatsoever.
+
+`stun:[2001:4860:4864:5:8000::1]:19302` and `stun:[2606:4700:49::]:3478` are
+therefore configured alongside the hostnames, so an IPv6 transaction happens
+regardless of what DNS returns. Measured on an IPv6-capable network, adding them
+costs nothing: gathering completes in ~130 ms either way, and the extra
+candidates deduplicate against the ones the hostnames produce.
+
+This is not cosmetic. Without a reflexive IPv6 candidate the two peers never
+exchange IPv6 addresses, so the one path that beats carrier-grade NAT without
+any relay is never even attempted.
 
 ## Network behavior
 

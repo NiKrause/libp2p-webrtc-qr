@@ -47,7 +47,9 @@ pnpm test    # unit + both e2e suites, on Chromium, Firefox and WebKit
 ## Status and known limits
 
 - **No TURN server.** Two peers behind restrictive or symmetric NATs can still
-  fail to connect.
+  fail to connect over IPv4. Carrier-grade NAT is an IPv4 problem, though - if
+  both peers have a global IPv6 address they connect regardless, and the demo
+  reports per family which of the two you have before you scan anything.
 - **Payloads expire after ten minutes**, with two minutes of clock skew
   tolerated. The window is part of the signed canonical form, so rewriting it
   invalidates the signature rather than extending the payload.

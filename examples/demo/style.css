@@ -856,36 +856,109 @@ button.is-busy::before {
   display: none;
 }
 
+/*
+ * The three readings sit in one row. The tooltip is positioned against this
+ * container rather than against its own chip, so it spans the card whichever
+ * chip opened it - the alternative, anchoring to the chip, pushes the last
+ * tooltip off the right edge of a phone.
+ */
 .network-state {
-  --dot: var(--ls-text-faint);
+  position: relative;
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  font-size: 0.84rem;
-  color: var(--ls-text-dim);
+  flex-wrap: wrap;
+  gap: 6px;
   margin: 0 0 4px;
 }
 
-.network-state::before {
+.network-line {
+  --dot: var(--ls-text-faint);
+  position: static;
+}
+
+.network-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--ls-text-dim);
+  background: var(--ls-bg-2);
+  border: 1px solid var(--ls-card-border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.network-chip::before {
   content: '';
   width: 9px;
   height: 9px;
-  margin-top: 6px;
   flex-shrink: 0;
   border-radius: 50%;
   background: var(--dot);
   box-shadow: 0 0 10px var(--dot);
 }
 
-.network-state.is-open,
-.network-state.is-relay {
+.network-chip:focus-visible {
+  outline: 2px solid var(--ls-accent);
+  outline-offset: 3px;
+}
+
+/* Colour alone would carry the verdict, so each chip also spells it out. */
+.network-verdict {
+  color: var(--ls-text-faint);
+}
+
+.network-text {
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 0;
+  right: 0;
+  z-index: 5;
+  padding: 9px 12px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--ls-text);
+  background: var(--ls-bg-3);
+  border: 1px solid var(--ls-card-border);
+  border-radius: var(--ls-radius-sm);
+  box-shadow: 0 10px 26px rgb(0 0 0 / 45%);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms ease;
+}
+
+/*
+ * Tapping the chip toggles `aria-expanded`, which doubles as the styling hook -
+ * the tooltip cannot then be visible while screen readers are told it is not.
+ * Hover is added only where a real pointer exists, so a tap on a touch screen
+ * does not leave a chip stuck in a hover state.
+ */
+.network-chip[aria-expanded='true'] + .network-text {
+  opacity: 1;
+  visibility: visible;
+}
+
+@media (hover: hover) {
+  .network-line:hover .network-text {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+#network-overall .network-chip {
+  color: var(--ls-text);
+}
+
+.network-line.is-open,
+.network-line.is-relay {
   --dot: var(--ls-green);
 }
 
-.network-state.is-symmetric {
+.network-line.is-symmetric {
   --dot: var(--ls-amber);
 }
 
-.network-state.is-blocked {
+.network-line.is-blocked {
   --dot: var(--ls-red);
 }
