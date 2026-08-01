@@ -88,7 +88,13 @@ case:
 ICE candidates - local: 6 host, 1 srflx; remote: 6 host, 2 srflx; ice: disconnected
 ```
 
-A TURN server can be supplied per visit to test it:
+**IPv6 is the way out that needs no infrastructure.** Carrier-grade NAT is an
+IPv4 problem; most mobile networks hand out a globally routable IPv6 address
+alongside it. Two peers that both have one connect directly, because there is no
+address translation to defeat - only a stateful firewall, which the outbound
+half of ICE opens exactly as it would a NAT binding.
+
+A TURN server can be supplied per visit to test the IPv4-only case:
 
 ```
 ?turn=turn:example.org:3478&turnUser=alice&turnPass=secret
@@ -97,6 +103,26 @@ A TURN server can be supplied per visit to test it:
 It is off by default on purpose. A relay is infrastructure, and the point of
 this project is a connection that needs none - but it only relays the media.
 The signalling still travels between the two people and nowhere else.
+
+## What the three LEDs mean
+
+Starting the peer runs a throwaway `RTCPeerConnection` against both STUN servers
+and reads the candidates per address family:
+
+| LED | Green when |
+| --- | --- |
+| IPv4 | one reflexive port for the family - the mapping does not change per destination |
+| IPv6 | STUN answered from a global unicast address (`2000::/3`) |
+| Result | either of the two is green |
+
+Either family being usable is enough, so the summary is green if either one is.
+Amber means only peers on this same network are reachable.
+
+The base address behind a reflexive candidate is masked - every engine reports
+`raddr 0.0.0.0 rport 0` - so candidates can only be grouped by family. That has
+one blind spot: two interfaces in the same family, a VPN next to wifi, have
+different base ports and read as symmetric. The check errs pessimistic, and
+nothing in the UI is disabled on the strength of it.
 
 ## Network behavior
 

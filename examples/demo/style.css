@@ -857,16 +857,23 @@ button.is-busy::before {
 }
 
 .network-state {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0 0 4px;
+}
+
+.network-line {
   --dot: var(--ls-text-faint);
   display: flex;
   align-items: flex-start;
   gap: 10px;
   font-size: 0.84rem;
   color: var(--ls-text-dim);
-  margin: 0 0 4px;
+  margin: 0;
 }
 
-.network-state::before {
+.network-line::before {
   content: '';
   width: 9px;
   height: 9px;
@@ -877,15 +884,30 @@ button.is-busy::before {
   box-shadow: 0 0 10px var(--dot);
 }
 
-.network-state.is-open,
-.network-state.is-relay {
+.network-label {
+  flex-shrink: 0;
+  width: 3.1rem;
+  color: var(--ls-text-faint);
+}
+
+/* The summary is the line to read first, so it is the one that is not dimmed. */
+#network-overall {
+  color: var(--ls-text);
+}
+
+#network-overall .network-label {
+  color: var(--ls-text-dim);
+}
+
+.network-line.is-open,
+.network-line.is-relay {
   --dot: var(--ls-green);
 }
 
-.network-state.is-symmetric {
+.network-line.is-symmetric {
   --dot: var(--ls-amber);
 }
 
-.network-state.is-blocked {
+.network-line.is-blocked {
   --dot: var(--ls-red);
 }

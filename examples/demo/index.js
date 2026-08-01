@@ -69,6 +69,11 @@ const handoffBannerEl = document.getElementById('handoff-banner')
 const peerListEl = document.getElementById('peer-list')
 const peerCountEl = document.getElementById('peer-count')
 const networkStateEl = document.getElementById('network-state')
+const networkLineEls = {
+  ipv4: document.getElementById('network-ipv4'),
+  ipv6: document.getElementById('network-ipv6'),
+  overall: document.getElementById('network-overall')
+}
 const setupCards = [document.getElementById('step-start'), document.getElementById('step-connect')]
 const dataCard = document.getElementById('step-data')
 
@@ -214,19 +219,99 @@ async function parseAndVerifyPayload (text, expectedType) {
 }
 
 
+function renderNetwork (result) {
+  for (const key of ['ipv4', 'ipv6', 'overall']) {
+    const line = networkLineEls[key]
+
+    line.className = `network-line is-${result[key].state}`
+    line.querySelector('.network-text').textContent = result[key].text
+  }
+
+  // The container keeps the overall state as a class so anything reading one
+  // element - a test, a screenshot diff - still sees the summary verdict.
+  networkStateEl.className = `network-state is-${result.overall.state}`
+  networkStateEl.hidden = false
+  appendLog(`Network check: IPv4 ${result.ipv4.state}, IPv6 ${result.ipv6.state} - ${result.overall.text}`)
+}
+
+/**
+ * 2000::/3 is the only IPv6 range routed on the public internet. Unique-local
+ * (fc00::/7) and link-local (fe80::/10) addresses are as useless to a peer
+ * elsewhere as a 192.168 address is.
+ */
+function isGlobalUnicastV6 (address) {
+  if (typeof address !== 'string' || !address.includes(':')) {
+    return false
+  }
+
+  return /^[23]/.test(address.replace(/^\[/, ''))
+}
+
+/**
+ * Combine the two per-family verdicts into the one that answers the question
+ * the user actually has: can I reach anyone from here?
+ *
+ * Either family being usable is enough - the peers negotiate over whichever
+ * one works, and IPv6 does not care that IPv4 sits behind a carrier NAT.
+ */
+const NETWORK_RANK = { open: 3, relay: 3, symmetric: 2, blocked: 1 }
+
+function summariseNetwork (ipv4, ipv6) {
+  const best = NETWORK_RANK[ipv4.state] >= NETWORK_RANK[ipv6.state] ? ipv4 : ipv6
+
+  if (NETWORK_RANK[best.state] === 3) {
+    const usable = [
+      NETWORK_RANK[ipv4.state] === 3 ? 'IPv4' : null,
+      NETWORK_RANK[ipv6.state] === 3 ? 'IPv6' : null
+    ].filter(Boolean)
+
+    return {
+      state: best.state,
+      text: usable.length === 2
+        ? 'Reachable over IPv4 and IPv6 - peers on other networks should be able to connect.'
+        : usable[0] === 'IPv6'
+          ? 'Reachable over IPv6 - a peer that also has IPv6 connects directly, with no NAT to defeat.'
+          : 'Reachable over IPv4 - peers on other networks should be able to connect.'
+    }
+  }
+
+  if (best.state === 'symmetric') {
+    return {
+      state: 'symmetric',
+      text: 'Peers on this same network are fine. Reaching anyone else needs IPv6 on both sides, or a relay.'
+    }
+  }
+
+  return {
+    state: 'blocked',
+    text: 'No usable path off this network was found. Only peers on this same network are reachable.'
+  }
+}
+
 /**
  * Ask the network what it will allow, before anyone tries to connect.
  *
- * A throwaway peer connection gathers candidates against both STUN servers. The
- * presence of a reflexive candidate is *not* on its own good news - a symmetric
- * NAT hands one out too, it is simply useless towards a different peer. What
- * gives it away is the mapping: if one local base port appears under two
- * different public ports, the NAT is picking a new mapping per destination, and
- * hole punching with an arbitrary peer will not work.
+ * A throwaway peer connection gathers candidates against both STUN servers, and
+ * the answer is read per address family. A reflexive candidate is *not* on its
+ * own good news for IPv4 - a symmetric NAT hands one out too, it is simply
+ * useless towards a different peer. What gives it away is the mapping: two
+ * different public ports in the same family mean the NAT picks a new mapping
+ * per destination, and hole punching with an arbitrary peer will not work.
+ *
+ * Grouping by family rather than by base address is not a simplification, it is
+ * the only option: every engine masks the base behind a reflexive candidate as
+ * `raddr 0.0.0.0 rport 0`. It also fixes a real misreading - keying by
+ * `relatedPort` put the IPv4 and IPv6 candidates in the same bucket, whose
+ * ports of course differ, so a plain cone NAT was reported as symmetric.
+ *
+ * The residual blind spot: two interfaces in the same family (a VPN next to
+ * wifi) have different base ports, so they read as symmetric. That errs towards
+ * the pessimistic label, which is the safer direction given nothing is disabled
+ * on the strength of it.
  */
 async function probeNetwork () {
   const probe = new RTCPeerConnection(getRtcConfiguration())
-  const mappings = new Map()
+  const ports = { v4: new Set(), v6: new Set() }
   let relay = false
 
   probe.createDataChannel('probe')
@@ -248,11 +333,14 @@ async function probeNetwork () {
         relay = true
       }
 
-      if (candidate.type === 'srflx' && candidate.relatedPort != null) {
-        const ports = mappings.get(candidate.relatedPort) ?? new Set()
+      if (candidate.type !== 'srflx' || candidate.address == null) {
+        return
+      }
 
-        ports.add(candidate.port)
-        mappings.set(candidate.relatedPort, ports)
+      if (isGlobalUnicastV6(candidate.address)) {
+        ports.v6.add(candidate.port)
+      } else if (!candidate.address.includes(':')) {
+        ports.v4.add(candidate.port)
       }
     })
   })
@@ -261,28 +349,23 @@ async function probeNetwork () {
   await gathered
   probe.close()
 
-  const reflexive = mappings.size > 0
-  const symmetric = [...mappings.values()].some(ports => ports.size > 1)
+  const ipv4 = relay
+    ? { state: 'relay', text: 'IPv4 via the configured TURN relay - should connect from anywhere.' }
+    : ports.v4.size === 0
+      ? { state: 'blocked', text: 'No IPv4 reflexive candidate - STUN is blocked, or this network is IPv6 only.' }
+      : ports.v4.size > 1
+        ? { state: 'symmetric', text: 'IPv4 maps a new port per destination (symmetric NAT) - unusable towards a peer elsewhere.' }
+        : { state: 'open', text: 'IPv4 mapping stays the same per destination - usable for hole punching.' }
 
-  if (relay) {
-    return { state: 'relay', text: 'TURN relay available - should connect from anywhere.' }
-  }
+  // A reflexive IPv6 candidate proves the packet reached the STUN server from a
+  // routable address. There is no port translation to defeat here; the firewall
+  // in front of it is stateful, so the outbound half of ICE opens it just as it
+  // would a NAT binding.
+  const ipv6 = ports.v6.size > 0
+    ? { state: 'open', text: 'Global IPv6 confirmed by STUN - no NAT in the way on this family.' }
+    : { state: 'blocked', text: 'No global IPv6 address - this network offers IPv4 only.' }
 
-  if (!reflexive) {
-    return {
-      state: 'blocked',
-      text: 'No reflexive candidate - STUN is blocked here. Only peers on this same network are reachable.'
-    }
-  }
-
-  if (symmetric) {
-    return {
-      state: 'symmetric',
-      text: 'This network maps a new port per destination (symmetric NAT). Peers on the same network are fine; anyone elsewhere needs a TURN server.'
-    }
-  }
-
-  return { state: 'open', text: 'Reflexive candidates look usable - peers on other networks should be reachable.' }
+  return { ipv4, ipv6, overall: summariseNetwork(ipv4, ipv6) }
 }
 
 async function createNode () {
@@ -320,12 +403,7 @@ async function createNode () {
   fs = unixfs(helia)
 
   probeNetwork()
-    .then(result => {
-      networkStateEl.className = `network-state is-${result.state}`
-      networkStateEl.textContent = result.text
-      networkStateEl.hidden = false
-      appendLog(`Network check: ${result.text}`)
-    })
+    .then(renderNetwork)
     .catch(error => appendLog(`Network check failed: ${error.message}`))
 
   peerIdEl.textContent = node.peerId.toString()
@@ -1736,6 +1814,11 @@ document.addEventListener('visibilitychange', () => {
 // peer connections, the camera and the sockets on its own.
 
 window.__libp2pQrTest = {
+  // Exposed so the LED truth table can be asserted without depending on the
+  // network the test happens to run on.
+  summariseNetwork: (ipv4State, ipv6State) =>
+    summariseNetwork({ state: ipv4State, text: '' }, { state: ipv6State, text: '' }),
+  isGlobalUnicastV6,
   createOfferPayload,
   acceptOfferPayload,
   acceptAnswerPayload,

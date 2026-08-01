@@ -209,6 +209,15 @@ Two separable pieces: allowing a TURN server to be configured at all, and
 detecting the failure early enough to say *why* it failed rather than timing
 out.
 
+Both are done: `?turn=` configures a server per visit, and starting the peer
+runs a STUN probe that reports IPv4 and IPv6 separately with a summary LED. The
+probe fixed a misreading of its own - keying candidates by `relatedPort` put
+IPv4 and IPv6 in one bucket, whose ports of course differ, so an ordinary cone
+NAT was labelled symmetric.
+
+What stays open is the decentralised alternative to TURN, tracked separately in
+[#23](https://github.com/NiKrause/libp2p-webrtc-qr/issues/23).
+
 ---
 
 ---
