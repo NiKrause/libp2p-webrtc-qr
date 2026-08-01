@@ -246,6 +246,36 @@ async function waitForIceGatheringComplete (peerConnection) {
   })
 }
 
+/**
+ * Summarise what ICE actually had to work with. A failure after clean signalling
+ * is almost always about candidate types, and those are invisible otherwise:
+ *
+ * - `.local` host candidates are mDNS-obfuscated. Two browsers on one machine
+ *   resolve their own names fine, which is why same-laptop pairs connect; a
+ *   phone and a laptop often cannot resolve each other's.
+ * - With only host and srflx on both sides and both behind the *same* router,
+ *   connecting needs NAT hairpinning, which many home routers do not do.
+ * - `relay` means a TURN server was available. There is none configured here.
+ */
+function describeIce (peerConnection) {
+  const summarise = sdp => {
+    const lines = (sdp ?? '').split(/\r?\n/).filter(line => line.startsWith('a=candidate:'))
+    const types = {}
+
+    for (const line of lines) {
+      const type = line.match(/ typ (\w+)/)?.[1] ?? 'unknown'
+      types[type] = (types[type] ?? 0) + 1
+    }
+
+    const mdns = lines.filter(line => /\s[0-9a-f-]{36}\.local\s/.test(line)).length
+    const summary = Object.entries(types).map(([type, count]) => `${count} ${type}`).join(', ')
+
+    return `${summary || 'none'}${mdns > 0 ? ` (${mdns} mDNS .local)` : ''}`
+  }
+
+  return `local: ${summarise(peerConnection.localDescription?.sdp)}; remote: ${summarise(peerConnection.remoteDescription?.sdp)}; ice: ${peerConnection.iceConnectionState}`
+}
+
 async function waitForConnected (peerConnection, timeoutMs = CONNECTION_TIMEOUT) {
   if (peerConnection.connectionState === 'connected') {
     return
@@ -271,6 +301,11 @@ async function waitForConnected (peerConnection, timeoutMs = CONNECTION_TIMEOUT)
 
       if (['failed', 'closed'].includes(peerConnection.connectionState)) {
         cleanup()
+
+        if (peerConnection.connectionState === 'failed') {
+          appendLog(`ICE candidates - ${describeIce(peerConnection)}`)
+        }
+
         reject(new Error(`WebRTC connection entered state ${peerConnection.connectionState}`))
       }
     }
@@ -389,6 +424,10 @@ async function acceptOfferPayload (text) {
       })
 
     upgraded.catch(error => {
+      if (peerConnection.connectionState === 'failed') {
+        appendLog(`ICE candidates - ${describeIce(peerConnection)}`)
+      }
+
       inboundPeerConnections.delete(peerConnection)
       peerConnection.close()
       setStatus(/timed out/i.test(error.message)
