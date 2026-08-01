@@ -22,8 +22,18 @@ async function openPeer (page, errors) {
 }
 
 async function createInvite (page) {
-  await page.locator('#create-offer').click()
+  // Once connected the setup card is folded, so the button inside it is not
+  // clickable - which is exactly why "invite someone else" exists.
+  if (await page.locator('#step-connect.is-collapsed').count() > 0) {
+    await page.locator('#invite-another').click()
+  } else {
+    await page.locator('#create-offer').click()
+  }
+
   await expect(page.locator('#invite-box')).toBeVisible()
+  // The box is emptied while the next invite is gathering, so waiting for any
+  // `#i=` would otherwise hand back the previous person's link.
+  await expect.poll(() => page.locator('#invite-link').inputValue()).toMatch(/#i=/)
 
   return page.locator('#invite-link').inputValue()
 }
@@ -49,10 +59,12 @@ async function connectPeers (offerer, answerer) {
   await useLink(offerer, reply)
   await expect(offerer.locator('#status')).toContainText('Connected')
 
+  // Not `toBe(1)`: a peer that already has connections gains one more, and
+  // pinning the count to one is what made this helper two-peer-only.
   for (const page of [offerer, answerer]) {
     await expect.poll(() => page.evaluate(() => window.__libp2pQrTest.getConnections()), {
       timeout: 20000
-    }).toBe(1)
+    }).toBeGreaterThanOrEqual(1)
   }
 }
 
@@ -154,6 +166,52 @@ test.describe('signed QR WebRTC signaling', () => {
     } finally {
       await offerer.close()
       await answerer.close()
+    }
+  })
+
+  test('holds three peers at once and labels who said what', async ({ browser, browserName }) => {
+    skipWithoutWebRTC(test, browserName)
+
+    const hub = await browser.newPage()
+    const bob = await browser.newPage()
+    const carol = await browser.newPage()
+    const pageErrors = []
+
+    try {
+      for (const page of [hub, bob, carol]) {
+        await openPeer(page, pageErrors)
+      }
+
+      // Creating a second invite used to close the first connection outright.
+      await connectPeers(hub, bob)
+      await connectPeers(hub, carol)
+
+      await expect.poll(() => hub.evaluate(() => window.__libp2pQrTest.getPeers().length), {
+        timeout: 20000
+      }).toBe(2)
+      await expect(hub.locator('#peer-list .peer-row')).toHaveCount(2)
+      await expect(hub.locator('#peer-count')).toContainText('2 connected')
+
+      // One conversation: what the hub types reaches both.
+      await hub.evaluate(() => window.__libp2pQrTest.sendMessage('hello both of you'))
+
+      for (const page of [bob, carol]) {
+        await expect.poll(() => page.evaluate(() => window.__libp2pQrTest.getLastReceivedMessage()), {
+          timeout: 20000
+        }).toBe('hello both of you')
+      }
+
+      // ...and an incoming line says who sent it, which is the whole point
+      // once there are more than two people.
+      const hubPeerId = await hub.locator('#peer-id').textContent()
+      const received = await bob.evaluate(() => window.__libp2pQrTest.getReceivedWithSenders())
+      expect(received.at(-1).from).toBe(hubPeerId.trim())
+
+      expect(pageErrors).toEqual([])
+    } finally {
+      await hub.close()
+      await bob.close()
+      await carol.close()
     }
   })
 
@@ -397,6 +455,37 @@ test.describe('signed QR WebRTC signaling', () => {
       expect(pageErrors).toEqual([])
     } finally {
       await page.close()
+    }
+  })
+
+  test('does not push the page sideways on a phone once connected', async ({ browser, browserName }) => {
+    skipWithoutWebRTC(test, browserName)
+
+    const offerer = await browser.newPage({ viewport: { width: 390, height: 780 } })
+    const answerer = await browser.newPage({ viewport: { width: 390, height: 780 } })
+    const pageErrors = []
+
+    try {
+      await openPeer(offerer, pageErrors)
+      await openPeer(answerer, pageErrors)
+      await connectPeers(offerer, answerer)
+
+      // The connected state is a different layout - folded headings, a peer
+      // list, long peer ids - and it went 543px wide on a 390px screen. An
+      // unconnected page cannot catch that, which is why it shipped.
+      for (const page of [offerer, answerer]) {
+        const width = await page.evaluate(() => ({
+          scroll: document.documentElement.scrollWidth,
+          view: window.innerWidth
+        }))
+        expect(width.scroll, `page is ${width.scroll}px wide in a ${width.view}px viewport`)
+          .toBeLessThanOrEqual(width.view)
+      }
+
+      expect(pageErrors).toEqual([])
+    } finally {
+      await offerer.close()
+      await answerer.close()
     }
   })
 

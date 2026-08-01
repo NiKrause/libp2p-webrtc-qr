@@ -66,6 +66,8 @@ const inviteLinkEl = document.getElementById('invite-link')
 const inviteFreshnessEl = document.getElementById('invite-freshness')
 const createOfferAgainButton = document.getElementById('create-offer-again')
 const handoffBannerEl = document.getElementById('handoff-banner')
+const peerListEl = document.getElementById('peer-list')
+const peerCountEl = document.getElementById('peer-count')
 const setupCards = [document.getElementById('step-start'), document.getElementById('step-connect')]
 const dataCard = document.getElementById('step-data')
 
@@ -75,8 +77,10 @@ const qrCanvasContext = qrCanvas.getContext('2d', { willReadFrequently: true })
 let node = null
 let helia = null
 let fs = null
-let chatStream = null
-let currentOfferSession = null
+// Keyed by session id until an answer names the peer, then indexed by peer id
+// as well - an outgoing offer does not know who will take it.
+const offerSessions = new Map()
+const chatStreams = new Map()
 let scanStream = null
 let scanAnimationFrame = null
 let scanMode = null
@@ -149,11 +153,17 @@ function remoteAddress (peerId) {
 }
 
 function getOutboundSession (remotePeerId) {
-  if (currentOfferSession?.remotePeerId !== remotePeerId) {
-    return null
+  for (const session of offerSessions.values()) {
+    if (session.remotePeerId === remotePeerId) {
+      return session.upgradeContext
+    }
   }
 
-  return currentOfferSession.upgradeContext
+  return null
+}
+
+function shortPeer (peerId) {
+  return `${peerId.slice(0, 8)}…${peerId.slice(-6)}`
 }
 
 async function signPayload (payload) {
@@ -182,7 +192,8 @@ async function createNode () {
 
   // libp2p 3 passes the handler positional arguments, not a single object.
   node.handle(CHAT_PROTOCOL, (stream, connection) => {
-    attachChatStream(stream, `Incoming chat stream from ${connection.remotePeer}`)
+    const from = connection.remotePeer.toString()
+    attachChatStream(stream, from, `${shortPeer(from)} connected.`)
   })
 
   // Composed by hand rather than with `createHelia`, which is
@@ -267,8 +278,6 @@ async function createOfferPayload () {
     throw new Error('Start the browser client first')
   }
 
-  currentOfferSession?.peerConnection.close()
-
   const peerConnection = new RTCPeerConnection(getRtcConfiguration())
   const sessionId = crypto.randomUUID()
 
@@ -289,13 +298,13 @@ async function createOfferPayload () {
     throw new Error('WebRTC did not create an SDP offer')
   }
 
-  currentOfferSession = {
+  offerSessions.set(sessionId, {
     sessionId,
     peerConnection,
     initDataChannel,
     remotePeerId: null,
     upgradeContext: null
-  }
+  })
 
   updateControls()
 
@@ -396,7 +405,7 @@ async function acceptOfferPayload (text) {
 }
 
 async function acceptAnswerPayload (text) {
-  if (node == null || currentOfferSession == null) {
+  if (node == null || offerSessions.size === 0) {
     throw new Error('Create an offer before accepting an answer')
   }
 
@@ -406,7 +415,9 @@ async function acceptAnswerPayload (text) {
     throw new Error('This answer belongs to this browser. Use the answer QR created by the second browser')
   }
 
-  if (answerPayload.sessionId !== currentOfferSession.sessionId) {
+  const session = offerSessions.get(answerPayload.sessionId)
+
+  if (session == null) {
     throw new Error('The answer belongs to a different QR session')
   }
 
@@ -414,25 +425,25 @@ async function acceptAnswerPayload (text) {
     throw new Error('The answer was not created for this peer')
   }
 
-  await currentOfferSession.peerConnection.setRemoteDescription({
+  await session.peerConnection.setRemoteDescription({
     type: 'answer',
     sdp: answerPayload.sdp
   })
-  await waitForConnected(currentOfferSession.peerConnection)
-  currentOfferSession.initDataChannel.close()
+  await waitForConnected(session.peerConnection)
+  session.initDataChannel.close()
 
   const addr = remoteAddress(answerPayload.peerId)
-  currentOfferSession.remotePeerId = answerPayload.peerId
-  currentOfferSession.upgradeContext = createWebRTCUpgradeContext(
+  session.remotePeerId = answerPayload.peerId
+  session.upgradeContext = createWebRTCUpgradeContext(
     node.components,
-    currentOfferSession.peerConnection,
+    session.peerConnection,
     addr,
     { direction: 'outbound' }
   )
 
   const stream = await dialChatStream(addr)
 
-  attachChatStream(stream, `Outgoing chat stream to ${answerPayload.peerId}`)
+  attachChatStream(stream, answerPayload.peerId, `Connected to ${shortPeer(answerPayload.peerId)}.`)
   setStatus(`Connected to ${answerPayload.peerId}`)
 
   return addr.toString()
@@ -469,20 +480,64 @@ async function dialChatStream (addr, attempts = 15) {
   throw lastError
 }
 
-function attachChatStream (stream, message) {
-  chatStream = stream
+function attachChatStream (stream, peerId, message) {
+  chatStreams.set(peerId, stream)
   appendLog(message)
   sendButton.disabled = false
   setDropZoneEnabled(true)
   setStepsCollapsed(true)
+  renderPeers()
   messageInput.focus()
 
-  readChatMessages(stream).catch(error => {
-    appendLog(`Chat stream closed: ${error.message}`)
-    setDropZoneEnabled(false)
-    // Connecting again is the only thing left to do, so put the steps back.
-    setStepsCollapsed(false)
+  readChatMessages(stream, peerId).catch(error => {
+    appendLog(`Connection to ${shortPeer(peerId)} closed: ${error.message}`)
+  }).finally(() => {
+    chatStreams.delete(peerId)
+    renderPeers()
+
+    if (chatStreams.size === 0) {
+      sendButton.disabled = true
+      setDropZoneEnabled(false)
+      // Connecting again is the only thing left to do, so put the steps back.
+      setStepsCollapsed(false)
+    }
   })
+}
+
+/**
+ * One list, one conversation. Everything typed goes to every connected peer and
+ * arrives labelled with its sender - with three people in a room, an unlabelled
+ * line tells you nothing.
+ */
+function renderPeers () {
+  peerListEl.replaceChildren()
+
+  for (const peerId of chatStreams.keys()) {
+    const row = document.createElement('div')
+    row.className = 'peer-row'
+    row.dataset.peer = peerId
+
+    const name = document.createElement('span')
+    name.className = 'peer-name'
+    name.textContent = shortPeer(peerId)
+    name.title = peerId
+
+    const drop = document.createElement('button')
+    drop.type = 'button'
+    drop.className = 'peer-drop'
+    drop.textContent = 'Disconnect'
+    drop.setAttribute('aria-label', `Disconnect from ${peerId}`)
+    drop.addEventListener('click', () => {
+      chatStreams.get(peerId)?.close().catch(() => {})
+    })
+
+    row.append(name, drop)
+    peerListEl.appendChild(row)
+  }
+
+  peerCountEl.textContent = chatStreams.size === 0
+    ? 'No one connected yet.'
+    : `${chatStreams.size} connected`
 }
 
 /**
@@ -497,7 +552,7 @@ function envelope (payload) {
 // libp2p 3 streams are message streams: iterate them for reads, `send()` for
 // writes. The old source/sink duplex - and the it-byte-stream wrapper around
 // it - is gone.
-async function readChatMessages (stream) {
+async function readChatMessages (stream, from) {
   for await (const data of stream) {
     const raw = toString(data.subarray())
     let message
@@ -510,7 +565,7 @@ async function readChatMessages (stream) {
     }
 
     if (message.kind === 'file') {
-      appendLog(`Received a file announcement: ${message.name} (${message.size} bytes)`)
+      appendLog(`${shortPeer(from)} is offering ${message.name} (${message.size} bytes)`)
       receiveFile(message).catch(error => {
         appendLog(`Could not fetch ${message.name}: ${error.message}`)
       })
@@ -518,18 +573,40 @@ async function readChatMessages (stream) {
     }
 
     testState.lastReceivedMessage = message.text
-    testState.receivedMessages.push(message.text)
-    appendLog(`Received: ${message.text}`)
+    testState.receivedMessages.push({ from, text: message.text })
+    appendLog(`${shortPeer(from)}: ${message.text}`)
+  }
+}
+
+async function broadcast (payload, what) {
+  if (chatStreams.size === 0) {
+    throw new Error('Connect to someone first')
+  }
+
+  const bytes = envelope(payload)
+  const failures = []
+
+  for (const [peerId, stream] of chatStreams) {
+    try {
+      await stream.send(bytes)
+    } catch (error) {
+      failures.push(`${shortPeer(peerId)}: ${error.message}`)
+    }
+  }
+
+  // One dead connection must not swallow the message for everyone else.
+  if (failures.length === chatStreams.size) {
+    throw new Error(`Could not send the ${what} to anyone - ${failures[0]}`)
+  }
+
+  for (const failure of failures) {
+    appendLog(`Could not reach ${failure}`)
   }
 }
 
 async function sendMessage (message) {
-  if (chatStream == null) {
-    throw new Error('No active chat stream')
-  }
-
-  await chatStream.send(envelope({ kind: 'text', text: message }))
-  appendLog(`Sent: ${message}`)
+  await broadcast({ kind: 'text', text: message }, 'message')
+  appendLog(`You: ${message}`)
 }
 
 const MAX_FILE_BYTES = 32 * 1024 * 1024
@@ -557,8 +634,8 @@ function setDropZoneEnabled (enabled) {
  * stay here - the other peer pulls them with bitswap over the same connection.
  */
 async function sendFile (file) {
-  if (chatStream == null) {
-    throw new Error('Connect to a peer before sending a file')
+  if (chatStreams.size === 0) {
+    throw new Error('Connect to someone before sending a file')
   }
 
   if (file.size > MAX_FILE_BYTES) {
@@ -568,13 +645,14 @@ async function sendFile (file) {
   const bytes = new Uint8Array(await file.arrayBuffer())
   const cid = await fs.addBytes(bytes)
 
-  await chatStream.send(envelope({
+  // Announced to everyone; bitswap then serves whoever actually asks.
+  await broadcast({
     kind: 'file',
     cid: cid.toString(),
     name: file.name,
     size: bytes.byteLength,
     mime: file.type || 'application/octet-stream'
-  }))
+  }, 'file')
 
   appendLog(`Sent ${file.name} (${formatBytes(bytes.byteLength)}) as ${cid}`)
 
@@ -889,7 +967,7 @@ function updateControls () {
   createOfferButton.disabled = !started
   createOfferAgainButton.disabled = !started
   scanOfferButton.disabled = !started
-  scanAnswerButton.disabled = !started || currentOfferSession == null
+  scanAnswerButton.disabled = !started || offerSessions.size === 0
   processPayloadButton.disabled = !started || payloadFrom(payloadDisplay.value).length === 0
   copyPayloadButton.disabled = inviteLinkEl.value.length === 0
 }
@@ -1083,6 +1161,14 @@ startButton.addEventListener('click', async () => {
 })
 
 async function createInvite (button) {
+  // Clear the previous link first. Gathering ICE takes seconds, and a stale
+  // link sitting in the box the whole time is one someone will copy and send.
+  inviteLinkEl.value = ''
+  qrImage.style.display = 'none'
+  inviteFreshnessEl.textContent = ''
+  clearInterval(inviteCountdown)
+  updateControls()
+
   // Gathering ICE candidates can take seconds, and until it finishes there is
   // nothing on screen. Without a pending state the button looks like it was
   // never pressed, so people press it again.
@@ -1104,6 +1190,14 @@ async function createInvite (button) {
 
 createOfferButton.addEventListener('click', () => createInvite(createOfferButton))
 createOfferAgainButton.addEventListener('click', () => createInvite(createOfferAgainButton))
+
+// Reachable without reopening the folded card: once connected, inviting the
+// next person is the natural next thing, not a step you have to go back for.
+document.getElementById('invite-another').addEventListener('click', () => {
+  setStepsCollapsed(false)
+  document.getElementById('step-connect').scrollIntoView({ block: 'start', behavior: 'smooth' })
+  createInvite(createOfferButton)
+})
 
 scanOfferButton.addEventListener('click', () => {
   startQrScanner(QR_TYPE_OFFER).catch(error => {
@@ -1193,7 +1287,7 @@ messageInput.addEventListener('keydown', event => {
   dropZone.addEventListener(name, event => {
     event.preventDefault()
 
-    if (chatStream != null) {
+    if (chatStreams.size > 0) {
       dropZone.classList.add('is-hovered')
     }
   })
@@ -1215,13 +1309,13 @@ dropZone.addEventListener('drop', event => {
 })
 
 dropZone.addEventListener('click', () => {
-  if (chatStream != null) {
+  if (chatStreams.size > 0) {
     fileInput.click()
   }
 })
 
 dropZone.addEventListener('keydown', event => {
-  if ((event.key === 'Enter' || event.key === ' ') && chatStream != null) {
+  if ((event.key === 'Enter' || event.key === ' ') && chatStreams.size > 0) {
     event.preventDefault()
     fileInput.click()
   }
@@ -1239,7 +1333,9 @@ fileInput.addEventListener('change', () => {
 
 window.addEventListener('beforeunload', () => {
   stopQrScanner()
-  currentOfferSession?.peerConnection.close()
+  for (const session of offerSessions.values()) {
+    session.peerConnection.close()
+  }
   inboundPeerConnections.forEach(peerConnection => peerConnection.close())
 
   if (node != null) {
@@ -1284,16 +1380,16 @@ window.__libp2pQrTest = {
     return (await fetch(link.href)).text()
   },
   getLastReceivedMessage: () => testState.lastReceivedMessage,
-  getReceivedMessages: () => [...testState.receivedMessages],
+  getReceivedMessages: () => testState.receivedMessages.map(entry => entry.text),
+  getReceivedWithSenders: () => [...testState.receivedMessages],
   getConnections: () => node?.getConnections().length ?? 0,
-  debugStream: () => chatStream == null
-    ? null
-    : {
-        status: chatStream.status,
-        readStatus: chatStream.readStatus,
-        writeStatus: chatStream.writeStatus,
-        protocol: chatStream.protocol
-      }
+  getPeers: () => [...chatStreams.keys()],
+  debugStreams: () => [...chatStreams].map(([peerId, stream]) => ({
+    peerId,
+    status: stream.status,
+    readStatus: stream.readStatus,
+    writeStatus: stream.writeStatus
+  }))
 }
 
 /**
@@ -1306,7 +1402,7 @@ window.__libp2pQrTest = {
 handoff?.addEventListener('message', async event => {
   const { kind, payload } = event.data ?? {}
 
-  if (kind !== 'reply' || currentOfferSession == null) {
+  if (kind !== 'reply' || offerSessions.size === 0) {
     return
   }
 
