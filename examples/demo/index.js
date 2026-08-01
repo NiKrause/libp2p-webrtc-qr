@@ -66,6 +66,9 @@ const inviteLinkEl = document.getElementById('invite-link')
 const inviteFreshnessEl = document.getElementById('invite-freshness')
 const createOfferAgainButton = document.getElementById('create-offer-again')
 const handoffBannerEl = document.getElementById('handoff-banner')
+const peerListEl = document.getElementById('peer-list')
+const peerCountEl = document.getElementById('peer-count')
+const networkStateEl = document.getElementById('network-state')
 const setupCards = [document.getElementById('step-start'), document.getElementById('step-connect')]
 const dataCard = document.getElementById('step-data')
 
@@ -75,8 +78,16 @@ const qrCanvasContext = qrCanvas.getContext('2d', { willReadFrequently: true })
 let node = null
 let helia = null
 let fs = null
-let chatStream = null
-let currentOfferSession = null
+// Keyed by session id until an answer names the peer, then indexed by peer id
+// as well - an outgoing offer does not know who will take it.
+const offerSessions = new Map()
+const chatStreams = new Map()
+// Kept per peer so the page can say what happened to each connection while it
+// was in the background, instead of going quiet.
+const peerConnections = new Map()
+// Peers the user dropped on purpose, so the same teardown is not reported as a
+// loss they need to do something about.
+const intentionalDrops = new Set()
 let scanStream = null
 let scanAnimationFrame = null
 let scanMode = null
@@ -136,9 +147,41 @@ function setStatus (text) {
   statusEl.classList.toggle('is-error', /failed|timed out|cancelled/i.test(text))
 }
 
+/**
+ * A TURN server can be supplied per visit:
+ *
+ *   ?turn=turn:example.org:3478&turnUser=alice&turnPass=secret
+ *
+ * Off by default, deliberately: a relay is infrastructure, and this project
+ * exists to show a connection that needs none. But srflx candidates cannot
+ * traverse the symmetric carrier-grade NAT a phone on mobile data usually sits
+ * behind, and no amount of code changes that - so being able to try one turns
+ * a diagnosis into an answer.
+ *
+ * Note the trade: TURN relays the *media*, so a third party carries the bytes.
+ * It never sees the signalling, which still travels only between the two
+ * people.
+ */
 function getRtcConfiguration () {
-  if (new URLSearchParams(window.location.search).get('ice') === 'host') {
+  const params = new URLSearchParams(window.location.search)
+
+  if (params.get('ice') === 'host') {
     return { iceServers: [] }
+  }
+
+  const turn = params.get('turn')
+
+  if (turn != null && turn.length > 0) {
+    return {
+      iceServers: [
+        ...RTC_CONFIGURATION.iceServers,
+        {
+          urls: turn,
+          username: params.get('turnUser') ?? undefined,
+          credential: params.get('turnPass') ?? undefined
+        }
+      ]
+    }
   }
 
   return RTC_CONFIGURATION
@@ -149,11 +192,17 @@ function remoteAddress (peerId) {
 }
 
 function getOutboundSession (remotePeerId) {
-  if (currentOfferSession?.remotePeerId !== remotePeerId) {
-    return null
+  for (const session of offerSessions.values()) {
+    if (session.remotePeerId === remotePeerId) {
+      return session.upgradeContext
+    }
   }
 
-  return currentOfferSession.upgradeContext
+  return null
+}
+
+function shortPeer (peerId) {
+  return `${peerId.slice(0, 8)}…${peerId.slice(-6)}`
 }
 
 async function signPayload (payload) {
@@ -162,6 +211,78 @@ async function signPayload (payload) {
 
 async function parseAndVerifyPayload (text, expectedType) {
   return decodeSignedPayload(text, expectedType)
+}
+
+
+/**
+ * Ask the network what it will allow, before anyone tries to connect.
+ *
+ * A throwaway peer connection gathers candidates against both STUN servers. The
+ * presence of a reflexive candidate is *not* on its own good news - a symmetric
+ * NAT hands one out too, it is simply useless towards a different peer. What
+ * gives it away is the mapping: if one local base port appears under two
+ * different public ports, the NAT is picking a new mapping per destination, and
+ * hole punching with an arbitrary peer will not work.
+ */
+async function probeNetwork () {
+  const probe = new RTCPeerConnection(getRtcConfiguration())
+  const mappings = new Map()
+  let relay = false
+
+  probe.createDataChannel('probe')
+
+  const gathered = new Promise(resolve => {
+    const done = () => resolve()
+    const timer = setTimeout(done, 6000)
+
+    probe.addEventListener('icecandidate', event => {
+      const candidate = event.candidate
+
+      if (candidate == null) {
+        clearTimeout(timer)
+        done()
+        return
+      }
+
+      if (candidate.type === 'relay') {
+        relay = true
+      }
+
+      if (candidate.type === 'srflx' && candidate.relatedPort != null) {
+        const ports = mappings.get(candidate.relatedPort) ?? new Set()
+
+        ports.add(candidate.port)
+        mappings.set(candidate.relatedPort, ports)
+      }
+    })
+  })
+
+  await probe.setLocalDescription(await probe.createOffer())
+  await gathered
+  probe.close()
+
+  const reflexive = mappings.size > 0
+  const symmetric = [...mappings.values()].some(ports => ports.size > 1)
+
+  if (relay) {
+    return { state: 'relay', text: 'TURN relay available - should connect from anywhere.' }
+  }
+
+  if (!reflexive) {
+    return {
+      state: 'blocked',
+      text: 'No reflexive candidate - STUN is blocked here. Only peers on this same network are reachable.'
+    }
+  }
+
+  if (symmetric) {
+    return {
+      state: 'symmetric',
+      text: 'This network maps a new port per destination (symmetric NAT). Peers on the same network are fine; anyone elsewhere needs a TURN server.'
+    }
+  }
+
+  return { state: 'open', text: 'Reflexive candidates look usable - peers on other networks should be reachable.' }
 }
 
 async function createNode () {
@@ -182,7 +303,8 @@ async function createNode () {
 
   // libp2p 3 passes the handler positional arguments, not a single object.
   node.handle(CHAT_PROTOCOL, (stream, connection) => {
-    attachChatStream(stream, `Incoming chat stream from ${connection.remotePeer}`)
+    const from = connection.remotePeer.toString()
+    attachChatStream(stream, from, `${shortPeer(from)} connected.`)
   })
 
   // Composed by hand rather than with `createHelia`, which is
@@ -196,6 +318,15 @@ async function createNode () {
   helia = withBitswap(withLibp2p(createHeliaLight(), node))
   await helia.start()
   fs = unixfs(helia)
+
+  probeNetwork()
+    .then(result => {
+      networkStateEl.className = `network-state is-${result.state}`
+      networkStateEl.textContent = result.text
+      networkStateEl.hidden = false
+      appendLog(`Network check: ${result.text}`)
+    })
+    .catch(error => appendLog(`Network check failed: ${error.message}`))
 
   peerIdEl.textContent = node.peerId.toString()
   setStatus('Browser client started. Create or scan an offer.')
@@ -229,6 +360,37 @@ async function waitForIceGatheringComplete (peerConnection) {
   })
 }
 
+/**
+ * Summarise what ICE actually had to work with. A failure after clean signalling
+ * is almost always about candidate types, and those are invisible otherwise:
+ *
+ * - `.local` host candidates are mDNS-obfuscated. Browsers on the same LAN
+ *   generally do resolve each other's - a phone and a laptop on one wifi have
+ *   been confirmed working - so their presence alone is not a diagnosis.
+ * - With only host and srflx on both sides, two peers behind the same router
+ *   may need NAT hairpinning, which not every home router does.
+ * - `relay` means a TURN server was available. There is none configured here,
+ *   so there is no fallback when the pair above finds nothing.
+ */
+function describeIce (peerConnection) {
+  const summarise = sdp => {
+    const lines = (sdp ?? '').split(/\r?\n/).filter(line => line.startsWith('a=candidate:'))
+    const types = {}
+
+    for (const line of lines) {
+      const type = line.match(/ typ (\w+)/)?.[1] ?? 'unknown'
+      types[type] = (types[type] ?? 0) + 1
+    }
+
+    const mdns = lines.filter(line => /\s[0-9a-f-]{36}\.local\s/.test(line)).length
+    const summary = Object.entries(types).map(([type, count]) => `${count} ${type}`).join(', ')
+
+    return `${summary || 'none'}${mdns > 0 ? ` (${mdns} mDNS .local)` : ''}`
+  }
+
+  return `local: ${summarise(peerConnection.localDescription?.sdp)}; remote: ${summarise(peerConnection.remoteDescription?.sdp)}; ice: ${peerConnection.iceConnectionState}`
+}
+
 async function waitForConnected (peerConnection, timeoutMs = CONNECTION_TIMEOUT) {
   if (peerConnection.connectionState === 'connected') {
     return
@@ -254,6 +416,16 @@ async function waitForConnected (peerConnection, timeoutMs = CONNECTION_TIMEOUT)
 
       if (['failed', 'closed'].includes(peerConnection.connectionState)) {
         cleanup()
+
+        if (peerConnection.connectionState === 'failed') {
+          const summary = describeIce(peerConnection)
+          appendLog(`ICE candidates - ${summary}`)
+
+          if (!summary.includes('relay')) {
+            appendLog('No relay candidate on either side. Networks like mobile data usually need a TURN server - see the readme for ?turn=.')
+          }
+        }
+
         reject(new Error(`WebRTC connection entered state ${peerConnection.connectionState}`))
       }
     }
@@ -266,8 +438,6 @@ async function createOfferPayload () {
   if (node == null) {
     throw new Error('Start the browser client first')
   }
-
-  currentOfferSession?.peerConnection.close()
 
   const peerConnection = new RTCPeerConnection(getRtcConfiguration())
   const sessionId = crypto.randomUUID()
@@ -289,13 +459,14 @@ async function createOfferPayload () {
     throw new Error('WebRTC did not create an SDP offer')
   }
 
-  currentOfferSession = {
+  offerSessions.set(sessionId, {
     sessionId,
+    createdAt: Date.now(),
     peerConnection,
     initDataChannel,
     remotePeerId: null,
     upgradeContext: null
-  }
+  })
 
   updateControls()
 
@@ -368,10 +539,15 @@ async function acceptOfferPayload (text) {
           signal: AbortSignal.timeout(CONNECTION_TIMEOUT)
         })
 
+        watchConnection(offerPayload.peerId, peerConnection)
         setStatus(`Connected to ${offerPayload.peerId}`)
       })
 
     upgraded.catch(error => {
+      if (peerConnection.connectionState === 'failed') {
+        appendLog(`ICE candidates - ${describeIce(peerConnection)}`)
+      }
+
       inboundPeerConnections.delete(peerConnection)
       peerConnection.close()
       setStatus(/timed out/i.test(error.message)
@@ -396,7 +572,7 @@ async function acceptOfferPayload (text) {
 }
 
 async function acceptAnswerPayload (text) {
-  if (node == null || currentOfferSession == null) {
+  if (node == null || offerSessions.size === 0) {
     throw new Error('Create an offer before accepting an answer')
   }
 
@@ -406,7 +582,9 @@ async function acceptAnswerPayload (text) {
     throw new Error('This answer belongs to this browser. Use the answer QR created by the second browser')
   }
 
-  if (answerPayload.sessionId !== currentOfferSession.sessionId) {
+  const session = offerSessions.get(answerPayload.sessionId)
+
+  if (session == null) {
     throw new Error('The answer belongs to a different QR session')
   }
 
@@ -414,25 +592,40 @@ async function acceptAnswerPayload (text) {
     throw new Error('The answer was not created for this peer')
   }
 
-  await currentOfferSession.peerConnection.setRemoteDescription({
+  const ageSeconds = Math.round((Date.now() - session.createdAt) / 1000)
+  appendLog(`Reply arrived ${ageSeconds}s after the invite was created.`)
+
+  await session.peerConnection.setRemoteDescription({
     type: 'answer',
     sdp: answerPayload.sdp
   })
-  await waitForConnected(currentOfferSession.peerConnection)
-  currentOfferSession.initDataChannel.close()
+
+  try {
+    await waitForConnected(session.peerConnection)
+  } catch (error) {
+    // A NAT keeps a UDP binding open for as long as packets flow through it -
+    // often well under two minutes. The candidates in an invite that sat in a
+    // chat can point at bindings that no longer exist, and the connection then
+    // fails with signalling that went through perfectly.
+    throw ageSeconds > 90
+      ? new Error(`WebRTC connection failed after the invite sat for ${ageSeconds}s - it was probably too old. Create a new invite and send it straight away.`)
+      : error
+  }
+  session.initDataChannel.close()
 
   const addr = remoteAddress(answerPayload.peerId)
-  currentOfferSession.remotePeerId = answerPayload.peerId
-  currentOfferSession.upgradeContext = createWebRTCUpgradeContext(
+  session.remotePeerId = answerPayload.peerId
+  session.upgradeContext = createWebRTCUpgradeContext(
     node.components,
-    currentOfferSession.peerConnection,
+    session.peerConnection,
     addr,
     { direction: 'outbound' }
   )
 
   const stream = await dialChatStream(addr)
 
-  attachChatStream(stream, `Outgoing chat stream to ${answerPayload.peerId}`)
+  watchConnection(answerPayload.peerId, session.peerConnection)
+  attachChatStream(stream, answerPayload.peerId, `Connected to ${shortPeer(answerPayload.peerId)}.`)
   setStatus(`Connected to ${answerPayload.peerId}`)
 
   return addr.toString()
@@ -469,20 +662,107 @@ async function dialChatStream (addr, attempts = 15) {
   throw lastError
 }
 
-function attachChatStream (stream, message) {
-  chatStream = stream
+function watchConnection (peerId, peerConnection) {
+  peerConnections.set(peerId, peerConnection)
+
+  peerConnection.addEventListener('connectionstatechange', () => {
+    const state = peerConnection.connectionState
+
+    // 'disconnected' is not fatal - a phone whose radio slept often comes back
+    // on its own once the screen is on again. Only say something on the states
+    // that end it.
+    if (state === 'failed' || state === 'closed') {
+      peerConnections.delete(peerId)
+
+      if (intentionalDrops.delete(peerId)) {
+        appendLog(`Disconnected from ${shortPeer(peerId)}.`)
+      } else {
+        appendLog(`Connection to ${shortPeer(peerId)} ended (${state}).`)
+        // Say it when it happens, not only when someone comes back to the tab.
+        setStatus(`Lost the connection to ${shortPeer(peerId)} - create a new invite to reconnect.`)
+      }
+    }
+
+    renderPeers()
+  })
+}
+
+function attachChatStream (stream, peerId, message) {
+  const existing = [...chatStreams.keys()]
+
+  chatStreams.set(peerId, stream)
+  meshAttempts.delete(peerId)
   appendLog(message)
+
+  // Both directions, so a mesh closes itself no matter who joined last.
+  announcePeers(peerId)
+
+  for (const other of existing) {
+    sendTo(other, { kind: 'peers', peers: [peerId] }).catch(() => {})
+  }
   sendButton.disabled = false
   setDropZoneEnabled(true)
   setStepsCollapsed(true)
+  renderPeers()
   messageInput.focus()
 
-  readChatMessages(stream).catch(error => {
-    appendLog(`Chat stream closed: ${error.message}`)
-    setDropZoneEnabled(false)
-    // Connecting again is the only thing left to do, so put the steps back.
-    setStepsCollapsed(false)
+  readChatMessages(stream, peerId).catch(error => {
+    appendLog(`Connection to ${shortPeer(peerId)} closed: ${error.message}`)
+  }).finally(() => {
+    chatStreams.delete(peerId)
+    renderPeers()
+
+    if (chatStreams.size === 0) {
+      sendButton.disabled = true
+      setDropZoneEnabled(false)
+      // Connecting again is the only thing left to do, so put the steps back.
+      setStepsCollapsed(false)
+    }
   })
+}
+
+/**
+ * One list, one conversation. Everything typed goes to every connected peer and
+ * arrives labelled with its sender - with three people in a room, an unlabelled
+ * line tells you nothing.
+ */
+function renderPeers () {
+  peerListEl.replaceChildren()
+
+  for (const peerId of chatStreams.keys()) {
+    const row = document.createElement('div')
+    row.className = 'peer-row'
+    row.dataset.peer = peerId
+
+    const name = document.createElement('span')
+    name.className = 'peer-name'
+    name.textContent = shortPeer(peerId)
+    name.title = peerId
+
+    const state = peerConnections.get(peerId)?.connectionState ?? 'connected'
+    const health = document.createElement('span')
+    health.className = `peer-health is-${state}`
+    health.textContent = state === 'disconnected' ? 'reconnecting…' : state
+
+    const drop = document.createElement('button')
+    drop.type = 'button'
+    drop.className = 'peer-drop'
+    drop.textContent = 'Disconnect'
+    drop.setAttribute('aria-label', `Disconnect from ${peerId}`)
+    drop.addEventListener('click', () => {
+      // Closing only the stream left the WebRTC connection open behind it.
+      intentionalDrops.add(peerId)
+      chatStreams.get(peerId)?.close().catch(() => {})
+      peerConnections.get(peerId)?.close()
+    })
+
+    row.append(name, health, drop)
+    peerListEl.appendChild(row)
+  }
+
+  peerCountEl.textContent = chatStreams.size === 0
+    ? 'No one connected yet.'
+    : `${chatStreams.size} connected`
 }
 
 /**
@@ -497,7 +777,120 @@ function envelope (payload) {
 // libp2p 3 streams are message streams: iterate them for reads, `send()` for
 // writes. The old source/sink duplex - and the it-byte-stream wrapper around
 // it - is gone.
-async function readChatMessages (stream) {
+
+/**
+ * Mesh bootstrapping.
+ *
+ * Scanning is only needed for the *first* link. Once a peer is reachable, the
+ * signalling for further links travels over the connection that already exists:
+ * B and C, both connected to A, exchange their signed payloads through A and
+ * end up connected directly, with nobody lifting a phone.
+ *
+ * A relaying peer cannot tamper with what it forwards - the signature binds the
+ * payload to its originator's Peer ID and is verified end to end. What it could
+ * do is replay something old, which is why payloads expire (#9): over the wire
+ * the human eye is no longer the freshness guarantee.
+ */
+const meshAttempts = new Set()
+
+async function sendTo (peerId, payload) {
+  const stream = chatStreams.get(peerId)
+
+  if (stream == null) {
+    return false
+  }
+
+  await stream.send(envelope(payload))
+
+  return true
+}
+
+function announcePeers (toPeerId) {
+  const peers = [...chatStreams.keys()].filter(peerId => peerId !== toPeerId)
+
+  if (peers.length > 0) {
+    sendTo(toPeerId, { kind: 'peers', peers }).catch(() => {})
+  }
+}
+
+/**
+ * Both ends learn about each other at the same moment, so without a rule both
+ * would offer at once and neither answer. The lower peer id initiates - any
+ * total order does, as long as both sides compute the same one.
+ */
+function shouldInitiateTo (peerId) {
+  return node.peerId.toString() < peerId
+}
+
+async function meshConnect (target, via) {
+  if (chatStreams.has(target) || meshAttempts.has(target) || target === node.peerId.toString()) {
+    return
+  }
+
+  meshAttempts.add(target)
+  appendLog(`Reaching ${shortPeer(target)} through ${shortPeer(via)}…`)
+
+  try {
+    const offer = await createOfferPayload()
+
+    if (!await sendTo(via, { kind: 'relay', to: target, payload: offer })) {
+      throw new Error(`${shortPeer(via)} is no longer reachable`)
+    }
+  } catch (error) {
+    meshAttempts.delete(target)
+    appendLog(`Could not reach ${shortPeer(target)}: ${error.message}`)
+  }
+}
+
+async function handleMeshMessage (message, from) {
+  if (message.kind === 'peers') {
+    for (const peerId of message.peers) {
+      if (shouldInitiateTo(peerId)) {
+        meshConnect(peerId, from)
+      }
+    }
+
+    return true
+  }
+
+  if (message.kind === 'relay') {
+    // Forwarding only. The payload is opaque here and stays signed.
+    const delivered = await sendTo(message.to, {
+      kind: 'relayed',
+      from,
+      payload: message.payload
+    })
+
+    if (!delivered) {
+      appendLog(`Cannot forward to ${shortPeer(message.to)} - not connected to them.`)
+    }
+
+    return true
+  }
+
+  if (message.kind === 'relayed') {
+    const parsed = await parsePayload(payloadFrom(message.payload))
+
+    try {
+      if (parsed.type === QR_TYPE_OFFER) {
+        const answer = await acceptOfferPayload(message.payload)
+        await sendTo(from, { kind: 'relay', to: parsed.peerId, payload: answer })
+      } else {
+        await acceptAnswerPayload(message.payload)
+        meshAttempts.delete(parsed.peerId)
+      }
+    } catch (error) {
+      meshAttempts.delete(parsed.peerId)
+      appendLog(`Mesh handshake with ${shortPeer(parsed.peerId)} failed: ${error.message}`)
+    }
+
+    return true
+  }
+
+  return false
+}
+
+async function readChatMessages (stream, from) {
   for await (const data of stream) {
     const raw = toString(data.subarray())
     let message
@@ -509,8 +902,12 @@ async function readChatMessages (stream) {
       continue
     }
 
+    if (await handleMeshMessage(message, from)) {
+      continue
+    }
+
     if (message.kind === 'file') {
-      appendLog(`Received a file announcement: ${message.name} (${message.size} bytes)`)
+      appendLog(`${shortPeer(from)} is offering ${message.name} (${message.size} bytes)`)
       receiveFile(message).catch(error => {
         appendLog(`Could not fetch ${message.name}: ${error.message}`)
       })
@@ -518,18 +915,40 @@ async function readChatMessages (stream) {
     }
 
     testState.lastReceivedMessage = message.text
-    testState.receivedMessages.push(message.text)
-    appendLog(`Received: ${message.text}`)
+    testState.receivedMessages.push({ from, text: message.text })
+    appendLog(`${shortPeer(from)}: ${message.text}`)
+  }
+}
+
+async function broadcast (payload, what) {
+  if (chatStreams.size === 0) {
+    throw new Error('Connect to someone first')
+  }
+
+  const bytes = envelope(payload)
+  const failures = []
+
+  for (const [peerId, stream] of chatStreams) {
+    try {
+      await stream.send(bytes)
+    } catch (error) {
+      failures.push(`${shortPeer(peerId)}: ${error.message}`)
+    }
+  }
+
+  // One dead connection must not swallow the message for everyone else.
+  if (failures.length === chatStreams.size) {
+    throw new Error(`Could not send the ${what} to anyone - ${failures[0]}`)
+  }
+
+  for (const failure of failures) {
+    appendLog(`Could not reach ${failure}`)
   }
 }
 
 async function sendMessage (message) {
-  if (chatStream == null) {
-    throw new Error('No active chat stream')
-  }
-
-  await chatStream.send(envelope({ kind: 'text', text: message }))
-  appendLog(`Sent: ${message}`)
+  await broadcast({ kind: 'text', text: message }, 'message')
+  appendLog(`You: ${message}`)
 }
 
 const MAX_FILE_BYTES = 32 * 1024 * 1024
@@ -557,8 +976,8 @@ function setDropZoneEnabled (enabled) {
  * stay here - the other peer pulls them with bitswap over the same connection.
  */
 async function sendFile (file) {
-  if (chatStream == null) {
-    throw new Error('Connect to a peer before sending a file')
+  if (chatStreams.size === 0) {
+    throw new Error('Connect to someone before sending a file')
   }
 
   if (file.size > MAX_FILE_BYTES) {
@@ -568,13 +987,14 @@ async function sendFile (file) {
   const bytes = new Uint8Array(await file.arrayBuffer())
   const cid = await fs.addBytes(bytes)
 
-  await chatStream.send(envelope({
+  // Announced to everyone; bitswap then serves whoever actually asks.
+  await broadcast({
     kind: 'file',
     cid: cid.toString(),
     name: file.name,
     size: bytes.byteLength,
     mime: file.type || 'application/octet-stream'
-  }))
+  }, 'file')
 
   appendLog(`Sent ${file.name} (${formatBytes(bytes.byteLength)}) as ${cid}`)
 
@@ -689,6 +1109,40 @@ for (const card of setupCards) {
       heading.click()
     }
   })
+}
+
+/**
+ * Decide what a scanned string is. Split out and exported to the test surface
+ * because the camera path itself cannot be driven by a test - and when the QR
+ * started carrying a link instead of a raw payload, this check kept rejecting
+ * perfectly good codes as "not a libp2p offer".
+ */
+async function classifyScanned (text, expectedType) {
+  const payloadText = payloadFrom(text)
+
+  if (payloadText.length === 0) {
+    return { ok: false, reason: 'That code does not contain an invite. Keep scanning.' }
+  }
+
+  let payload
+
+  try {
+    payload = await parsePayload(payloadText)
+  } catch {
+    return {
+      ok: false,
+      reason: `A QR code was detected, but it is not a libp2p ${expectedType} payload. Keep scanning.`
+    }
+  }
+
+  if (payload.type !== expectedType) {
+    return {
+      ok: false,
+      reason: `Detected a ${payload.type ?? 'different'} QR, but this browser is waiting for an ${expectedType}. Keep scanning the QR created by the other browser.`
+    }
+  }
+
+  return { ok: true, payloadText }
 }
 
 function showBanner (text, state) {
@@ -889,7 +1343,7 @@ function updateControls () {
   createOfferButton.disabled = !started
   createOfferAgainButton.disabled = !started
   scanOfferButton.disabled = !started
-  scanAnswerButton.disabled = !started || currentOfferSession == null
+  scanAnswerButton.disabled = !started || offerSessions.size === 0
   processPayloadButton.disabled = !started || payloadFrom(payloadDisplay.value).length === 0
   copyPayloadButton.disabled = inviteLinkEl.value.length === 0
 }
@@ -1036,17 +1490,10 @@ async function scanLoop (timestamp, sessionId) {
 
   if (decodedText != null) {
     const expectedType = scanMode
+    const classified = await classifyScanned(decodedText, expectedType)
 
-    try {
-      const payload = await parsePayload(decodedText)
-
-      if (payload.type !== expectedType) {
-        scanStatus.textContent = `Detected a ${payload.type ?? 'different'} QR, but this browser is waiting for an ${expectedType}. Keep scanning the QR created by the other browser.`
-        scheduleNextScan(sessionId)
-        return
-      }
-    } catch {
-      scanStatus.textContent = `A QR code was detected, but it is not a libp2p ${expectedType} payload. Keep scanning.`
+    if (!classified.ok) {
+      scanStatus.textContent = classified.reason
       scheduleNextScan(sessionId)
       return
     }
@@ -1056,7 +1503,7 @@ async function scanLoop (timestamp, sessionId) {
     scanStatus.textContent = 'Correct QR type detected. Verifying signature…'
 
     try {
-      await handleReceivedPayload(decodedText, expectedType)
+      await handleReceivedPayload(classified.payloadText, expectedType)
       scanStatus.textContent = 'QR accepted.'
       updateControls()
     } catch (error) {
@@ -1083,6 +1530,14 @@ startButton.addEventListener('click', async () => {
 })
 
 async function createInvite (button) {
+  // Clear the previous link first. Gathering ICE takes seconds, and a stale
+  // link sitting in the box the whole time is one someone will copy and send.
+  inviteLinkEl.value = ''
+  qrImage.style.display = 'none'
+  inviteFreshnessEl.textContent = ''
+  clearInterval(inviteCountdown)
+  updateControls()
+
   // Gathering ICE candidates can take seconds, and until it finishes there is
   // nothing on screen. Without a pending state the button looks like it was
   // never pressed, so people press it again.
@@ -1104,6 +1559,14 @@ async function createInvite (button) {
 
 createOfferButton.addEventListener('click', () => createInvite(createOfferButton))
 createOfferAgainButton.addEventListener('click', () => createInvite(createOfferAgainButton))
+
+// Reachable without reopening the folded card: once connected, inviting the
+// next person is the natural next thing, not a step you have to go back for.
+document.getElementById('invite-another').addEventListener('click', () => {
+  setStepsCollapsed(false)
+  document.getElementById('step-connect').scrollIntoView({ block: 'start', behavior: 'smooth' })
+  createInvite(createOfferButton)
+})
 
 scanOfferButton.addEventListener('click', () => {
   startQrScanner(QR_TYPE_OFFER).catch(error => {
@@ -1193,7 +1656,7 @@ messageInput.addEventListener('keydown', event => {
   dropZone.addEventListener(name, event => {
     event.preventDefault()
 
-    if (chatStream != null) {
+    if (chatStreams.size > 0) {
       dropZone.classList.add('is-hovered')
     }
   })
@@ -1215,13 +1678,13 @@ dropZone.addEventListener('drop', event => {
 })
 
 dropZone.addEventListener('click', () => {
-  if (chatStream != null) {
+  if (chatStreams.size > 0) {
     fileInput.click()
   }
 })
 
 dropZone.addEventListener('keydown', event => {
-  if ((event.key === 'Enter' || event.key === ' ') && chatStream != null) {
+  if ((event.key === 'Enter' || event.key === ' ') && chatStreams.size > 0) {
     event.preventDefault()
     fileInput.click()
   }
@@ -1237,15 +1700,40 @@ fileInput.addEventListener('change', () => {
   }
 })
 
-window.addEventListener('beforeunload', () => {
-  stopQrScanner()
-  currentOfferSession?.peerConnection.close()
-  inboundPeerConnections.forEach(peerConnection => peerConnection.close())
+/**
+ * Coming back from the background is the moment to say what happened. Phones
+ * suspend timers and let radios sleep, so a connection can be mid-recovery, or
+ * already gone, and the page would otherwise sit there looking fine.
+ */
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') {
+    return
+  }
 
-  if (node != null) {
-    node.stop().catch(() => {})
+  renderPeers()
+
+  const lost = [...chatStreams.keys()].filter(peerId => {
+    const state = peerConnections.get(peerId)?.connectionState
+
+    return state === 'failed' || state === 'closed'
+  })
+
+  if (lost.length > 0) {
+    setStatus(`${lost.length === 1 ? 'A connection was' : `${lost.length} connections were`} lost while you were away - create a new invite to reconnect.`)
   }
 })
+
+// There is deliberately no `beforeunload` teardown.
+//
+// This app *requires* leaving the page: you create an invite, switch to a
+// messenger to send it, and come back. Mobile browsers fire beforeunload when a
+// page is backgrounded or discarded, so closing peer connections there killed
+// the connection at exactly the moment the flow depends on - the answering peer
+// reported "entered state closed" the moment its user switched to Telegram to
+// send the reply link.
+//
+// A page that is genuinely closing needs no help: the browser releases the
+// peer connections, the camera and the sockets on its own.
 
 window.__libp2pQrTest = {
   createOfferPayload,
@@ -1284,16 +1772,27 @@ window.__libp2pQrTest = {
     return (await fetch(link.href)).text()
   },
   getLastReceivedMessage: () => testState.lastReceivedMessage,
-  getReceivedMessages: () => [...testState.receivedMessages],
+  getReceivedMessages: () => testState.receivedMessages.map(entry => entry.text),
+  getReceivedWithSenders: () => [...testState.receivedMessages],
   getConnections: () => node?.getConnections().length ?? 0,
-  debugStream: () => chatStream == null
-    ? null
-    : {
-        status: chatStream.status,
-        readStatus: chatStream.readStatus,
-        writeStatus: chatStream.writeStatus,
-        protocol: chatStream.protocol
-      }
+  classifyScanned,
+  // A local close() deliberately does *not* fire connectionstatechange - only a
+  // real failure does, after roughly thirty seconds of failed consent checks.
+  // The test drives the event the browser would send, so it covers the handling
+  // written here rather than the browser's timing.
+  simulateConnectionLoss: peerId => {
+    const peerConnection = peerConnections.get(peerId)
+
+    peerConnection?.close()
+    peerConnection?.dispatchEvent(new Event('connectionstatechange'))
+  },
+  getPeers: () => [...chatStreams.keys()],
+  debugStreams: () => [...chatStreams].map(([peerId, stream]) => ({
+    peerId,
+    status: stream.status,
+    readStatus: stream.readStatus,
+    writeStatus: stream.writeStatus
+  }))
 }
 
 /**
@@ -1306,7 +1805,7 @@ window.__libp2pQrTest = {
 handoff?.addEventListener('message', async event => {
   const { kind, payload } = event.data ?? {}
 
-  if (kind !== 'reply' || currentOfferSession == null) {
+  if (kind !== 'reply' || offerSessions.size === 0) {
     return
   }
 

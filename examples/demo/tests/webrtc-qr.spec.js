@@ -22,8 +22,18 @@ async function openPeer (page, errors) {
 }
 
 async function createInvite (page) {
-  await page.locator('#create-offer').click()
+  // Once connected the setup card is folded, so the button inside it is not
+  // clickable - which is exactly why "invite someone else" exists.
+  if (await page.locator('#step-connect.is-collapsed').count() > 0) {
+    await page.locator('#invite-another').click()
+  } else {
+    await page.locator('#create-offer').click()
+  }
+
   await expect(page.locator('#invite-box')).toBeVisible()
+  // The box is emptied while the next invite is gathering, so waiting for any
+  // `#i=` would otherwise hand back the previous person's link.
+  await expect.poll(() => page.locator('#invite-link').inputValue()).toMatch(/#i=/)
 
   return page.locator('#invite-link').inputValue()
 }
@@ -49,10 +59,12 @@ async function connectPeers (offerer, answerer) {
   await useLink(offerer, reply)
   await expect(offerer.locator('#status')).toContainText('Connected')
 
+  // Not `toBe(1)`: a peer that already has connections gains one more, and
+  // pinning the count to one is what made this helper two-peer-only.
   for (const page of [offerer, answerer]) {
     await expect.poll(() => page.evaluate(() => window.__libp2pQrTest.getConnections()), {
       timeout: 20000
-    }).toBe(1)
+    }).toBeGreaterThanOrEqual(1)
   }
 }
 
@@ -157,6 +169,158 @@ test.describe('signed QR WebRTC signaling', () => {
     }
   })
 
+  test('holds three peers at once and labels who said what', async ({ browser, browserName }) => {
+    skipWithoutWebRTC(test, browserName)
+
+    const hub = await browser.newPage()
+    const bob = await browser.newPage()
+    const carol = await browser.newPage()
+    const pageErrors = []
+
+    try {
+      for (const page of [hub, bob, carol]) {
+        await openPeer(page, pageErrors)
+      }
+
+      // Creating a second invite used to close the first connection outright.
+      await connectPeers(hub, bob)
+      await connectPeers(hub, carol)
+
+      await expect.poll(() => hub.evaluate(() => window.__libp2pQrTest.getPeers().length), {
+        timeout: 20000
+      }).toBe(2)
+      await expect(hub.locator('#peer-list .peer-row')).toHaveCount(2)
+      await expect(hub.locator('#peer-count')).toContainText('2 connected')
+
+      // One conversation: what the hub types reaches both.
+      await hub.evaluate(() => window.__libp2pQrTest.sendMessage('hello both of you'))
+
+      for (const page of [bob, carol]) {
+        await expect.poll(() => page.evaluate(() => window.__libp2pQrTest.getLastReceivedMessage()), {
+          timeout: 20000
+        }).toBe('hello both of you')
+      }
+
+      // ...and an incoming line says who sent it, which is the whole point
+      // once there are more than two people.
+      const hubPeerId = await hub.locator('#peer-id').textContent()
+      const received = await bob.evaluate(() => window.__libp2pQrTest.getReceivedWithSenders())
+      expect(received.at(-1).from).toBe(hubPeerId.trim())
+
+      expect(pageErrors).toEqual([])
+    } finally {
+      await hub.close()
+      await bob.close()
+      await carol.close()
+    }
+  })
+
+  test('says when a connection is lost instead of going quiet', async ({ browser, browserName }) => {
+    skipWithoutWebRTC(test, browserName)
+    // WebRTC takes about half a minute of failed consent checks before it calls
+    // a connection dead, and that timing is not engine-specific.
+
+    const alice = await browser.newPage()
+    const bob = await browser.newPage()
+    const pageErrors = []
+
+    try {
+      await openPeer(alice, pageErrors)
+      await openPeer(bob, pageErrors)
+      await connectPeers(alice, bob)
+
+      await expect(alice.locator('.peer-health')).toContainText('connected')
+
+      // A phone whose radio slept, or whose peer went away, comes back to a
+      // page that used to look perfectly fine and say nothing.
+      // A phone whose radio slept, or a tab the OS discarded: the connection
+      // ends underneath a page that otherwise keeps looking perfectly fine.
+      const peerId = await alice.evaluate(() => window.__libp2pQrTest.getPeers()[0])
+      await alice.evaluate(id => window.__libp2pQrTest.simulateConnectionLoss(id), peerId)
+
+      await expect(alice.locator('#status')).toContainText('Lost the connection')
+      await expect(alice.locator('#status')).toContainText('create a new invite')
+
+      expect(pageErrors).toEqual([])
+    } finally {
+      await alice.close()
+    }
+  })
+
+  test('a third peer closes the mesh without anyone scanning again', async ({ browser, browserName }) => {
+    skipWithoutWebRTC(test, browserName)
+    test.setTimeout(120000)
+
+    const hub = await browser.newPage()
+    const bob = await browser.newPage()
+    const carol = await browser.newPage()
+    const pageErrors = []
+
+    try {
+      for (const page of [hub, bob, carol]) {
+        await openPeer(page, pageErrors)
+      }
+
+      // Only the hub's two links are ever exchanged by a human.
+      await connectPeers(hub, bob)
+      await connectPeers(hub, carol)
+
+      const bobId = await bob.locator('#peer-id').textContent()
+      const carolId = await carol.locator('#peer-id').textContent()
+
+      // Bob and Carol have never seen each other's code. They learn of one
+      // another over their connections to the hub, exchange signed payloads
+      // through it, and end up connected directly.
+      await expect.poll(() => bob.evaluate(() => window.__libp2pQrTest.getPeers().length), {
+        timeout: 60000
+      }).toBe(2)
+      await expect.poll(() => carol.evaluate(() => window.__libp2pQrTest.getPeers().length), {
+        timeout: 60000
+      }).toBe(2)
+
+      expect(await bob.evaluate(() => window.__libp2pQrTest.getPeers())).toContain(carolId.trim())
+      expect(await carol.evaluate(() => window.__libp2pQrTest.getPeers())).toContain(bobId.trim())
+
+      // ...and it is a real connection, not just an entry in a list.
+      await carol.evaluate(() => window.__libp2pQrTest.sendMessage('straight to you, Bob'))
+      await expect.poll(() => bob.evaluate(() => {
+        return window.__libp2pQrTest.getReceivedWithSenders().at(-1)
+      }), { timeout: 30000 }).toMatchObject({ from: carolId.trim(), text: 'straight to you, Bob' })
+
+      expect(pageErrors).toEqual([])
+    } finally {
+      await hub.close()
+      await bob.close()
+      await carol.close()
+    }
+  })
+
+  test('says what the network will allow before anyone tries to connect', async ({ browser }) => {
+    const page = await browser.newPage()
+    const pageErrors = []
+
+    try {
+      page.on('pageerror', error => pageErrors.push(error.message))
+      await page.goto('/')
+      await page.waitForFunction(() => typeof window.__libp2pQrTest?.createOfferPayload === 'function')
+      await page.locator('#start-client').click()
+
+      const state = page.locator('#network-state')
+      await expect(state).toBeVisible({ timeout: 30000 })
+      await expect(state).toHaveClass(/is-(open|symmetric|blocked|relay)/)
+      expect((await state.textContent()).length).toBeGreaterThan(20)
+
+      // Deliberately not disabled: a symmetric NAT still connects peers on the
+      // same network, which is the case this project is mostly used for.
+      // Hiding the controls would block something that works.
+      await expect(page.locator('#create-offer')).toBeEnabled()
+
+      expect(pageErrors).toEqual([])
+    } finally {
+      await page.close()
+    }
+  })
+
   test('the invite is a link, and the QR encodes that link', async ({ browser }) => {
     const page = await browser.newPage()
     const pageErrors = []
@@ -185,6 +349,87 @@ test.describe('signed QR WebRTC signaling', () => {
       expect(pageErrors).toEqual([])
     } finally {
       await page.close()
+    }
+  })
+
+  test('accepts a scanned QR now that it carries a link', async ({ browser }) => {
+    const page = await browser.newPage()
+    const pageErrors = []
+
+    try {
+      await openPeer(page, pageErrors)
+      const invite = await createInvite(page)
+
+      // The camera cannot be driven by a test, so this drives the step the
+      // camera feeds. When the QR started carrying a link instead of a raw
+      // payload, this check rejected every scan as "not a libp2p offer" - found
+      // by hand, because nothing here was covered.
+      const scannedLink = await page.evaluate(async text => {
+        return window.__libp2pQrTest.classifyScanned(text, 'offer')
+      }, invite)
+      expect(scannedLink.ok, scannedLink.reason).toBe(true)
+
+      // A bare payload - what an older code or an older build produces - must
+      // still work.
+      const bare = decodeURIComponent(new URL(invite).hash.replace('#i=', ''))
+      const scannedBare = await page.evaluate(async text => {
+        return window.__libp2pQrTest.classifyScanned(text, 'offer')
+      }, bare)
+      expect(scannedBare.ok, scannedBare.reason).toBe(true)
+
+      // The wrong kind is still named as such rather than accepted.
+      const wrongType = await page.evaluate(async text => {
+        return window.__libp2pQrTest.classifyScanned(text, 'answer')
+      }, invite)
+      expect(wrongType.ok).toBe(false)
+      expect(wrongType.reason).toContain('waiting for an answer')
+
+      const junk = await page.evaluate(() => {
+        return window.__libp2pQrTest.classifyScanned('https://example.com/', 'offer')
+      })
+      expect(junk.ok).toBe(false)
+
+      expect(pageErrors).toEqual([])
+    } finally {
+      await page.close()
+    }
+  })
+
+  test('survives being backgrounded while the reply is carried to a messenger', async ({ browser, browserName }) => {
+    skipWithoutWebRTC(test, browserName)
+
+    const alice = await browser.newPage()
+    const bob = await browser.newPage()
+    const pageErrors = []
+
+    try {
+      await openPeer(alice, pageErrors)
+      await openPeer(bob, pageErrors)
+
+      const invite = await createInvite(alice)
+      await useLink(bob, invite)
+      const reply = await replyLinkOf(bob)
+
+      // Bob now switches to a messenger to send that link. Mobile browsers fire
+      // these while backgrounding a page, and a teardown here closed his peer
+      // connection at exactly the moment the whole flow depends on it.
+      await bob.evaluate(() => {
+        window.dispatchEvent(new Event('beforeunload'))
+        window.dispatchEvent(new Event('pagehide'))
+        document.dispatchEvent(new Event('visibilitychange'))
+      })
+      await bob.waitForTimeout(500)
+
+      await useLink(alice, reply)
+      await expect(alice.locator('#status')).toContainText('Connected')
+      await expect.poll(() => bob.evaluate(() => window.__libp2pQrTest.getPeers().length), {
+        timeout: 20000
+      }).toBe(1)
+
+      expect(pageErrors).toEqual([])
+    } finally {
+      await alice.close()
+      await bob.close()
     }
   })
 
@@ -400,6 +645,37 @@ test.describe('signed QR WebRTC signaling', () => {
     }
   })
 
+  test('does not push the page sideways on a phone once connected', async ({ browser, browserName }) => {
+    skipWithoutWebRTC(test, browserName)
+
+    const offerer = await browser.newPage({ viewport: { width: 390, height: 780 } })
+    const answerer = await browser.newPage({ viewport: { width: 390, height: 780 } })
+    const pageErrors = []
+
+    try {
+      await openPeer(offerer, pageErrors)
+      await openPeer(answerer, pageErrors)
+      await connectPeers(offerer, answerer)
+
+      // The connected state is a different layout - folded headings, a peer
+      // list, long peer ids - and it went 543px wide on a 390px screen. An
+      // unconnected page cannot catch that, which is why it shipped.
+      for (const page of [offerer, answerer]) {
+        const width = await page.evaluate(() => ({
+          scroll: document.documentElement.scrollWidth,
+          view: window.innerWidth
+        }))
+        expect(width.scroll, `page is ${width.scroll}px wide in a ${width.view}px viewport`)
+          .toBeLessThanOrEqual(width.view)
+      }
+
+      expect(pageErrors).toEqual([])
+    } finally {
+      await offerer.close()
+      await answerer.close()
+    }
+  })
+
   test('renders the QR code edge to edge on a phone', async ({ browser }) => {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } })
     const pageErrors = []
@@ -440,9 +716,11 @@ test.describe('signed QR WebRTC signaling', () => {
       }, CONTENT)
       expect(cid).toMatch(/^bafk|^bafy|^Qm/)
 
+      // Bitswap needs wantlist round trips between two browser nodes, and the
+      // CI runner carries the whole serialised suite. It takes ~11s locally.
       await expect.poll(async () => {
         return receiver.evaluate(() => window.__libp2pQrTest.getReceivedFiles().length)
-      }, { timeout: 60000 }).toBe(1)
+      }, { timeout: 120000 }).toBe(1)
 
       const downloaded = await receiver.evaluate(value => {
         return window.__libp2pQrTest.readReceivedFile(value)

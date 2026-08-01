@@ -103,6 +103,8 @@
           <div class="actions">
             <button id="start-client" class="primary">Start client</button>
           </div>
+
+          <p id="network-state" class="network-state" role="status" hidden></p>
           <details class="peer">
             <summary>Your peer identity</summary>
             <p class="peer-note">
@@ -173,6 +175,12 @@
             pulls them with bitswap over the same connection.
           </p>
           <div id="status" class="status" aria-live="polite">Not connected</div>
+
+          <div class="field">
+            <label for="peer-list">Connected <span id="peer-count" class="peer-count">No one connected yet.</span></label>
+            <div id="peer-list" class="peer-list"></div>
+            <button id="invite-another" type="button" class="link-button">+ Invite someone else</button>
+          </div>
           <div class="send-row">
             <div class="field">
               <label for="message">Message</label>
