@@ -642,9 +642,11 @@ test.describe('signed QR WebRTC signaling', () => {
       }, CONTENT)
       expect(cid).toMatch(/^bafk|^bafy|^Qm/)
 
+      // Bitswap needs wantlist round trips between two browser nodes, and the
+      // CI runner carries the whole serialised suite. It takes ~11s locally.
       await expect.poll(async () => {
         return receiver.evaluate(() => window.__libp2pQrTest.getReceivedFiles().length)
-      }, { timeout: 60000 }).toBe(1)
+      }, { timeout: 120000 }).toBe(1)
 
       const downloaded = await receiver.evaluate(value => {
         return window.__libp2pQrTest.readReceivedFile(value)
