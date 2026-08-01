@@ -250,12 +250,13 @@ async function waitForIceGatheringComplete (peerConnection) {
  * Summarise what ICE actually had to work with. A failure after clean signalling
  * is almost always about candidate types, and those are invisible otherwise:
  *
- * - `.local` host candidates are mDNS-obfuscated. Two browsers on one machine
- *   resolve their own names fine, which is why same-laptop pairs connect; a
- *   phone and a laptop often cannot resolve each other's.
- * - With only host and srflx on both sides and both behind the *same* router,
- *   connecting needs NAT hairpinning, which many home routers do not do.
- * - `relay` means a TURN server was available. There is none configured here.
+ * - `.local` host candidates are mDNS-obfuscated. Browsers on the same LAN
+ *   generally do resolve each other's - a phone and a laptop on one wifi have
+ *   been confirmed working - so their presence alone is not a diagnosis.
+ * - With only host and srflx on both sides, two peers behind the same router
+ *   may need NAT hairpinning, which not every home router does.
+ * - `relay` means a TURN server was available. There is none configured here,
+ *   so there is no fallback when the pair above finds nothing.
  */
 function describeIce (peerConnection) {
   const summarise = sdp => {
