@@ -295,6 +295,32 @@ test.describe('signed QR WebRTC signaling', () => {
     }
   })
 
+  test('says what the network will allow before anyone tries to connect', async ({ browser }) => {
+    const page = await browser.newPage()
+    const pageErrors = []
+
+    try {
+      page.on('pageerror', error => pageErrors.push(error.message))
+      await page.goto('/')
+      await page.waitForFunction(() => typeof window.__libp2pQrTest?.createOfferPayload === 'function')
+      await page.locator('#start-client').click()
+
+      const state = page.locator('#network-state')
+      await expect(state).toBeVisible({ timeout: 30000 })
+      await expect(state).toHaveClass(/is-(open|symmetric|blocked|relay)/)
+      expect((await state.textContent()).length).toBeGreaterThan(20)
+
+      // Deliberately not disabled: a symmetric NAT still connects peers on the
+      // same network, which is the case this project is mostly used for.
+      // Hiding the controls would block something that works.
+      await expect(page.locator('#create-offer')).toBeEnabled()
+
+      expect(pageErrors).toEqual([])
+    } finally {
+      await page.close()
+    }
+  })
+
   test('the invite is a link, and the QR encodes that link', async ({ browser }) => {
     const page = await browser.newPage()
     const pageErrors = []

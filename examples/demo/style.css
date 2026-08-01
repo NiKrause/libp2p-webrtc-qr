@@ -849,3 +849,43 @@ button.is-busy::before {
 .peer-health.is-closed {
   color: var(--ls-red);
 }
+
+/* ---------- network check ---------- */
+
+.network-state[hidden] {
+  display: none;
+}
+
+.network-state {
+  --dot: var(--ls-text-faint);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.84rem;
+  color: var(--ls-text-dim);
+  margin: 0 0 4px;
+}
+
+.network-state::before {
+  content: '';
+  width: 9px;
+  height: 9px;
+  margin-top: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--dot);
+  box-shadow: 0 0 10px var(--dot);
+}
+
+.network-state.is-open,
+.network-state.is-relay {
+  --dot: var(--ls-green);
+}
+
+.network-state.is-symmetric {
+  --dot: var(--ls-amber);
+}
+
+.network-state.is-blocked {
+  --dot: var(--ls-red);
+}

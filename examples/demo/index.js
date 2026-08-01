@@ -68,6 +68,7 @@ const createOfferAgainButton = document.getElementById('create-offer-again')
 const handoffBannerEl = document.getElementById('handoff-banner')
 const peerListEl = document.getElementById('peer-list')
 const peerCountEl = document.getElementById('peer-count')
+const networkStateEl = document.getElementById('network-state')
 const setupCards = [document.getElementById('step-start'), document.getElementById('step-connect')]
 const dataCard = document.getElementById('step-data')
 
@@ -212,6 +213,78 @@ async function parseAndVerifyPayload (text, expectedType) {
   return decodeSignedPayload(text, expectedType)
 }
 
+
+/**
+ * Ask the network what it will allow, before anyone tries to connect.
+ *
+ * A throwaway peer connection gathers candidates against both STUN servers. The
+ * presence of a reflexive candidate is *not* on its own good news - a symmetric
+ * NAT hands one out too, it is simply useless towards a different peer. What
+ * gives it away is the mapping: if one local base port appears under two
+ * different public ports, the NAT is picking a new mapping per destination, and
+ * hole punching with an arbitrary peer will not work.
+ */
+async function probeNetwork () {
+  const probe = new RTCPeerConnection(getRtcConfiguration())
+  const mappings = new Map()
+  let relay = false
+
+  probe.createDataChannel('probe')
+
+  const gathered = new Promise(resolve => {
+    const done = () => resolve()
+    const timer = setTimeout(done, 6000)
+
+    probe.addEventListener('icecandidate', event => {
+      const candidate = event.candidate
+
+      if (candidate == null) {
+        clearTimeout(timer)
+        done()
+        return
+      }
+
+      if (candidate.type === 'relay') {
+        relay = true
+      }
+
+      if (candidate.type === 'srflx' && candidate.relatedPort != null) {
+        const ports = mappings.get(candidate.relatedPort) ?? new Set()
+
+        ports.add(candidate.port)
+        mappings.set(candidate.relatedPort, ports)
+      }
+    })
+  })
+
+  await probe.setLocalDescription(await probe.createOffer())
+  await gathered
+  probe.close()
+
+  const reflexive = mappings.size > 0
+  const symmetric = [...mappings.values()].some(ports => ports.size > 1)
+
+  if (relay) {
+    return { state: 'relay', text: 'TURN relay available - should connect from anywhere.' }
+  }
+
+  if (!reflexive) {
+    return {
+      state: 'blocked',
+      text: 'No reflexive candidate - STUN is blocked here. Only peers on this same network are reachable.'
+    }
+  }
+
+  if (symmetric) {
+    return {
+      state: 'symmetric',
+      text: 'This network maps a new port per destination (symmetric NAT). Peers on the same network are fine; anyone elsewhere needs a TURN server.'
+    }
+  }
+
+  return { state: 'open', text: 'Reflexive candidates look usable - peers on other networks should be reachable.' }
+}
+
 async function createNode () {
   if (node != null) {
     return node
@@ -245,6 +318,15 @@ async function createNode () {
   helia = withBitswap(withLibp2p(createHeliaLight(), node))
   await helia.start()
   fs = unixfs(helia)
+
+  probeNetwork()
+    .then(result => {
+      networkStateEl.className = `network-state is-${result.state}`
+      networkStateEl.textContent = result.text
+      networkStateEl.hidden = false
+      appendLog(`Network check: ${result.text}`)
+    })
+    .catch(error => appendLog(`Network check failed: ${error.message}`))
 
   peerIdEl.textContent = node.peerId.toString()
   setStatus('Browser client started. Create or scan an offer.')
