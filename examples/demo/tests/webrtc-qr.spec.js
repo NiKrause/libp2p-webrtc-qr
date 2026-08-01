@@ -246,6 +246,87 @@ test.describe('signed QR WebRTC signaling', () => {
     }
   })
 
+  test('accepts a scanned QR now that it carries a link', async ({ browser }) => {
+    const page = await browser.newPage()
+    const pageErrors = []
+
+    try {
+      await openPeer(page, pageErrors)
+      const invite = await createInvite(page)
+
+      // The camera cannot be driven by a test, so this drives the step the
+      // camera feeds. When the QR started carrying a link instead of a raw
+      // payload, this check rejected every scan as "not a libp2p offer" - found
+      // by hand, because nothing here was covered.
+      const scannedLink = await page.evaluate(async text => {
+        return window.__libp2pQrTest.classifyScanned(text, 'offer')
+      }, invite)
+      expect(scannedLink.ok, scannedLink.reason).toBe(true)
+
+      // A bare payload - what an older code or an older build produces - must
+      // still work.
+      const bare = decodeURIComponent(new URL(invite).hash.replace('#i=', ''))
+      const scannedBare = await page.evaluate(async text => {
+        return window.__libp2pQrTest.classifyScanned(text, 'offer')
+      }, bare)
+      expect(scannedBare.ok, scannedBare.reason).toBe(true)
+
+      // The wrong kind is still named as such rather than accepted.
+      const wrongType = await page.evaluate(async text => {
+        return window.__libp2pQrTest.classifyScanned(text, 'answer')
+      }, invite)
+      expect(wrongType.ok).toBe(false)
+      expect(wrongType.reason).toContain('waiting for an answer')
+
+      const junk = await page.evaluate(() => {
+        return window.__libp2pQrTest.classifyScanned('https://example.com/', 'offer')
+      })
+      expect(junk.ok).toBe(false)
+
+      expect(pageErrors).toEqual([])
+    } finally {
+      await page.close()
+    }
+  })
+
+  test('survives being backgrounded while the reply is carried to a messenger', async ({ browser, browserName }) => {
+    skipWithoutWebRTC(test, browserName)
+
+    const alice = await browser.newPage()
+    const bob = await browser.newPage()
+    const pageErrors = []
+
+    try {
+      await openPeer(alice, pageErrors)
+      await openPeer(bob, pageErrors)
+
+      const invite = await createInvite(alice)
+      await useLink(bob, invite)
+      const reply = await replyLinkOf(bob)
+
+      // Bob now switches to a messenger to send that link. Mobile browsers fire
+      // these while backgrounding a page, and a teardown here closed his peer
+      // connection at exactly the moment the whole flow depends on it.
+      await bob.evaluate(() => {
+        window.dispatchEvent(new Event('beforeunload'))
+        window.dispatchEvent(new Event('pagehide'))
+        document.dispatchEvent(new Event('visibilitychange'))
+      })
+      await bob.waitForTimeout(500)
+
+      await useLink(alice, reply)
+      await expect(alice.locator('#status')).toContainText('Connected')
+      await expect.poll(() => bob.evaluate(() => window.__libp2pQrTest.getPeers().length), {
+        timeout: 20000
+      }).toBe(1)
+
+      expect(pageErrors).toEqual([])
+    } finally {
+      await alice.close()
+      await bob.close()
+    }
+  })
+
   test('opening an invite link connects without pressing anything', async ({ browser, browserName }) => {
     skipWithoutWebRTC(test, browserName)
 

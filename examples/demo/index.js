@@ -769,6 +769,40 @@ for (const card of setupCards) {
   })
 }
 
+/**
+ * Decide what a scanned string is. Split out and exported to the test surface
+ * because the camera path itself cannot be driven by a test - and when the QR
+ * started carrying a link instead of a raw payload, this check kept rejecting
+ * perfectly good codes as "not a libp2p offer".
+ */
+async function classifyScanned (text, expectedType) {
+  const payloadText = payloadFrom(text)
+
+  if (payloadText.length === 0) {
+    return { ok: false, reason: 'That code does not contain an invite. Keep scanning.' }
+  }
+
+  let payload
+
+  try {
+    payload = await parsePayload(payloadText)
+  } catch {
+    return {
+      ok: false,
+      reason: `A QR code was detected, but it is not a libp2p ${expectedType} payload. Keep scanning.`
+    }
+  }
+
+  if (payload.type !== expectedType) {
+    return {
+      ok: false,
+      reason: `Detected a ${payload.type ?? 'different'} QR, but this browser is waiting for an ${expectedType}. Keep scanning the QR created by the other browser.`
+    }
+  }
+
+  return { ok: true, payloadText }
+}
+
 function showBanner (text, state) {
   handoffBannerEl.textContent = text
   handoffBannerEl.className = `handoff-banner is-${state}`
@@ -1114,17 +1148,10 @@ async function scanLoop (timestamp, sessionId) {
 
   if (decodedText != null) {
     const expectedType = scanMode
+    const classified = await classifyScanned(decodedText, expectedType)
 
-    try {
-      const payload = await parsePayload(decodedText)
-
-      if (payload.type !== expectedType) {
-        scanStatus.textContent = `Detected a ${payload.type ?? 'different'} QR, but this browser is waiting for an ${expectedType}. Keep scanning the QR created by the other browser.`
-        scheduleNextScan(sessionId)
-        return
-      }
-    } catch {
-      scanStatus.textContent = `A QR code was detected, but it is not a libp2p ${expectedType} payload. Keep scanning.`
+    if (!classified.ok) {
+      scanStatus.textContent = classified.reason
       scheduleNextScan(sessionId)
       return
     }
@@ -1134,7 +1161,7 @@ async function scanLoop (timestamp, sessionId) {
     scanStatus.textContent = 'Correct QR type detected. Verifying signature…'
 
     try {
-      await handleReceivedPayload(decodedText, expectedType)
+      await handleReceivedPayload(classified.payloadText, expectedType)
       scanStatus.textContent = 'QR accepted.'
       updateControls()
     } catch (error) {
@@ -1331,17 +1358,17 @@ fileInput.addEventListener('change', () => {
   }
 })
 
-window.addEventListener('beforeunload', () => {
-  stopQrScanner()
-  for (const session of offerSessions.values()) {
-    session.peerConnection.close()
-  }
-  inboundPeerConnections.forEach(peerConnection => peerConnection.close())
-
-  if (node != null) {
-    node.stop().catch(() => {})
-  }
-})
+// There is deliberately no `beforeunload` teardown.
+//
+// This app *requires* leaving the page: you create an invite, switch to a
+// messenger to send it, and come back. Mobile browsers fire beforeunload when a
+// page is backgrounded or discarded, so closing peer connections there killed
+// the connection at exactly the moment the flow depends on - the answering peer
+// reported "entered state closed" the moment its user switched to Telegram to
+// send the reply link.
+//
+// A page that is genuinely closing needs no help: the browser releases the
+// peer connections, the camera and the sockets on its own.
 
 window.__libp2pQrTest = {
   createOfferPayload,
@@ -1383,6 +1410,7 @@ window.__libp2pQrTest = {
   getReceivedMessages: () => testState.receivedMessages.map(entry => entry.text),
   getReceivedWithSenders: () => [...testState.receivedMessages],
   getConnections: () => node?.getConnections().length ?? 0,
+  classifyScanned,
   getPeers: () => [...chatStreams.keys()],
   debugStreams: () => [...chatStreams].map(([peerId, stream]) => ({
     peerId,
