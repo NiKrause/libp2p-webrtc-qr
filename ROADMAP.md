@@ -146,14 +146,21 @@ currently tangled with.
 
 **Tracked in [#9](https://github.com/NiKrause/libp2p-webrtc-qr/issues/9).**
 
-Payloads carry a `sessionId` but no timestamp, so a signed offer stays valid for
-as long as the offerer's peer connection lives. For a demo that is fine; for
-production it is not. A signed `notBefore`/`notAfter` pair, checked during
-verification, closes it.
+**Done.** Payloads carry a signed `notBefore`/`notAfter` pair, ten minutes by
+default, with two minutes of clock skew tolerated so two devices that have
+never spoken do not reject each other.
 
-This is small and self-contained - a good first contribution. It is also a
-**prerequisite for item 8**: once signaling travels over the wire instead of
-across a camera, nothing else bounds how long a captured payload stays usable.
+The window sits **inside** the canonical form. Outside it, an attacker replaying
+an old payload would simply rewrite the dates before passing it on; inside, that
+rewrite invalidates the signature - and the tests assert exactly that, reporting
+it as forgery rather than as expiry.
+
+This changed the wire format, so `PAYLOAD_VERSION` is 2 and the package is
+0.2.0. Accepting version 1 alongside it was rejected deliberately: an attacker
+would just downgrade, which is the same as having no window at all.
+
+Item 8 can now proceed - it was waiting on this, because signaling that travels
+over the wire loses the human eye as its freshness guarantee.
 
 ---
 

@@ -3,6 +3,8 @@ import { test } from 'node:test'
 import { generateKeyPair } from '@libp2p/crypto/keys'
 import { peerIdFromPrivateKey } from '@libp2p/peer-id'
 import {
+  CLOCK_SKEW_MS,
+  DEFAULT_LIFETIME_MS,
   compress,
   decompress,
   decodeSignedPayload,
@@ -140,17 +142,17 @@ test('an answer is not accepted where an offer is expected', async () => {
 
   await assert.rejects(
     decodeSignedPayload(text, QR_TYPE_OFFER),
-    /Expected a version 1 offer payload/
+    /Expected a version 2 offer payload/
   )
 })
 
 test('a future payload version is refused', async () => {
   const alice = await peer()
-  const text = await encodeSignedPayload(alice.privateKey, offer(alice, { version: 2 }))
+  const text = await encodeSignedPayload(alice.privateKey, offer(alice, { version: 3 }))
 
   await assert.rejects(
     decodeSignedPayload(text, QR_TYPE_OFFER),
-    /Expected a version 1 offer payload/
+    /Expected a version 2 offer payload/
   )
 })
 
@@ -252,4 +254,85 @@ test('a real signed offer fits well inside the 2200 character QR budget', async 
   const text = await encodeSignedPayload(alice.privateKey, offer(alice))
 
   assert.ok(text.length < 2200, `payload was ${text.length} characters`)
+})
+
+test('a payload past its window is refused', async () => {
+  const alice = await peer()
+  const issued = 1_000_000_000_000
+  const text = await encodeSignedPayload(alice.privateKey, offer(alice), { now: issued })
+
+  // Anyone who photographed a displayed code, or kept the link from a chat,
+  // could otherwise replay it for as long as the peer connection lived.
+  await assert.rejects(
+    decodeSignedPayload(text, QR_TYPE_OFFER, {
+      now: issued + DEFAULT_LIFETIME_MS + CLOCK_SKEW_MS + 1
+    }),
+    /has expired/
+  )
+})
+
+test('a payload from the future is refused', async () => {
+  const alice = await peer()
+  const issued = 1_000_000_000_000
+  const text = await encodeSignedPayload(alice.privateKey, offer(alice), { now: issued })
+
+  await assert.rejects(
+    decodeSignedPayload(text, QR_TYPE_OFFER, { now: issued - CLOCK_SKEW_MS - 1 }),
+    /not valid yet/
+  )
+})
+
+test('clock skew between two devices is tolerated', async () => {
+  const alice = await peer()
+  const issued = 1_000_000_000_000
+  const text = await encodeSignedPayload(alice.privateKey, offer(alice), { now: issued })
+
+  // A phone a minute out of step must not reject everything it is handed.
+  for (const now of [issued - CLOCK_SKEW_MS + 1000, issued + DEFAULT_LIFETIME_MS + CLOCK_SKEW_MS - 1000]) {
+    const decoded = await decodeSignedPayload(text, QR_TYPE_OFFER, { now })
+    assert.equal(decoded.type, QR_TYPE_OFFER)
+  }
+})
+
+test('rewriting the window breaks the signature rather than extending it', async () => {
+  const alice = await peer()
+  const issued = 1_000_000_000_000
+  const text = await encodeSignedPayload(alice.privateKey, offer(alice), { now: issued })
+  const payload = await parsePayload(text)
+
+  // This is the whole reason the window lives inside the canonical form. If it
+  // sat outside, this rewrite would hand an attacker unlimited replay.
+  payload.notAfter = issued + 10 * DEFAULT_LIFETIME_MS
+
+  await assert.rejects(
+    decodeSignedPayload(await reencode(payload), QR_TYPE_OFFER, { now: issued + DEFAULT_LIFETIME_MS * 2 }),
+    /signature is invalid/
+  )
+})
+
+test('a payload with no window at all is refused', async () => {
+  const alice = await peer()
+  const text = await encodeSignedPayload(alice.privateKey, offer(alice))
+  const payload = await parsePayload(text)
+  delete payload.notAfter
+
+  // A downgrade to the unprotected shape must not be an option.
+  await assert.rejects(
+    decodeSignedPayload(await reencode(payload), QR_TYPE_OFFER),
+    /missing its validity window/
+  )
+})
+
+test('a caller can shorten the lifetime', async () => {
+  const alice = await peer()
+  const issued = 1_000_000_000_000
+  const text = await encodeSignedPayload(alice.privateKey, offer(alice), {
+    now: issued,
+    lifetimeMs: 30_000
+  })
+
+  await assert.rejects(
+    decodeSignedPayload(text, QR_TYPE_OFFER, { now: issued + 30_000 + CLOCK_SKEW_MS + 1 }),
+    /has expired/
+  )
 })

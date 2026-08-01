@@ -754,6 +754,18 @@ function explain (error) {
     return 'The connection could not be established - the invite was probably too old. Create a new invite and send the fresh link.'
   }
 
+  if (/has expired/i.test(message)) {
+    return 'This link is too old to use. Ask them to create a new invite and send that one.'
+  }
+
+  if (/not valid yet/i.test(message)) {
+    return 'This link is dated in the future - check the clock on both devices, then try again.'
+  }
+
+  if (/missing its validity window/i.test(message)) {
+    return 'This link was made by an older version of the app. Both sides need to reload the page.'
+  }
+
   if (/signature is invalid/i.test(message)) {
     return 'This link was altered on the way. Ask for a freshly created one.'
   }
