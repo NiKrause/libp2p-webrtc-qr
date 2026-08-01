@@ -317,6 +317,9 @@ test.describe('signed QR WebRTC signaling', () => {
 
         await expect(line).toHaveClass(/is-(open|symmetric|blocked|relay)/)
         expect((await line.locator('.network-text').textContent()).length).toBeGreaterThan(20)
+
+        // Colour alone does not carry a verdict to anyone who cannot see it.
+        expect((await line.locator('.network-verdict').textContent()).length).toBeGreaterThan(0)
       }
 
       // Deliberately not disabled: a symmetric NAT still connects peers on the
@@ -327,6 +330,51 @@ test.describe('signed QR WebRTC signaling', () => {
       expect(pageErrors).toEqual([])
     } finally {
       await page.close()
+    }
+  })
+
+  test('the explanations open on tap, not only on hover', async ({ browser }) => {
+    // A phone has no hover, so a tooltip that only reveals on hover is a
+    // tooltip that a phone user can never read.
+    const context = await browser.newContext({
+      viewport: { width: 390, height: 800 },
+      hasTouch: true
+    })
+    const page = await context.newPage()
+
+    try {
+      await page.goto('/')
+      await page.waitForFunction(() => typeof window.__libp2pQrTest?.createOfferPayload === 'function')
+      await page.locator('#start-client').click()
+      await expect(page.locator('#network-state')).toBeVisible({ timeout: 30000 })
+
+      const ipv4 = page.locator('#network-ipv4 .network-text')
+      const ipv6 = page.locator('#network-ipv6 .network-text')
+
+      await expect(ipv4).toBeHidden()
+
+      await page.locator('#network-ipv4 .network-chip').tap()
+      await expect(ipv4).toBeVisible()
+
+      // Opening one closes the other, so two boxes never overlap.
+      await page.locator('#network-ipv6 .network-chip').tap()
+      await expect(ipv6).toBeVisible()
+      await expect(ipv4).toBeHidden()
+
+      // Tapping the open chip again closes it.
+      await page.locator('#network-ipv6 .network-chip').tap()
+      await expect(ipv6).toBeHidden()
+
+      await page.locator('#network-overall .network-chip').tap()
+      await expect(page.locator('#network-overall .network-text')).toBeVisible()
+      await page.locator('#status').tap()
+      await expect(page.locator('#network-overall .network-text')).toBeHidden()
+
+      // Three chips in a row must not push the page sideways on a phone.
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+      expect(overflow).toBeLessThanOrEqual(0)
+    } finally {
+      await context.close()
     }
   })
 

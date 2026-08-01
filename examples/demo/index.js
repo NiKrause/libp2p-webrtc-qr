@@ -35,10 +35,27 @@ const MAX_QR_PAYLOAD_LENGTH = 2200
 const SCAN_INTERVAL = 140
 const SCAN_CANVAS_MAX_WIDTH = 960
 
+/*
+ * The last two are reached by literal address on purpose.
+ *
+ * A reflexive candidate only exists for an address family that a STUN
+ * transaction actually used - the browser reports the address the server saw,
+ * it does not enumerate the interfaces it has. The hostnames above only produce
+ * an IPv6 transaction if the browser's own resolver returns AAAA for them, and
+ * the IPv6 host candidate that would otherwise give the game away is hidden
+ * behind an mDNS `.local` name. So on a machine with perfectly good IPv6, an
+ * IPv4-only STUN round trip makes the whole family invisible.
+ *
+ * That is not only a wrong LED: without a reflexive IPv6 candidate the two
+ * peers never exchange IPv6 addresses at all, so the one path that defeats
+ * carrier-grade NAT without a relay never gets tried.
+ */
 const RTC_CONFIGURATION = {
   iceServers: [
     { urls: 'stun:stun.cloudflare.com:3478' },
-    { urls: 'stun:stun.l.google.com:19302' }
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:[2001:4860:4864:5:8000::1]:19302' },
+    { urls: 'stun:[2606:4700:49::]:3478' }
   ]
 }
 
@@ -219,12 +236,35 @@ async function parseAndVerifyPayload (text, expectedType) {
 }
 
 
+/**
+ * A coloured dot is not a verdict anyone can read out loud, and on a touch
+ * screen there is no hover to reveal the sentence behind it. So each chip
+ * carries the verdict as a word, and the explanation opens on tap.
+ */
+const NETWORK_VERDICTS = {
+  open: 'usable',
+  relay: 'relayed',
+  symmetric: 'local only',
+  blocked: 'none'
+}
+
+function closeNetworkTips (except) {
+  for (const line of Object.values(networkLineEls)) {
+    const chip = line.querySelector('.network-chip')
+
+    if (chip !== except) {
+      chip.setAttribute('aria-expanded', 'false')
+    }
+  }
+}
+
 function renderNetwork (result) {
   for (const key of ['ipv4', 'ipv6', 'overall']) {
     const line = networkLineEls[key]
 
     line.className = `network-line is-${result[key].state}`
     line.querySelector('.network-text').textContent = result[key].text
+    line.querySelector('.network-verdict').textContent = NETWORK_VERDICTS[result[key].state]
   }
 
   // The container keeps the overall state as a class so anything reading one
@@ -233,6 +273,34 @@ function renderNetwork (result) {
   networkStateEl.hidden = false
   appendLog(`Network check: IPv4 ${result.ipv4.state}, IPv6 ${result.ipv6.state} - ${result.overall.text}`)
 }
+
+for (const line of Object.values(networkLineEls)) {
+  const chip = line.querySelector('.network-chip')
+
+  chip.addEventListener('click', () => {
+    const open = chip.getAttribute('aria-expanded') === 'true'
+
+    closeNetworkTips(chip)
+    chip.setAttribute('aria-expanded', open ? 'false' : 'true')
+  })
+}
+
+// `pointerdown` rather than `click`: Safari does not dispatch a click for a tap
+// on an element that is not itself interactive, so a document-level click
+// listener never hears the tap that should dismiss the tooltip. It fires before
+// the chip's own click handler, which is why a tap on a chip is excluded here
+// instead of being closed and immediately reopened.
+document.addEventListener('pointerdown', event => {
+  if (event.target.closest('.network-chip') == null) {
+    closeNetworkTips()
+  }
+})
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') {
+    closeNetworkTips()
+  }
+})
 
 /**
  * 2000::/3 is the only IPv6 range routed on the public internet. Unique-local

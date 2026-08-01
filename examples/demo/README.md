@@ -124,6 +124,26 @@ one blind spot: two interfaces in the same family, a VPN next to wifi, have
 different base ports and read as symmetric. The check errs pessimistic, and
 nothing in the UI is disabled on the strength of it.
 
+### Why two of the STUN servers are IPv6 literals
+
+A reflexive candidate exists only for an address family that a STUN transaction
+actually used. The browser reports the address *the server saw*; it does not
+enumerate its own interfaces, and the IPv6 host candidate that would give the
+game away is hidden behind an mDNS `.local` name like every other host
+candidate. So if `stun.l.google.com` resolves to A but not AAAA in the browser's
+own resolver - which a private DNS or DoH setting can decide - a machine with
+working IPv6 gathers no IPv6 candidate whatsoever.
+
+`stun:[2001:4860:4864:5:8000::1]:19302` and `stun:[2606:4700:49::]:3478` are
+therefore configured alongside the hostnames, so an IPv6 transaction happens
+regardless of what DNS returns. Measured on an IPv6-capable network, adding them
+costs nothing: gathering completes in ~130 ms either way, and the extra
+candidates deduplicate against the ones the hostnames produce.
+
+This is not cosmetic. Without a reflexive IPv6 candidate the two peers never
+exchange IPv6 addresses, so the one path that beats carrier-grade NAT without
+any relay is never even attempted.
+
 ## Network behavior
 
 - WebRTC DTLS encrypts the data channel.

@@ -105,15 +105,24 @@
           </div>
 
           <div id="network-state" class="network-state" role="status" hidden>
-            <p class="network-line" id="network-ipv4">
-              <span class="network-label">IPv4</span><span class="network-text"></span>
-            </p>
-            <p class="network-line" id="network-ipv6">
-              <span class="network-label">IPv6</span><span class="network-text"></span>
-            </p>
-            <p class="network-line" id="network-overall">
-              <span class="network-label">Result</span><span class="network-text"></span>
-            </p>
+            <div class="network-line" id="network-ipv4">
+              <button type="button" class="network-chip" aria-expanded="false" aria-describedby="network-ipv4-text">
+                <span class="network-label">IPv4</span><span class="network-verdict"></span>
+              </button>
+              <span class="network-text" id="network-ipv4-text" role="tooltip"></span>
+            </div>
+            <div class="network-line" id="network-ipv6">
+              <button type="button" class="network-chip" aria-expanded="false" aria-describedby="network-ipv6-text">
+                <span class="network-label">IPv6</span><span class="network-verdict"></span>
+              </button>
+              <span class="network-text" id="network-ipv6-text" role="tooltip"></span>
+            </div>
+            <div class="network-line" id="network-overall">
+              <button type="button" class="network-chip" aria-expanded="false" aria-describedby="network-overall-text">
+                <span class="network-label">Result</span><span class="network-verdict"></span>
+              </button>
+              <span class="network-text" id="network-overall-text" role="tooltip"></span>
+            </div>
           </div>
           <details class="peer">
             <summary>Your peer identity</summary>
