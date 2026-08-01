@@ -48,8 +48,9 @@ pnpm test    # unit + both e2e suites, on Chromium, Firefox and WebKit
 
 - **No TURN server.** Two peers behind restrictive or symmetric NATs can still
   fail to connect.
-- **No replay window.** Payloads carry a session id but no timestamp, so a
-  signed offer stays valid as long as the offerer's peer connection lives.
+- **Payloads expire after ten minutes**, with two minutes of clock skew
+  tolerated. The window is part of the signed canonical form, so rewriting it
+  invalidates the signature rather than extending the payload.
 - **The e2e suite runs with `?ice=host`**, which exercises the loopback path.
   Real ICE with STUN candidates produces larger SDP, and therefore larger QR
   payloads, than the suite measures. Measured on the live demo: 933 characters

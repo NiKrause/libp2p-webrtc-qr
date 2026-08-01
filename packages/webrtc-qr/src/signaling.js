@@ -1,11 +1,25 @@
 import { peerIdFromString } from '@libp2p/peer-id'
 import { fromString, toString } from 'uint8arrays'
 
-export const PAYLOAD_VERSION = 1
+export const PAYLOAD_VERSION = 2
 export const QR_TYPE_OFFER = 'offer'
 export const QR_TYPE_ANSWER = 'answer'
 
-const SIGNATURE_PREFIX = 'libp2p-webrtc-qr-payload-v1:'
+/**
+ * How long a payload stays valid. A signed offer used to be usable for as long
+ * as the offerer's peer connection lived, so anyone who photographed a
+ * displayed code, or kept a copy of a link from a chat, could replay it for
+ * that whole window.
+ */
+export const DEFAULT_LIFETIME_MS = 10 * 60 * 1000
+
+/**
+ * Two devices that have never spoken cannot be assumed to agree on the time.
+ * Without slack, a phone a minute fast would reject every payload it is given.
+ */
+export const CLOCK_SKEW_MS = 2 * 60 * 1000
+
+const SIGNATURE_PREFIX = 'libp2p-webrtc-qr-payload-v2:'
 const COMPRESSED_PREFIX = 'libp2p-webrtc-qr:1:'
 
 /**
@@ -14,12 +28,17 @@ const COMPRESSED_PREFIX = 'libp2p-webrtc-qr:1:'
  * the signature did not cover.
  */
 function canonicalPayload (payload) {
+  // notBefore/notAfter belong *inside* the canonical form. Outside it they are
+  // not covered by the signature, and an attacker replaying an old payload
+  // would simply rewrite the window before passing it on.
   if (payload.type === QR_TYPE_OFFER) {
     return {
       version: payload.version,
       type: payload.type,
       sessionId: payload.sessionId,
       peerId: payload.peerId,
+      notBefore: payload.notBefore,
+      notAfter: payload.notAfter,
       sdp: payload.sdp
     }
   }
@@ -30,6 +49,8 @@ function canonicalPayload (payload) {
     sessionId: payload.sessionId,
     peerId: payload.peerId,
     offerPeerId: payload.offerPeerId,
+    notBefore: payload.notBefore,
+    notAfter: payload.notAfter,
     sdp: payload.sdp
   }
 }
@@ -90,11 +111,24 @@ export async function parsePayload (text) {
   }
 }
 
-export async function encodeSignedPayload (privateKey, payload) {
-  const signature = await privateKey.sign(signingBytes(payload))
+/**
+ * Sign a payload and stamp it with a validity window.
+ *
+ * @param options.lifetimeMs - how long it stays usable, default ten minutes
+ * @param options.now - the current time, injectable so tests do not have to wait
+ */
+export async function encodeSignedPayload (privateKey, payload, options = {}) {
+  const now = options.now ?? Date.now()
+  const lifetime = options.lifetimeMs ?? DEFAULT_LIFETIME_MS
+  const stamped = {
+    ...payload,
+    notBefore: payload.notBefore ?? now,
+    notAfter: payload.notAfter ?? now + lifetime
+  }
+  const signature = await privateKey.sign(signingBytes(stamped))
 
   return compress(JSON.stringify({
-    ...canonicalPayload(payload),
+    ...canonicalPayload(stamped),
     signature: toString(signature, 'base64url')
   }))
 }
@@ -105,7 +139,7 @@ export async function encodeSignedPayload (privateKey, payload) {
  * the WebRTC session to that peer id - which is what lets the transport skip
  * the usual connection encryption handshake.
  */
-export async function decodeSignedPayload (text, expectedType) {
+export async function decodeSignedPayload (text, expectedType, options = {}) {
   const payload = await parsePayload(text)
 
   if (payload?.version !== PAYLOAD_VERSION || payload.type !== expectedType) {
@@ -118,6 +152,10 @@ export async function decodeSignedPayload (text, expectedType) {
 
   if (requiredStrings.some(field => typeof payload[field] !== 'string' || payload[field].length === 0)) {
     throw new Error('The QR payload is missing required fields')
+  }
+
+  if (!Number.isFinite(payload.notBefore) || !Number.isFinite(payload.notAfter)) {
+    throw new Error('The QR payload is missing its validity window')
   }
 
   const payloadPeerId = peerIdFromString(payload.peerId)
@@ -133,6 +171,18 @@ export async function decodeSignedPayload (text, expectedType) {
 
   if (!valid) {
     throw new Error('The QR payload signature is invalid')
+  }
+
+  // Checked after the signature, so a rewritten window is reported as forgery
+  // rather than as an expiry - the more accurate of the two.
+  const now = options.now ?? Date.now()
+
+  if (now + CLOCK_SKEW_MS < payload.notBefore) {
+    throw new Error('The QR payload is not valid yet - check the clocks on both devices')
+  }
+
+  if (now - CLOCK_SKEW_MS > payload.notAfter) {
+    throw new Error('The QR payload has expired - ask for a freshly created one')
   }
 
   return payload

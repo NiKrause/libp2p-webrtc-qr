@@ -78,8 +78,13 @@ Peer ID - the same binding `certhash` provides in WebRTC-Direct. If you accept
 unsigned SDP, this guarantee is gone and you must run a normal encryption
 handshake instead.
 
-Payloads carry a session id but no timestamp, so they do not expire on their
-own. Add a replay window if that matters for your threat model.
+Payloads expire. `encodeSignedPayload` stamps a `notBefore`/`notAfter` pair -
+ten minutes by default, `lifetimeMs` to change it - and `decodeSignedPayload`
+rejects anything outside that window, allowing two minutes of clock skew.
+
+Both fields are part of the signed canonical form, so rewriting them
+invalidates the signature instead of extending the payload. Pass `now` to
+either function to test the behaviour without waiting.
 
 ## Vendored upstream code
 
