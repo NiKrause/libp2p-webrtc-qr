@@ -133,11 +133,24 @@ when this was first written the other way.
 Persisting an identifier at all is a trade, so the identity panel shows it, says
 where it came from, and offers **Start over as a new peer**.
 
-Neither measure resumes a connection that was actually lost. That needs a
-signalling path that survives the sleep — see
-[#33](https://github.com/NiKrause/libp2p-webrtc-qr/issues/33) for the rest of the
-plan and [#23](https://github.com/NiKrause/libp2p-webrtc-qr/issues/23) for why
-the fully automatic case needs a rendezvous.
+**A connection that dies comes back by itself, if any route home is left.** The
+mesh already carries signed payloads between peers who have never met; a peer who
+dropped is just a peer we were talking to a moment ago. Any remaining connection
+can carry the renegotiation, routes are tried in turn — the peer you picked may
+not be connected to the one you are trying to reach — and nobody scans anything.
+
+`restartIce()` is *not* used, although it is the obvious primitive: it
+renegotiates while keeping the data channels, but by the time ICE reports
+`failed` the libp2p connection on top has already been torn down, muxer and
+streams with it. There is nothing left to keep, and a fresh connection is
+indistinguishable from the user's side.
+
+**When no route home exists**, two peers and one connection, there is no third
+party to signal through and nothing invents one. The page says so and offers a
+single **Reconnect** button rather than sending you back through the setup.
+
+See [#23](https://github.com/NiKrause/libp2p-webrtc-qr/issues/23) for why the
+remaining case — everyone disconnected at once — needs a rendezvous.
 
 ## Animated codes, and why they are needed
 

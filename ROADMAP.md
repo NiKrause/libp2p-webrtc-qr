@@ -337,13 +337,29 @@ peer refusing to dial itself would have quietly broken the two-tab handoff this
 demo depends on. Written that way first, it failed the second-tab test on all
 three engines.
 
-**Still open:** resuming through the mesh, which is where item 8 pays off - a
-peer that kept any live connection can renegotiate the dead one through it, with
-no scanning - and a one-tap reconnect for when no path survives.
+**Done**, all four steps. A peer that kept any live connection renegotiates the
+dead one through it with no scanning, trying its routes in turn because the peer
+it picked may not be connected to the one it is trying to reach. When no route
+home is left, the page offers a single **Reconnect** button instead of a walk
+back through the setup.
 
-The limit worth stating: a connection that survives an arbitrary sleep needs a
-rendezvous both sides can reach afterwards. That is item 10's problem, and it is a
-property of having no signalling server rather than a bug.
+`restartIce()` was the proposal and is not what shipped. It renegotiates while
+keeping the data channels, which sounds exactly right - but by the time ICE
+reports `failed` the libp2p connection on top is already torn down, muxer and
+streams with it. Nothing left to keep.
+
+Persisting the Peer ID exposed two bugs that could not happen while every
+reconnect brought a fresh identity, and both cost a debugging round:
+
+- libp2p still held the dead connection under the *same* peer id, so the new dial
+  died with `Remote closed connection during opening`
+- **`offerSessions` was never pruned**, and `getOutboundSession` returned the
+  first match - which after a reconnect is the stale, closed session. It now
+  returns the newest, and dead sessions are dropped with their connection
+
+The limit worth stating: everyone disconnecting at once still needs a rendezvous
+both sides can reach afterwards. That is item 10's problem, and a property of
+having no signalling server rather than a bug.
 
 ---
 
