@@ -484,6 +484,96 @@ test.describe('signed QR WebRTC signaling', () => {
     }
   })
 
+  test('the peer id survives a reload, and resetting it changes it', async ({ browser }) => {
+    // An explicit context so a second tab can be opened beside the first, which
+    // is what "two tabs of the same browser" actually means.
+    const context = await browser.newContext()
+    const page = await context.newPage()
+    const pageErrors = []
+
+    const start = async () => {
+      await page.waitForFunction(() => typeof window.__libp2pQrTest?.createOfferPayload === 'function')
+      await page.locator('#start-client').click()
+      await page.waitForFunction(() => document.getElementById('peer-id').textContent !== 'not started')
+
+      return page.locator('#peer-id').textContent()
+    }
+
+    try {
+      page.on('pageerror', error => pageErrors.push(error.message))
+      await page.goto('/?ice=host')
+
+      const first = await start()
+
+      expect(await page.locator('#identity-origin').textContent()).toContain('Freshly generated')
+
+      await page.reload()
+
+      // The point of persisting: a phone whose tab was discarded while it slept
+      // comes back as the same peer rather than as a stranger nobody can place.
+      expect(await start()).toBe(first)
+      expect(await page.locator('#identity-origin').textContent()).toContain('Restored')
+
+      // Scoped to the tab, not the browser. Sharing one identity across tabs
+      // would make a peer refuse to dial itself, and the two-tab handoff this
+      // demo depends on would break with an error about connecting to yourself.
+      const otherTab = await context.newPage()
+
+      try {
+        await otherTab.goto('/?ice=host')
+        await otherTab.waitForFunction(() => typeof window.__libp2pQrTest?.createOfferPayload === 'function')
+        await otherTab.locator('#start-client').click()
+        await otherTab.waitForFunction(() => document.getElementById('peer-id').textContent !== 'not started')
+
+        expect(await otherTab.locator('#peer-id').textContent()).not.toBe(first)
+      } finally {
+        await otherTab.close()
+      }
+
+      // A stored identifier that cannot be cleared is not a choice, so the reset
+      // has to actually produce a different peer.
+      await page.locator('details:has(#reset-identity) > summary').click()
+      await page.locator('#reset-identity').click()
+
+      expect(await start()).not.toBe(first)
+      expect(pageErrors).toEqual([])
+    } finally {
+      await context.close()
+    }
+  })
+
+  test('holds a screen wake lock only while a connection is live', async ({ browser, browserName }) => {
+    skipWithoutWebRTC(test, browserName)
+
+    const offerer = await browser.newPage()
+    const answerer = await browser.newPage()
+    const pageErrors = []
+
+    try {
+      await openPeer(offerer, pageErrors)
+      await openPeer(answerer, pageErrors)
+
+      // Nothing to protect yet - a lock held on an idle page is a phone kept
+      // awake for no reason.
+      expect(await offerer.evaluate(() => window.__libp2pQrTest.wakeLockState().wanted)).toBe(false)
+
+      await connectPeers(offerer, answerer)
+
+      // `wanted` is our decision and `held` is the browser's answer to it. Only
+      // the first is asserted: a headless browser exposes the API and then
+      // refuses every request, having no screen to keep awake, so asserting on
+      // `held` would be asserting on the platform rather than on this code.
+      await expect.poll(async () => {
+        return offerer.evaluate(() => window.__libp2pQrTest.wakeLockState().wanted)
+      }, { timeout: 10000 }).toBe(true)
+
+      expect(pageErrors).toEqual([])
+    } finally {
+      await offerer.close()
+      await answerer.close()
+    }
+  })
+
   test('an oversized payload survives the multi-frame round trip', async ({ browser }) => {
     const page = await browser.newPage()
 

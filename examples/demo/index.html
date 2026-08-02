@@ -150,8 +150,16 @@
             <summary>Your peer identity</summary>
             <p class="peer-note">
               This is not what you send to anyone - it is the key your invite links are signed with.
+              It is kept for <strong>this tab</strong>, so reloading - or a phone waking from
+              standby - comes back as the same peer instead of a stranger, while another tab stays
+              a different peer you can still connect to. It does not outlive the tab, and the same
+              identifier appears in every invite from here until you reset it.
             </p>
             <span id="peer-id">not started</span>
+            <p id="identity-origin" class="peer-note"></p>
+            <div class="actions">
+              <button id="reset-identity" type="button">Start over as a new peer</button>
+            </div>
           </details>
         </section>
 
