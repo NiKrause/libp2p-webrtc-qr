@@ -9,6 +9,14 @@ import { multiaddr } from '@multiformats/multiaddr'
 import jsQR from 'jsqr'
 import { createLibp2p } from 'libp2p'
 import QRCode from 'qrcode'
+import {
+  FRAME_INTERVAL_MS,
+  createFrameSource,
+  createPartAccumulator,
+  looksLikeUrPart,
+  needsAnimation,
+  preload as preloadAnimatedQr
+} from './bcur.js'
 import { fromString, toString } from 'uint8arrays'
 import {
   compress,
@@ -34,6 +42,7 @@ const ANSWER_WAIT_TIMEOUT = 6 * 60 * 1000
 const MAX_QR_PAYLOAD_LENGTH = 2200
 const SCAN_INTERVAL = 140
 const SCAN_CANVAS_MAX_WIDTH = 960
+const QR_RENDER_OPTIONS = { errorCorrectionLevel: 'M', margin: 4, width: 1280 }
 
 /*
  * The last two are reached by literal address on purpose.
@@ -73,6 +82,7 @@ const copyPayloadButton = document.getElementById('copy-payload')
 const stopScanButton = document.getElementById('stop-scan')
 const sendButton = document.getElementById('send')
 const qrImage = document.getElementById('qr-image')
+const qrFrameEl = document.getElementById('qr-frame')
 const qrVideo = document.getElementById('qr-video')
 const scanStatus = document.getElementById('scan-status')
 const dropZone = document.getElementById('drop-zone')
@@ -117,6 +127,8 @@ let lastScanTime = 0
 let scanAttempts = 0
 let barcodeDetector = null
 let scanSessionId = 0
+let qrAnimationTimer = null
+let partAccumulator = null
 
 const inboundPeerConnections = new Set()
 const testState = {
@@ -473,6 +485,8 @@ async function createNode () {
   probeNetwork()
     .then(renderNetwork)
     .catch(error => appendLog(`Network check failed: ${error.message}`))
+
+  preloadAnimatedQr()
 
   peerIdEl.textContent = node.peerId.toString()
   setStatus('Browser client started. Create or scan an offer.')
@@ -1444,21 +1458,73 @@ async function renderOutbound (payload, kind) {
   inviteBoxEl.hidden = false
   startInviteCountdown()
 
+  stopQrAnimation()
+
   if (link.length > MAX_QR_PAYLOAD_LENGTH) {
     qrImage.style.display = 'none'
     appendLog('Link is too long for a reliable QR code - send it as a link instead.')
     return link
   }
 
-  qrImage.src = await QRCode.toDataURL(link, {
-    errorCorrectionLevel: 'M',
-    margin: 4,
-    width: 1280
-  })
+  if (needsAnimation(link)) {
+    await startQrAnimation(link)
+    appendLog(`QR payload size: ${payload.length} characters - shown as an animated sequence.`)
+    return link
+  }
+
+  qrImage.src = await QRCode.toDataURL(link, QR_RENDER_OPTIONS)
   qrImage.style.display = 'block'
   appendLog(`QR payload size: ${payload.length} characters.`)
 
   return link
+}
+
+/**
+ * Cycle BC-UR frames on the displayed code.
+ *
+ * Frames are rendered up front rather than inside the tick: encoding a QR to a
+ * data URL takes long enough that doing it per tick makes the sequence stutter,
+ * and a stuttering sequence is one a camera misses parts of. Fountain frames
+ * beyond the pure ones are added as the loop runs, up to a ceiling, so a
+ * scanner that joined late has something to catch without the cache growing
+ * without bound.
+ */
+async function startQrAnimation (link) {
+  const source = await createFrameSource(link)
+  const rendered = [await QRCode.toDataURL(source.next(), QR_RENDER_OPTIONS)]
+  const ceiling = source.total * 2
+  let index = 0
+
+  qrImage.src = rendered[0]
+  qrImage.style.display = 'block'
+  qrFrameEl.hidden = false
+  qrFrameEl.textContent = `Part 1 of ${source.total} — hold the phone still`
+
+  const tick = async () => {
+    index++
+
+    if (index >= rendered.length && rendered.length < ceiling) {
+      rendered.push(await QRCode.toDataURL(source.next(), QR_RENDER_OPTIONS))
+    }
+
+    const slot = index % rendered.length
+
+    qrImage.src = rendered[slot]
+    qrFrameEl.textContent = slot < source.total
+      ? `Part ${slot + 1} of ${source.total} — hold the phone still`
+      : 'Recovery frame — hold the phone still'
+  }
+
+  qrAnimationTimer = setInterval(() => { tick() }, FRAME_INTERVAL_MS)
+}
+
+function stopQrAnimation () {
+  if (qrAnimationTimer != null) {
+    clearInterval(qrAnimationTimer)
+    qrAnimationTimer = null
+  }
+
+  qrFrameEl.hidden = true
 }
 
 async function handleReceivedPayload (input, expectedType) {
@@ -1573,6 +1639,10 @@ function stopQrScanner ({ clearStatus = true } = {}) {
   scanAttempts = 0
   lastScanTime = 0
 
+  // Half a sequence is worthless to the next scan, and keeping it would make a
+  // fresh invite look like it was already partly received.
+  partAccumulator?.reset()
+
   if (clearStatus) {
     scanStatus.textContent = ''
   }
@@ -1632,6 +1702,30 @@ async function scanLoop (timestamp, sessionId) {
       inversionAttempts: 'attemptBoth'
     })
     decodedText = result?.data ?? null
+  }
+
+  // A multi-frame invite arrives one part at a time, and no single part is a
+  // payload. Feed them to the accumulator and keep the camera running until the
+  // message is whole - only then does it go down the normal path, which cannot
+  // tell it was ever split.
+  if (decodedText != null && looksLikeUrPart(decodedText)) {
+    partAccumulator = partAccumulator ?? await createPartAccumulator()
+
+    const progress = partAccumulator.receive(decodedText)
+
+    if (sessionId !== scanSessionId) {
+      return
+    }
+
+    if (progress.state === 'complete') {
+      decodedText = progress.payload
+    } else {
+      scanStatus.textContent = progress.total > 0
+        ? `Animated code: ${progress.received} of ${progress.total} parts. Keep holding steady.`
+        : 'Animated code detected. Keep holding steady.'
+      scheduleNextScan(sessionId)
+      return
+    }
   }
 
   if (decodedText != null) {
@@ -1882,6 +1976,30 @@ document.addEventListener('visibilitychange', () => {
 // peer connections, the camera and the sockets on its own.
 
 window.__libp2pQrTest = {
+  // Multi-frame encode/decode, exposed so the round trip can be driven without
+  // pointing a camera at a screen.
+  bcurFrames: async (text, options) => {
+    const source = await createFrameSource(text, options)
+    const frames = []
+
+    for (let i = 0; i < source.total; i++) {
+      frames.push(source.next())
+    }
+
+    return { total: source.total, frames, extra: [source.next(), source.next()] }
+  },
+  bcurReceive: async parts => {
+    const accumulator = await createPartAccumulator()
+    const steps = []
+
+    for (const part of parts) {
+      steps.push(accumulator.receive(part))
+    }
+
+    return steps
+  },
+  needsAnimation,
+  looksLikeUrPart,
   // Exposed so the LED truth table can be asserted without depending on the
   // network the test happens to run on.
   summariseNetwork: (ipv4State, ipv6State) =>

@@ -481,6 +481,148 @@ test.describe('signed QR WebRTC signaling', () => {
     }
   })
 
+  test('an oversized payload survives the multi-frame round trip', async ({ browser }) => {
+    const page = await browser.newPage()
+
+    try {
+      await page.goto('/')
+      await page.waitForFunction(() => typeof window.__libp2pQrTest?.bcurFrames === 'function')
+
+      const result = await page.evaluate(async () => {
+        // Deliberately larger than anything real ICE produces, so the split is
+        // exercised rather than skipped.
+        const payload = 'https://webrtc-qr.le-space.de/#i=' + 'x'.repeat(3000)
+        const { total, frames, extra } = await window.__libp2pQrTest.bcurFrames(payload)
+
+        return {
+          payload,
+          total,
+          frames,
+          extra,
+          longest: Math.max(...frames.map(f => f.length)),
+          // Every part in order.
+          inOrder: await window.__libp2pQrTest.bcurReceive(frames),
+          // A scanner that missed the first two frames and joined late: the
+          // remaining pure parts plus fountain frames have to be enough.
+          joinedLate: await window.__libp2pQrTest.bcurReceive([...frames.slice(2), ...extra, ...frames.slice(0, 2)])
+        }
+      })
+
+      expect(result.total).toBeGreaterThan(1)
+
+      // Uppercase keeps the code in QR alphanumeric mode, which is what makes
+      // splitting worth doing - lowercase would need a visibly denser code.
+      for (const frame of result.frames) {
+        expect(frame).toBe(frame.toUpperCase())
+        expect(frame.startsWith('UR:')).toBe(true)
+      }
+
+      // Each frame has to be small enough to stay scannable on a narrow phone.
+      expect(result.longest).toBeLessThan(600)
+
+      const completed = result.inOrder.filter(step => step.state === 'complete')
+
+      expect(completed).toHaveLength(1)
+      expect(completed[0].payload).toBe(result.payload)
+
+      // No part before the last one may claim completion.
+      expect(result.inOrder.slice(0, -1).every(step => step.state === 'progress')).toBe(true)
+
+      // Progress has to be reported, not just the final answer.
+      expect(result.inOrder[0].total).toBe(result.total)
+      expect(result.inOrder[0].received).toBe(1)
+
+      const lateCompleted = result.joinedLate.filter(step => step.state === 'complete')
+
+      expect(lateCompleted).toHaveLength(1)
+      expect(lateCompleted[0].payload).toBe(result.payload)
+    } finally {
+      await page.close()
+    }
+  })
+
+  test('the animated code on screen decodes back into the invite link', async ({ browser }) => {
+    const page = await browser.newPage()
+    const pageErrors = []
+
+    try {
+      await openPeer(page, pageErrors)
+      await page.locator('#create-offer').click()
+      await page.locator('#qr-image').waitFor({ state: 'visible', timeout: 30000 })
+
+      const link = await page.locator('#invite-link').inputValue()
+
+      // The whole point of the split, so the test is worthless if the payload
+      // happened to be small enough for one code.
+      expect(link.length).toBeGreaterThan(600)
+      await expect(page.locator('#qr-frame')).toBeVisible()
+      await expect(page.locator('#qr-frame')).toContainText(/Part \d+ of \d+/)
+
+      // Read what is actually on screen, frame by frame, exactly as a camera
+      // would - then hand those strings to the accumulator.
+      const reassembled = await page.evaluate(async () => {
+        const seen = []
+        const image = document.getElementById('qr-image')
+
+        for (let i = 0; i < 40; i++) {
+          const decoded = await window.__libp2pQrTest.decodeQrDataUrl(image.src)
+
+          if (decoded != null) {
+            seen.push(decoded)
+          }
+
+          await new Promise(resolve => setTimeout(resolve, 120))
+        }
+
+        const steps = await window.__libp2pQrTest.bcurReceive(seen)
+        const done = steps.find(step => step.state === 'complete')
+
+        return { frames: seen.length, distinct: new Set(seen).size, payload: done?.payload ?? null }
+      })
+
+      // If the animation had stalled, every sample would be the same frame.
+      expect(reassembled.distinct).toBeGreaterThan(1)
+      expect(reassembled.payload).toBe(link)
+      expect(pageErrors).toEqual([])
+    } finally {
+      await page.close()
+    }
+  })
+
+  test('a short invite stays a single code, a long one animates', async ({ browser }) => {
+    const page = await browser.newPage()
+
+    try {
+      await page.goto('/')
+      await page.waitForFunction(() => typeof window.__libp2pQrTest?.needsAnimation === 'function')
+
+      const verdicts = await page.evaluate(() => {
+        const check = window.__libp2pQrTest.needsAnimation
+        const isPart = window.__libp2pQrTest.looksLikeUrPart
+
+        return {
+          short: check('https://webrtc-qr.le-space.de/#i=' + 'x'.repeat(300)),
+          long: check('https://webrtc-qr.le-space.de/#i=' + 'x'.repeat(1200)),
+          partUpper: isPart('UR:BYTES/1-6/LPADAACF'),
+          partLower: isPart('ur:bytes/1-6/lpadaacf'),
+          plainLink: isPart('https://webrtc-qr.le-space.de/#i=abc')
+        }
+      })
+
+      expect(verdicts).toEqual({
+        short: false,
+        long: true,
+        // Case-insensitive, because the code carries uppercase and the library
+        // wants lowercase.
+        partUpper: true,
+        partLower: true,
+        plainLink: false
+      })
+    } finally {
+      await page.close()
+    }
+  })
+
   test('the invite is a link, and the QR encodes that link', async ({ browser }) => {
     const page = await browser.newPage()
     const pageErrors = []
@@ -493,18 +635,45 @@ test.describe('signed QR WebRTC signaling', () => {
       expect(invite).toMatch(/^https?:\/\/[^#]+#i=/)
       expect(invite.length).toBeLessThan(2200)
 
-      // The QR carries the link too, so a phone's own camera app opens the page
-      // with the payload already loaded instead of needing the in-app scanner.
+      // The QR carries the link, so a phone's own camera app opens the page with
+      // the payload already loaded instead of needing the in-app scanner. A link
+      // too dense for one code is split into frames, and then it is the sequence
+      // that carries it - so read whichever is on screen and reassemble.
       await expect(page.locator('#qr-image')).toBeVisible()
       // Polled, not read once: decoding a dense code off a canvas occasionally
       // sees a frame that has not finished painting and yields null. Retrying
       // does not weaken the assertion - a QR with the wrong contents still
       // never matches.
       await expect.poll(async () => {
-        return page.evaluate(async dataUrl => {
-          return window.__libp2pQrTest.decodeQrDataUrl(dataUrl)
-        }, await page.locator('#qr-image').getAttribute('src'))
-      }, { timeout: 20000 }).toBe(invite)
+        return page.evaluate(async () => {
+          const image = document.getElementById('qr-image')
+          const first = await window.__libp2pQrTest.decodeQrDataUrl(image.src)
+
+          if (first == null) {
+            return null
+          }
+
+          if (!window.__libp2pQrTest.looksLikeUrPart(first)) {
+            return first
+          }
+
+          const seen = []
+
+          for (let i = 0; i < 30; i++) {
+            const frame = await window.__libp2pQrTest.decodeQrDataUrl(image.src)
+
+            if (frame != null) {
+              seen.push(frame)
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 120))
+          }
+
+          const steps = await window.__libp2pQrTest.bcurReceive(seen)
+
+          return steps.find(step => step.state === 'complete')?.payload ?? null
+        })
+      }, { timeout: 40000 }).toBe(invite)
 
       expect(pageErrors).toEqual([])
     } finally {
@@ -843,6 +1012,10 @@ test.describe('signed QR WebRTC signaling', () => {
     try {
       await openPeer(page, pageErrors)
       await createInvite(page)
+
+      // The link lands in the box before the code is drawn, and a split code
+      // has a library to fetch first - so wait for the image, do not race it.
+      await expect(page.locator('#qr-image')).toBeVisible({ timeout: 30000 })
 
       // Module size decides whether a scan catches. Anything much below the
       // full viewport width is width given away to page margins.

@@ -104,6 +104,41 @@ It is off by default on purpose. A relay is infrastructure, and the point of
 this project is a connection that needs none - but it only relays the media.
 The signalling still travels between the two people and nowhere else.
 
+## Animated codes, and why they are needed
+
+An invite that will not fit one scannable code is split into a BC-UR sequence
+and cycled on screen.
+
+The trigger is not the encoder's capacity, it is the camera's. Measured against
+the live demo with real STUN candidates, a 1122-character invite becomes a
+125-module code; rendered edge to edge on a 320px phone that is **2.29 pixels per
+module**, and a second phone cannot read it. The code already fills the screen -
+`#qr-image` is `100vw` below 560px - so there is no display headroom left. The
+only remaining lever is the number of modules.
+
+Splitting at 220 payload bytes per fragment gives:
+
+| | modules | px/module at 320px |
+| --- | --- | --- |
+| one code | 125 | 2.29 |
+| six frames | 69 | **3.95** |
+
+Two details make it cheaper than it sounds. The frames are **uppercased**, which
+keeps them inside the QR alphanumeric character set - 5.5 bits per character
+instead of the 8 that byte mode costs, so the same data needs a visibly smaller
+code. And once the pure parts are exhausted the encoder emits fountain-coded
+combinations, so a scanner that joined late or missed a frame never has to wait
+for one particular frame to come round again; any sufficient set reconstructs the
+message.
+
+Below 600 characters the invite stays a **single static code**, because one
+glance beats holding a phone still through a sequence.
+
+`@ngraveio/bc-ur` is loaded on demand rather than bundled: it adds ~227 kB across
+two chunks, and most invites never need it. The main bundle grows by 1.8 kB
+gzipped. It is fetched in the background as soon as the peer starts, so the code
+is not waiting on a download when the invite is created.
+
 ## What the three LEDs mean
 
 Starting the peer runs a throwaway `RTCPeerConnection` against both STUN servers

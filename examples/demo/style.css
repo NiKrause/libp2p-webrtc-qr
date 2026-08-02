@@ -425,6 +425,43 @@ input[type='text']:focus {
   margin: 12px 0 0;
 }
 
+/* `display` here beats the user agent's `[hidden] { display: none }`, so the
+   hidden state has to be restated - the same trap the handoff banner fell into. */
+.qr-frame[hidden] {
+  display: none;
+}
+
+.qr-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.84rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ls-text-dim);
+  margin: 10px 0 0;
+}
+
+.qr-frame::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ls-accent);
+  box-shadow: 0 0 10px var(--ls-accent);
+  animation: qr-frame-pulse 1s ease-in-out infinite;
+}
+
+@keyframes qr-frame-pulse {
+  50% { opacity: 0.25; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qr-frame::before {
+    animation: none;
+  }
+}
+
 /* ---------- chat ---------- */
 
 #chat-log {
