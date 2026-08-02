@@ -8,8 +8,11 @@ person - including future us - does not have to rediscover them.
 
 Each item has an issue: this file holds the reasoning, the issues hold the work.
 Start at [the roadmap label](https://github.com/NiKrause/libp2p-webrtc-qr/labels/roadmap)
-if you are looking for something to pick up - [#9](https://github.com/NiKrause/libp2p-webrtc-qr/issues/9)
-is marked `good first issue`.
+if you are looking for something to pick up.
+
+Items marked **Done** stay here rather than being deleted. What was tried and why
+it was ordered that way is the part that is expensive to rediscover - and in more
+than one case below, doing the work changed the reasoning that led to it.
 
 ---
 
@@ -77,20 +80,36 @@ reconstruction; and how a peer signals which format it speaks.
 
 **Tracked in [#12](https://github.com/NiKrause/libp2p-webrtc-qr/issues/12).**
 
-A fallback for payloads that will not fit one code: split into
+**Done.** Above 600 characters the invite is split into
 [BC-UR](https://github.com/BlockchainCommons/Research/blob/master/papers/bcr-2020-005-ur.md)
-parts, cycle them on the sending screen, reassemble on the scanner.
+fragments of 220 bytes and cycled at 5fps; below that it stays a single static
+code. Measured on a 320px phone:
+
+| | modules | px/module |
+| --- | --- | --- |
+| one code | 125 | 2.29 |
+| six frames | 69 | **3.95** |
+
+**This was promoted above item 1, against the ordering argued here.** The
+reasoning was that shrinking the payload removes the problem while animating only
+makes it survivable - but the numbers do not support it. Even a 40% reduction
+leaves roughly 670 characters, about 2.9 px per module, still marginal for
+phone-to-phone. Item 1 alone would not have fixed the case that was actually
+failing in the field.
+
+Two things learned in the doing:
+
+- **The frames are uppercased**, which keeps them inside the QR alphanumeric
+  character set - 5.5 bits per character against the 8 that byte mode costs. That
+  is most of why splitting pays off as well as it does.
+- **Fountain frames after the pure parts**, so a scanner that joined late never
+  waits for one particular frame to come round again.
+
 [`Le-Space/qrcode-scanner-svelte`](https://github.com/Le-Space/qrcode-scanner-svelte)
-already implements both sides.
-
-The trade-off is real and the QWBP article argues it well: an animated sequence
-asks the user to hold the phone still until the sequence completes, which is
-worse ergonomics than a single glance. Hence the ordering here - shrink the
-payload first, and treat BC-UR as the escape hatch for whatever still does not
-fit.
-
-A size-adaptive path is the honest end state: one code while it fits, a sequence
-when it does not.
+was listed here as implementing both sides. It is **scanner-only** and needs
+Svelte 5 as a peer dependency, so the underlying `@ngraveio/bc-ur` is used
+directly and both sides are implemented here. The pointer was still what led to
+the right library.
 
 ---
 
@@ -178,9 +197,25 @@ launch in the container until `HOME` was set - an error that had never
 appeared, because Firefox had never actually run.
 
 The gap: Playwright's **WebKit build for Linux has no working WebRTC**, so CI
-runs every WebKit spec that does not need a peer connection and skips the four
+runs every WebKit spec that does not need a peer connection and skips the twelve
 that do. WebKit end to end is verified locally on macOS, where the build is
 closer to real Safari. Chromium and Firefox are verified end to end in CI.
+
+**A macOS runner was tried, and does not close it.** On `macos-latest` the
+eleven signaling specs plus three that pass fine on Linux all failed, and the
+suite took 10.6 minutes against 1.9 locally. The three extra failures are the
+tell: they have nothing to do with connecting, but they all wait for an invite to
+be created. ICE gathering does not complete on that runner - every invite burns
+the full 15 second cap - and the SDP it eventually produces carries mDNS `.local`
+candidates that nothing in the sandbox resolves. WebKit registers host candidates
+under mDNS names and, unlike Chromium, does not appear to fall back to a real
+local address when that goes nowhere.
+
+So **neither hosted platform can verify a Safari-family connection**: Linux has
+no WebRTC, hosted macOS has WebRTC without usable host candidates. What covers it
+is running the suite on a real Mac. The only thing that would genuinely close it
+is a self-hosted macOS runner, which is standing infrastructure rather than a
+patch.
 
 Otherwise nothing broke. `CompressionStream`, `RTCPeerConnection` and negotiated data
 channels behave the same in Firefox and WebKit as in Chromium, and the signed
@@ -206,17 +241,33 @@ still fail to connect after a perfectly good scan - which is a confusing
 experience, because the QR part visibly worked.
 
 Two separable pieces: allowing a TURN server to be configured at all, and
-detecting the failure early enough to say *why* it failed rather than timing
-out.
+detecting the failure early enough to say *why* it failed rather than timing out.
 
-Both are done: `?turn=` configures a server per visit, and starting the peer
-runs a STUN probe that reports IPv4 and IPv6 separately with a summary LED. The
-probe fixed a misreading of its own - keying candidates by `relatedPort` put
-IPv4 and IPv6 in one bucket, whose ports of course differ, so an ordinary cone
-NAT was labelled symmetric.
+**Both are done.** `?turn=` configures a server per visit, and starting the peer
+runs a STUN probe that reports IPv4 and IPv6 on separate indicators with a
+summary that is green when either family is usable.
 
-What stays open is the decentralised alternative to TURN, tracked separately in
-[#23](https://github.com/NiKrause/libp2p-webrtc-qr/issues/23).
+**IPv6 turned out to be the substance of it.** Carrier-grade NAT is an IPv4
+problem; two peers that both have a global IPv6 address face no translation at
+all, only a stateful firewall that ICE opens by itself. That is the one way out
+of the laptop-to-mobile case that needs no infrastructure whatsoever, and the
+check said nothing about it.
+
+Three corrections came out of building it:
+
+- **The old single indicator was wrong.** Every engine masks the base behind a
+  reflexive candidate as `raddr 0.0.0.0 rport 0`, so `relatedPort` is always `0`
+  and never `null`. Keying by it put IPv4 and IPv6 in one bucket, whose ports of
+  course differ, and an ordinary cone NAT was reported as symmetric.
+- **STUN had to be asked over IPv6 literals too.** A reflexive candidate exists
+  only for a family a STUN transaction actually used, so a machine with working
+  IPv6 was gathering no IPv6 candidate at all when the resolver returned A but no
+  AAAA. That was a connectivity bug wearing a display bug's clothes.
+- **It made the QR denser.** More candidates means a larger SDP: the live invite
+  went from 933 to 1122 characters, about 20%. IPv6 reach and QR legibility pull
+  against each other, which is part of why item 2 moved up.
+
+What stays open is the decentralised alternative to TURN - item 10.
 
 ---
 
@@ -253,6 +304,94 @@ binds it to the originator's Peer ID and would have to be forged. But a relaying
 peer **can replay a stale payload** - while scanning, the human eye was the
 freshness guarantee, and over the wire that disappears. That is why item 5 is a
 prerequisite here rather than a refinement.
+
+**Done**, and it works as described: scanning is needed only for the first
+connection. Two peers that have both reached a third learn about each other over
+the existing links, exchange their signed payloads through it, and connect
+directly. Messages carry their sender, and the lower Peer ID initiates so two
+peers do not dial each other at once.
+
+---
+
+## 9. Surviving standby
+
+**Tracked in [#33](https://github.com/NiKrause/libp2p-webrtc-qr/issues/33).**
+
+Found in the field: three devices connected, one phone went into standby, and its
+connection was gone with no way back except a fresh invite and another scan.
+
+It is two different failures. If the page survived the sleep, the peer connection
+object is still there and `restartIce()` would resume it **keeping the data
+channels** - but an ICE restart is a new offer/answer, and offer/answer is
+signalling. If the page was discarded, there is nothing to restart, and the peer
+comes back with a new key: not merely disconnected but unrecognisable.
+
+**The first two steps are done.** A screen wake lock is held while a connection is
+live and the page is visible, which covers a phone dozing off on its own. And the
+node's key survives a reload, so a discarded-and-restored tab comes back as the
+same peer.
+
+That key lives in `sessionStorage`, and the scope is the design rather than a
+detail: `localStorage` would make every tab of the browser the same peer, and a
+peer refusing to dial itself would have quietly broken the two-tab handoff this
+demo depends on. Written that way first, it failed the second-tab test on all
+three engines.
+
+**Still open:** resuming through the mesh, which is where item 8 pays off - a
+peer that kept any live connection can renegotiate the dead one through it, with
+no scanning - and a one-tap reconnect for when no path survives.
+
+The limit worth stating: a connection that survives an arbitrary sleep needs a
+rendezvous both sides can reach afterwards. That is item 10's problem, and it is a
+property of having no signalling server rather than a bug.
+
+---
+
+## 10. Decentralised alternatives to TURN
+
+**Tracked in [#23](https://github.com/NiKrause/libp2p-webrtc-qr/issues/23).**
+
+A relay is infrastructure, and the premise here is a connection that needs none.
+The question is whether the existing libp2p network can stand in.
+
+**AutoNAT cannot.** Its own documentation says it does not implement hole
+punching; it only reports whether addresses a node listens on are dialable, and a
+browser never has one. **DCUtR cannot either** - it coordinates simultaneous-open
+for TCP and QUIC, while a browser's hole punching *is* ICE, which is what already
+failed.
+
+**Circuit relay v2 can, with limits worth knowing.** The js-libp2p defaults are
+2 minutes and 128 KiB per circuit, deliberately, because a circuit is meant as a
+coordination channel and not a data path. Raising them means operating the relay,
+which reintroduces a known server. The honest framing is that circuit relay
+differs from TURN in addressing, not in topology.
+
+And any relay fallback must run a normal Noise handshake: `skipEncryption` is
+sound here *only* because the signature binds the DTLS fingerprint, and a circuit
+carries no DTLS.
+
+The part no protocol removes: two peers, both behind symmetric NAT, nobody else
+present - somebody has to forward the bytes.
+
+---
+
+## 11. A public dataset of where direct WebRTC works
+
+**Tracked in [#27](https://github.com/NiKrause/libp2p-webrtc-qr/issues/27).**
+
+Draft, and the open questions are still open. Whether this project's premise
+holds is a property of the network, and there is no published data on where it
+does - not per country, per carrier or per venue type. The idea is to let people
+who run the network check contribute the result.
+
+The constraints shape the schema rather than decorate it: an append-only
+replicated log can neither erase nor correct, so a record that cannot single
+anyone out is the only design that works. Closed value lists, no free text, month
+granularity. Decentralisation multiplies controllership rather than dissolving it.
+
+Worth settling early: the argument to operators should be about **IPv6, not NAT**.
+A symmetric NAT is a rational response to IPv4 scarcity and a hotel cannot fix it
+without buying address space. Missing IPv6 is a real, fixable deficiency.
 
 ## Not planned
 

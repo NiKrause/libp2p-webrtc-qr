@@ -17,6 +17,8 @@ import {
   needsAnimation,
   preload as preloadAnimatedQr
 } from './bcur.js'
+import { forgetIdentity, loadOrCreateIdentity } from './identity.js'
+import { state as wakeLockState, sync as syncWakeLock } from './wakelock.js'
 import { fromString, toString } from 'uint8arrays'
 import {
   compress,
@@ -70,6 +72,8 @@ const RTC_CONFIGURATION = {
 
 const statusEl = document.getElementById('status')
 const peerIdEl = document.getElementById('peer-id')
+const identityOriginEl = document.getElementById('identity-origin')
+const resetIdentityButton = document.getElementById('reset-identity')
 const chatLogEl = document.getElementById('chat-log')
 const messageInput = document.getElementById('message')
 const payloadDisplay = document.getElementById('payload-display')
@@ -454,7 +458,10 @@ async function createNode () {
     return node
   }
 
+  const identity = await loadOrCreateIdentity()
+
   node = await createLibp2p({
+    privateKey: identity.privateKey,
     transports: [
       webRTCQR({ getOutboundSession })
     ],
@@ -490,8 +497,11 @@ async function createNode () {
   preloadAnimatedQr()
 
   peerIdEl.textContent = node.peerId.toString()
+  identityOriginEl.textContent = identity.restored
+    ? 'Restored for this tab - the same peer you were before.'
+    : 'Freshly generated and kept for this tab.'
   setStatus('Browser client started. Create or scan an offer.')
-  appendLog(`Started libp2p peer ${node.peerId}`)
+  appendLog(`Started libp2p peer ${node.peerId}${identity.restored ? ' (restored)' : ''}`)
   updateControls()
 
   return node
@@ -888,6 +898,10 @@ function attachChatStream (stream, peerId, message) {
  * line tells you nothing.
  */
 function renderPeers () {
+  // Every path that gains or loses a peer ends up here, which makes it the one
+  // place the wake lock has to be kept in step with.
+  syncWakeLock(chatStreams.size > 0)
+
   peerListEl.replaceChildren()
 
   for (const peerId of chatStreams.keys()) {
@@ -1777,6 +1791,15 @@ startButton.addEventListener('click', async () => {
   }
 })
 
+resetIdentityButton.addEventListener('click', () => {
+  forgetIdentity()
+
+  // A running node keeps the old key in memory, and half the app holds peer ids
+  // derived from it. Reloading is the honest way to start over, and it is what
+  // "start over as a new peer" says on the button.
+  window.location.reload()
+})
+
 async function createInvite (button) {
   // Clear the previous link first. Gathering ICE takes seconds, and a stale
   // link sitting in the box the whole time is one someone will copy and send.
@@ -1954,6 +1977,10 @@ fileInput.addEventListener('change', () => {
  * already gone, and the page would otherwise sit there looking fine.
  */
 document.addEventListener('visibilitychange', () => {
+  // The browser drops the wake lock whenever the page stops being visible, so
+  // coming back has to ask for it again - and going away has to stop wanting it.
+  syncWakeLock(document.visibilityState === 'visible' && chatStreams.size > 0)
+
   if (document.visibilityState !== 'visible') {
     return
   }
@@ -2008,6 +2035,7 @@ window.__libp2pQrTest = {
   },
   needsAnimation,
   looksLikeUrPart,
+  wakeLockState,
   // Exposed so the LED truth table can be asserted without depending on the
   // network the test happens to run on.
   summariseNetwork: (ipv4State, ipv6State) =>

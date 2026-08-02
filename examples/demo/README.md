@@ -104,6 +104,41 @@ It is off by default on purpose. A relay is infrastructure, and the point of
 this project is a connection that needs none - but it only relays the media.
 The signalling still travels between the two people and nowhere else.
 
+## Surviving standby
+
+A phone that sleeps takes its connections with it, and without a signalling
+server there is no way to resume them on its own. Two measures, both partial and
+both honest about it:
+
+**The screen is kept awake while a connection is live** and the page is visible.
+This covers the common case — a phone dozing off because nobody touched it while
+the other person was reading. It does nothing when someone deliberately locks
+their phone, and it is not claimed to.
+
+**The Peer ID survives a reload**, kept in `sessionStorage`. The scope is the
+design:
+
+| | |
+| --- | --- |
+| reload | same peer |
+| browser discards a background tab, then restores it | same peer |
+| a second tab | a *different* peer, which can still connect to the first |
+| tab closed | gone |
+
+`localStorage` would have made every tab of the browser the same peer, and a peer
+that refuses to dial itself would have quietly broken the two-tab handoff this
+demo depends on. That is not hypothetical: it is what the second-tab test caught
+when this was first written the other way.
+
+Persisting an identifier at all is a trade, so the identity panel shows it, says
+where it came from, and offers **Start over as a new peer**.
+
+Neither measure resumes a connection that was actually lost. That needs a
+signalling path that survives the sleep — see
+[#33](https://github.com/NiKrause/libp2p-webrtc-qr/issues/33) for the rest of the
+plan and [#23](https://github.com/NiKrause/libp2p-webrtc-qr/issues/23) for why
+the fully automatic case needs a rendezvous.
+
 ## Animated codes, and why they are needed
 
 An invite that will not fit one scannable code is split into a BC-UR sequence
