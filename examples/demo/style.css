@@ -887,6 +887,31 @@ button.is-busy::before {
   color: var(--ls-red);
 }
 
+/* ---------- reconnect prompt ---------- */
+
+/* `display` beats the user agent's `[hidden]`, so the hidden state is restated. */
+.reconnect-prompt[hidden] {
+  display: none;
+}
+
+.reconnect-prompt {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--ls-amber);
+  border-radius: var(--ls-radius-sm);
+  background: color-mix(in srgb, var(--ls-amber) 8%, transparent);
+  font-size: 0.88rem;
+  color: var(--ls-text);
+}
+
+.reconnect-prompt button {
+  margin-left: auto;
+}
+
 /* ---------- network check ---------- */
 
 .network-state[hidden] {

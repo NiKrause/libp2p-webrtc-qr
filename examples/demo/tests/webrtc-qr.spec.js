@@ -241,8 +241,12 @@ test.describe('signed QR WebRTC signaling', () => {
       const peerId = await alice.evaluate(() => window.__libp2pQrTest.getPeers()[0])
       await alice.evaluate(id => window.__libp2pQrTest.simulateConnectionLoss(id), peerId)
 
+      // It says so, and it says what to do about it. With only two peers there
+      // is no third party to signal through, so the way back is a human one -
+      // which the page now offers rather than describes.
       await expect(alice.locator('#status')).toContainText('Lost the connection')
-      await expect(alice.locator('#status')).toContainText('create a new invite')
+      await expect(alice.locator('#status')).toContainText('reconnect below')
+      await expect(alice.locator('#reconnect')).toBeVisible()
 
       expect(pageErrors).toEqual([])
     } finally {
@@ -481,6 +485,106 @@ test.describe('signed QR WebRTC signaling', () => {
       })
     } finally {
       await page.close()
+    }
+  })
+
+  test('a lost connection comes back through the mesh, with no scanning', async ({ browser, browserName }) => {
+    skipWithoutWebRTC(test, browserName)
+    test.setTimeout(140000)
+
+    const hub = await browser.newPage()
+    const bob = await browser.newPage()
+    const carol = await browser.newPage()
+    const pageErrors = []
+
+    try {
+      for (const page of [hub, bob, carol]) {
+        await openPeer(page, pageErrors)
+      }
+
+      await connectPeers(hub, bob)
+      await connectPeers(hub, carol)
+
+      const bobId = (await bob.locator('#peer-id').textContent()).trim()
+      const carolId = (await carol.locator('#peer-id').textContent()).trim()
+
+      for (const page of [bob, carol]) {
+        await expect.poll(() => page.evaluate(() => window.__libp2pQrTest.getPeers().length), {
+          timeout: 60000
+        }).toBe(2)
+      }
+
+      // Drop the Bob-Carol link on both sides, the way a phone going into
+      // standby drops it: the hub is untouched and still reaches both.
+      await bob.evaluate(id => window.__libp2pQrTest.simulateConnectionLoss(id), carolId)
+      await carol.evaluate(id => window.__libp2pQrTest.simulateConnectionLoss(id), bobId)
+
+      await expect.poll(() => bob.evaluate(() => window.__libp2pQrTest.getPeers().length), {
+        timeout: 20000
+      }).toBe(1)
+
+      // Nobody scans anything. The peer that kept a route home renegotiates
+      // through it, and the link is simply back.
+      await expect.poll(() => bob.evaluate(() => window.__libp2pQrTest.getPeers().length), {
+        timeout: 90000
+      }).toBe(2)
+      await expect.poll(() => carol.evaluate(() => window.__libp2pQrTest.getPeers().length), {
+        timeout: 90000
+      }).toBe(2)
+
+      expect(await bob.evaluate(() => window.__libp2pQrTest.getPeers())).toContain(carolId)
+      expect(await carol.evaluate(() => window.__libp2pQrTest.getPeers())).toContain(bobId)
+
+      // And it carries traffic, rather than merely appearing in a list again.
+      await carol.evaluate(() => window.__libp2pQrTest.sendMessage('back again'))
+      await expect.poll(() => bob.evaluate(() => window.__libp2pQrTest.getReceivedMessages()), {
+        timeout: 30000
+      }).toContain('back again')
+
+      // Reconnecting on its own means the human prompt must stay out of the way.
+      await expect(bob.locator('#reconnect-prompt')).toBeHidden()
+
+      expect(pageErrors).toEqual([])
+    } finally {
+      await hub.close()
+      await bob.close()
+      await carol.close()
+    }
+  })
+
+  test('offers a one-tap reconnect when no route home is left', async ({ browser, browserName }) => {
+    skipWithoutWebRTC(test, browserName)
+
+    const alice = await browser.newPage()
+    const bob = await browser.newPage()
+    const pageErrors = []
+
+    try {
+      await openPeer(alice, pageErrors)
+      await openPeer(bob, pageErrors)
+      await connectPeers(alice, bob)
+
+      await expect(alice.locator('#reconnect-prompt')).toBeHidden()
+
+      // Two peers and one connection: when it goes, there is no third party to
+      // signal through and no amount of cleverness invents one.
+      const peerId = await alice.evaluate(() => window.__libp2pQrTest.getPeers()[0])
+      await alice.evaluate(id => window.__libp2pQrTest.simulateConnectionLoss(id), peerId)
+
+      const prompt = alice.locator('#reconnect-prompt')
+      await expect(prompt).toBeVisible({ timeout: 20000 })
+      await expect(prompt).toContainText('no one else can reach them')
+
+      // One tap, not a walk back through the setup.
+      await alice.locator('#reconnect').click()
+      await expect(alice.locator('#invite-box')).toBeVisible({ timeout: 30000 })
+      await expect.poll(() => alice.locator('#invite-link').inputValue()).toMatch(/#i=/)
+      await expect(prompt).toBeHidden()
+
+      expect(pageErrors).toEqual([])
+    } finally {
+      await alice.close()
+      await bob.close()
     }
   })
 

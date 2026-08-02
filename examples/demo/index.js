@@ -73,6 +73,9 @@ const RTC_CONFIGURATION = {
 const statusEl = document.getElementById('status')
 const peerIdEl = document.getElementById('peer-id')
 const identityOriginEl = document.getElementById('identity-origin')
+const reconnectPromptEl = document.getElementById('reconnect-prompt')
+const reconnectTextEl = document.getElementById('reconnect-text')
+const reconnectButton = document.getElementById('reconnect')
 const resetIdentityButton = document.getElementById('reset-identity')
 const chatLogEl = document.getElementById('chat-log')
 const messageInput = document.getElementById('message')
@@ -230,14 +233,26 @@ function remoteAddress (peerId) {
   return multiaddr(`/webrtc/p2p/${peerId}`)
 }
 
+/**
+ * The *newest* matching session, not the first.
+ *
+ * Sessions are keyed by session id, so reconnecting to a peer leaves the dead
+ * one in the map alongside the new one. Returning the first match handed the
+ * transport a closed peer connection and the dial died with "Remote closed
+ * connection during opening" - a failure that only became reachable once the
+ * Peer ID started surviving a reload, because before that a reconnecting peer
+ * never matched an older session.
+ */
 function getOutboundSession (remotePeerId) {
+  let newest = null
+
   for (const session of offerSessions.values()) {
-    if (session.remotePeerId === remotePeerId) {
-      return session.upgradeContext
+    if (session.remotePeerId === remotePeerId && (newest == null || session.createdAt >= newest.createdAt)) {
+      newest = session
     }
   }
 
-  return null
+  return newest?.upgradeContext ?? null
 }
 
 function shortPeer (peerId) {
@@ -850,7 +865,7 @@ function watchConnection (peerId, peerConnection) {
       } else {
         appendLog(`Connection to ${shortPeer(peerId)} ended (${state}).`)
         // Say it when it happens, not only when someone comes back to the tab.
-        setStatus(`Lost the connection to ${shortPeer(peerId)} - create a new invite to reconnect.`)
+        resumeAfterLoss(peerId)
       }
     }
 
@@ -863,6 +878,8 @@ function attachChatStream (stream, peerId, message) {
 
   chatStreams.set(peerId, stream)
   meshAttempts.delete(peerId)
+  resumeRoutes.delete(peerId)
+  clearReconnectPrompt()
   appendLog(message)
 
   // Both directions, so a mesh closes itself no matter who joined last.
@@ -968,6 +985,9 @@ function envelope (payload) {
  */
 const meshAttempts = new Set()
 
+/** Remaining peers to try as a route back to a peer we lost, in order. */
+const resumeRoutes = new Map()
+
 async function sendTo (peerId, payload) {
   const stream = chatStreams.get(peerId)
 
@@ -1014,7 +1034,125 @@ async function meshConnect (target, via) {
   } catch (error) {
     meshAttempts.delete(target)
     appendLog(`Could not reach ${shortPeer(target)}: ${error.message}`)
+    tryNextRoute(target)
   }
+}
+
+/**
+ * A connection that dropped by itself, put back without anyone scanning.
+ *
+ * This is the mesh doing what it already does - it just happens to be a peer we
+ * were talking to a moment ago rather than one we have never met. Any remaining
+ * connection can carry the signalling, and the peer on the other end of it does
+ * not have to know the two of us were ever disconnected.
+ *
+ * Note what this is *not*: `RTCPeerConnection.restartIce()` would be the right
+ * primitive in a plain WebRTC app, because it renegotiates while keeping the
+ * data channels. It does not apply here. By the time ICE reports `failed` the
+ * libp2p connection on top has already been torn down, its muxer and streams
+ * with it, so there is nothing left to keep. A fresh connection is both simpler
+ * and, from the user's side, indistinguishable - no camera either way.
+ */
+/**
+ * Close what libp2p still believes it has to a peer.
+ *
+ * A dead `RTCPeerConnection` leaves the libp2p connection on top of it
+ * registered, and since the Peer ID now survives a reload, the peer coming back
+ * arrives under the *same* id. libp2p then matches the new session against the
+ * stale one and the dial dies with "Remote closed connection during opening" -
+ * a failure that could not happen while every reconnect brought a new identity.
+ */
+function dropStaleConnections (peerId) {
+  for (const connection of node?.getConnections() ?? []) {
+    if (connection.remotePeer.toString() === peerId) {
+      connection.close().catch(() => {})
+    }
+  }
+
+  // And the session that produced it, or the map grows a dead entry per drop
+  // and `getOutboundSession` has more to sift through on every dial.
+  for (const [sessionId, session] of offerSessions) {
+    if (session.remotePeerId === peerId) {
+      session.peerConnection?.close()
+      offerSessions.delete(sessionId)
+    }
+  }
+}
+
+function resumeAfterLoss (peerId) {
+  meshAttempts.delete(peerId)
+
+  // The stream's own cleanup runs when its read loop unwinds, which is later
+  // than this. Until it does, `meshConnect` would see the peer as still
+  // connected and decline to do anything - so record the truth now.
+  chatStreams.delete(peerId)
+  dropStaleConnections(peerId)
+  renderPeers()
+
+  const routes = [...chatStreams.keys()].filter(id => id !== peerId)
+
+  if (routes.length === 0) {
+    // Nothing left to signal over. Every automatic path needs a live connection
+    // somewhere, so this one genuinely has to go back through a human.
+    setStatus(`Lost the connection to ${shortPeer(peerId)} - reconnect below.`)
+    offerReconnect(peerId)
+    return
+  }
+
+  // Both ends see the drop, so without an order both would offer at once. The
+  // same rule as first contact decides it, and the other side simply waits.
+  if (!shouldInitiateTo(peerId)) {
+    appendLog(`Lost ${shortPeer(peerId)} - waiting for them to come back through the mesh.`)
+    return
+  }
+
+  setStatus(`Lost ${shortPeer(peerId)} - putting the connection back through the others…`)
+  resumeRoutes.set(peerId, routes)
+  tryNextRoute(peerId)
+}
+
+/**
+ * When no route home exists, the way back is a human one - but it should be one
+ * tap, not a walk back through the setup. The card is unfolded and the prompt
+ * names who was lost, so it is obvious what the button is for.
+ */
+function offerReconnect (peerId) {
+  reconnectTextEl.textContent = `${shortPeer(peerId)} is gone and no one else can reach them from here.`
+  reconnectPromptEl.hidden = false
+  setStepsCollapsed(false)
+}
+
+function clearReconnectPrompt () {
+  reconnectPromptEl.hidden = true
+}
+
+/**
+ * Relaying can fail for a reason the initiator cannot see: the peer we picked as
+ * a route may simply not be connected to the one we are trying to reach. So the
+ * routes are tried in turn rather than assuming the first one knows them.
+ */
+function tryNextRoute (target) {
+  const routes = resumeRoutes.get(target)
+
+  if (routes == null) {
+    return
+  }
+
+  const via = routes.shift()
+
+  if (via == null) {
+    resumeRoutes.delete(target)
+    setStatus(`Could not reach ${shortPeer(target)} through anyone still connected - reconnect below.`)
+    offerReconnect(target)
+    return
+  }
+
+  if (!chatStreams.has(via)) {
+    tryNextRoute(target)
+    return
+  }
+
+  meshConnect(target, via)
 }
 
 async function handleMeshMessage (message, from) {
@@ -1038,7 +1176,18 @@ async function handleMeshMessage (message, from) {
 
     if (!delivered) {
       appendLog(`Cannot forward to ${shortPeer(message.to)} - not connected to them.`)
+      // Tell the sender, or it sits waiting on a route that was never going to
+      // work while other routes go untried.
+      sendTo(from, { kind: 'relay-failed', to: message.to }).catch(() => {})
     }
+
+    return true
+  }
+
+  if (message.kind === 'relay-failed') {
+    meshAttempts.delete(message.to)
+    appendLog(`${shortPeer(from)} cannot reach ${shortPeer(message.to)} - trying another route.`)
+    tryNextRoute(message.to)
 
     return true
   }
@@ -1048,6 +1197,15 @@ async function handleMeshMessage (message, from) {
 
     try {
       if (parsed.type === QR_TYPE_OFFER) {
+        // An offer from someone we still think we are connected to means they
+        // saw the connection die before we did. Theirs is the newer information.
+        if (chatStreams.has(parsed.peerId)) {
+          appendLog(`${shortPeer(parsed.peerId)} is re-establishing a connection we still thought was up.`)
+          chatStreams.delete(parsed.peerId)
+          dropStaleConnections(parsed.peerId)
+          renderPeers()
+        }
+
         const answer = await acceptOfferPayload(message.payload)
         await sendTo(from, { kind: 'relay', to: parsed.peerId, payload: answer })
       } else {
@@ -1830,6 +1988,11 @@ async function createInvite (button) {
 
 createOfferButton.addEventListener('click', () => createInvite(createOfferButton))
 createOfferAgainButton.addEventListener('click', () => createInvite(createOfferAgainButton))
+
+reconnectButton.addEventListener('click', () => {
+  clearReconnectPrompt()
+  createInvite(reconnectButton)
+})
 
 // Reachable without reopening the folded card: once connected, inviting the
 // next person is the natural next thing, not a step you have to go back for.
