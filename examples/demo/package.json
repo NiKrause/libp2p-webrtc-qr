@@ -23,6 +23,7 @@
     "@libp2p/peer-id": "^6.0.13",
     "@libp2p/ping": "^3.1.10",
     "@multiformats/multiaddr": "^13.0.3",
+    "@ngraveio/bc-ur": "^1.1.13",
     "helia": "^7.1.1",
     "jsqr": "^1.4.0",
     "libp2p": "^3.3.7",
@@ -31,6 +32,7 @@
   },
   "devDependencies": {
     "@playwright/test": "1.61.1",
+    "buffer": "^6.0.3",
     "vite": "^6.2.5"
   }
 }
