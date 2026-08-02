@@ -83,7 +83,7 @@ jobs:
             echo '| Verified behavior | Result |'
             echo '| --- | --- |'
             echo "| Signature codec: round trip, tampering, replay and field smuggling | ${UNIT_OUTCOME} |"
-            echo "| Two browser libp2p peers connect over a QR-signalled WebRTC session, on Chromium, Firefox and WebKit | ${E2E_OUTCOME} |"
+            echo "| Two browser libp2p peers connect over a QR-signalled WebRTC session, on Chromium and Firefox (WebKit runs this on macOS - Linux WebKit has no WebRTC) | ${E2E_OUTCOME} |"
             echo "| A rendered QR image decodes back to the exact signed payload | ${E2E_OUTCOME} |"
             echo "| Chat messages transfer in both directions over a libp2p protocol stream | ${E2E_OUTCOME} |"
             echo "| A tampered signed offer is rejected as an invalid signature | ${E2E_OUTCOME} |"
@@ -91,8 +91,67 @@ jobs:
             echo "| Two Helia nodes transfer a file over the QR-negotiated connection, bitswap only | ${HELIA_OUTCOME} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
+  # Playwright's WebKit build for Linux has no working WebRTC, so every test
+  # that needs a connection to come up is skipped in the job above - eleven of
+  # them, plus one in the Helia suite. That left the Safari family with no
+  # verified connection anywhere in CI, and "runs on three engines" true only
+  # for two of them plus whatever someone happened to run on a Mac.
+  #
+  # The macOS build does have WebRTC, and it is closer to real Safari than the
+  # Linux one would have been. Deployment waits on this, because a WebKit
+  # regression that only CI can catch is worth the extra few minutes.
+  webkit-macos:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.x'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # No Playwright container here, so the browser has to be fetched. WebKit
+      # only: Chromium and Firefox are covered on Linux, and downloading them
+      # again would be minutes spent to learn nothing new.
+      - name: Install WebKit
+        run: pnpm --filter @le-space/libp2p-webrtc-qr-demo exec playwright install webkit
+
+      - name: Run signed QR signaling E2E on WebKit
+        id: qr-webkit
+        run: pnpm --filter @le-space/libp2p-webrtc-qr-demo exec playwright test --project=webkit
+
+      - name: Run Helia file transfer E2E on WebKit
+        id: helia-webkit
+        run: pnpm --filter @le-space/libp2p-webrtc-qr-helia-example exec playwright test --project=webkit
+
+      - name: Summarize WebKit run
+        if: always()
+        env:
+          QR_OUTCOME: ${{ steps.qr-webkit.outcome }}
+          HELIA_OUTCOME: ${{ steps.helia-webkit.outcome }}
+        run: |
+          {
+            echo '## WebKit on macOS'
+            echo
+            echo 'The connection tests that Linux WebKit cannot run.'
+            echo
+            echo '| Verified behavior | Result |'
+            echo '| --- | --- |'
+            echo "| Two browser libp2p peers connect over a QR-signalled WebRTC session | ${QR_OUTCOME} |"
+            echo "| Multi-peer chat, mesh bootstrapping and connection loss reporting | ${QR_OUTCOME} |"
+            echo "| An invite link connects on open, and a reply in a second tab reports back | ${QR_OUTCOME} |"
+            echo "| Two Helia nodes transfer a file over the QR-negotiated connection | ${HELIA_OUTCOME} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   build-and-deploy:
-    needs: e2e
+    needs: [e2e, webkit-macos]
     runs-on: ubuntu-latest
     outputs:
       ipfs_cid: ${{ steps.publish.outputs.ipfs_cid }}
