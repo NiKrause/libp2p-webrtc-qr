@@ -42,6 +42,17 @@ async function createInvite (page) {
 }
 
 async function useLink (page, link) {
+  // While an invite is on screen the page behind it is inert, which is the
+  // whole point of a modal - so the way to the paste field is the button inside
+  // it, exactly as a person would find it.
+  if (await page.locator('#invite-box[open]').count() > 0) {
+    await page.locator('#paste-reply').click()
+  } else {
+    // Otherwise it is the fallback for a link that did not open the page by
+    // itself, and sits behind a disclosure rather than in everyone's way.
+    await page.locator('.paste-fallback').evaluate(details => { details.open = true })
+  }
+
   await page.locator('#payload-display').fill(link)
   await page.locator('#process-payload').click()
 }
@@ -585,6 +596,93 @@ test.describe('signed QR WebRTC signaling', () => {
     } finally {
       await alice.close()
       await bob.close()
+    }
+  })
+
+  test('scanning opens a camera modal that releases the camera on every way out', async ({ browser, browserName }) => {
+    // WebKit has no synthetic camera to give, so there is no track to release.
+    test.skip(browserName === 'webkit', 'no fake camera device available')
+
+    const page = await browser.newPage()
+    const pageErrors = []
+
+    try {
+      await openPeer(page, pageErrors)
+
+      const modal = page.locator('#scan-modal')
+
+      await expect(modal).toBeHidden()
+      await page.locator('#scan-offer').click()
+
+      // The camera the user just asked for is in front of them, not below the
+      // fold of a long page.
+      await expect(modal).toBeVisible()
+      await expect(page.locator('#qr-video')).toBeVisible()
+      await expect(page.locator('#scan-modal-title')).toHaveText('Scan their code')
+      await expect.poll(() => page.evaluate(() => window.__libp2pQrTest.cameraActive()), {
+        timeout: 20000
+      }).toBe(true)
+
+      // Escape is a close path the app never sees, so it is the one most likely
+      // to leak a camera track.
+      await page.keyboard.press('Escape')
+      await expect(modal).toBeHidden()
+      await expect.poll(() => page.evaluate(() => window.__libp2pQrTest.cameraActive())).toBe(false)
+
+      // Focus goes back where it came from, which `showModal()` handles - the
+      // assertion is here so replacing it with a hand-rolled modal cannot
+      // quietly drop it.
+      expect(await page.evaluate(() => document.activeElement?.id)).toBe('scan-offer')
+
+      // ...and the × does the same.
+      await page.locator('#scan-offer').click()
+      await expect(modal).toBeVisible()
+      await page.locator('#scan-modal [data-close-modal]').first().click()
+      await expect(modal).toBeHidden()
+      await expect.poll(() => page.evaluate(() => window.__libp2pQrTest.cameraActive())).toBe(false)
+
+      expect(pageErrors).toEqual([])
+    } finally {
+      await page.close()
+    }
+  })
+
+  test('the invite is a modal that closes itself once the answer lands', async ({ browser, browserName }) => {
+    skipWithoutWebRTC(test, browserName)
+
+    const offerer = await browser.newPage()
+    const answerer = await browser.newPage()
+    const pageErrors = []
+
+    try {
+      await openPeer(offerer, pageErrors)
+      await openPeer(answerer, pageErrors)
+
+      const invite = offerer.locator('#invite-box')
+
+      await expect(invite).toBeHidden()
+      await createInvite(offerer)
+      await expect(invite).toBeVisible()
+
+      // Waiting for a reply is what this modal is for, so both ways of getting
+      // one are inside it rather than behind it.
+      await expect(offerer.locator('#scan-reply')).toBeVisible()
+      await expect(offerer.locator('#paste-reply')).toBeVisible()
+
+      await useLink(answerer, await offerer.locator('#invite-link').inputValue())
+      const reply = await replyLinkOf(answerer)
+
+      await useLink(offerer, reply)
+      await expect(offerer.locator('#status')).toContainText('Connected')
+
+      // Nothing left to show: the code was only ever a means to this.
+      await expect(invite).toBeHidden()
+      await expect(answerer.locator('#invite-box')).toBeHidden()
+
+      expect(pageErrors).toEqual([])
+    } finally {
+      await offerer.close()
+      await answerer.close()
     }
   })
 

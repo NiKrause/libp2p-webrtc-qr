@@ -96,6 +96,11 @@ const dropZone = document.getElementById('drop-zone')
 const fileInput = document.getElementById('file-input')
 const receivedFilesEl = document.getElementById('received-files')
 const inviteBoxEl = document.getElementById('invite-box')
+const scanModalEl = document.getElementById('scan-modal')
+const scanModalTitleEl = document.getElementById('scan-modal-title')
+const scanReplyButton = document.getElementById('scan-reply')
+const pasteReplyButton = document.getElementById('paste-reply')
+const pasteFallbackEl = document.querySelector('.paste-fallback')
 const inviteLinkEl = document.getElementById('invite-link')
 const inviteFreshnessEl = document.getElementById('invite-freshness')
 const createOfferAgainButton = document.getElementById('create-offer-again')
@@ -880,6 +885,9 @@ function attachChatStream (stream, peerId, message) {
   meshAttempts.delete(peerId)
   resumeRoutes.delete(peerId)
   clearReconnectPrompt()
+  // Whatever was on screen was there to get to this point.
+  closeModal(inviteBoxEl)
+  closeModal(scanModalEl)
   appendLog(message)
 
   // Both directions, so a mesh closes itself no matter who joined last.
@@ -1417,6 +1425,40 @@ const handoff = typeof BroadcastChannel === 'undefined'
  * fold away rather than disappear: the heading stays, and clicking it brings
  * the step back for anyone who wants to connect to someone else.
  */
+/**
+ * Modal plumbing.
+ *
+ * `showModal()` is doing the work that matters here - the focus trap, Escape,
+ * the inert background and focus returning to whatever opened the dialog - so
+ * this is only the bits it does not know about: stopping the camera on the way
+ * out, whatever route the user took, and not calling `showModal()` twice.
+ */
+function openModal (dialog) {
+  if (!dialog.open) {
+    dialog.showModal()
+  }
+}
+
+function closeModal (dialog) {
+  if (dialog.open) {
+    dialog.close()
+  }
+}
+
+for (const dialog of [scanModalEl, inviteBoxEl]) {
+  dialog.addEventListener('click', event => {
+    if (event.target.closest('[data-close-modal]') != null) {
+      closeModal(dialog)
+    }
+  })
+}
+
+// Every close path ends here - the ×, Escape, the stop button, or code calling
+// `close()` - so this is the one place the camera has to be released.
+scanModalEl.addEventListener('close', () => {
+  stopQrScanner({ clearStatus: false })
+})
+
 function setStepsCollapsed (collapsed) {
   for (const card of setupCards) {
     card.classList.toggle('is-collapsed', collapsed)
@@ -1628,7 +1670,10 @@ async function renderOutbound (payload, kind) {
   const link = linkFor(kind === QR_TYPE_OFFER ? INVITE_PARAM : REPLY_PARAM, payload)
 
   inviteLinkEl.value = link
-  inviteBoxEl.hidden = false
+  // Showing an offer means waiting for a reply; showing an answer means the
+  // other side is about to connect. Only the first has a next step to offer.
+  scanReplyButton.hidden = kind !== QR_TYPE_OFFER
+  openModal(inviteBoxEl)
   startInviteCountdown()
 
   stopQrAnimation()
@@ -1779,8 +1824,6 @@ async function startQrScanner (expectedType) {
     }
 
     qrVideo.srcObject = scanStream
-    qrVideo.style.display = 'block'
-    stopScanButton.style.display = 'inline-block'
     await qrVideo.play()
     scanStatus.textContent = `Looking for the ${expectedType} QR code… Hold it steady and fill about half of the frame.`
     scheduleNextScan(sessionId)
@@ -1806,8 +1849,6 @@ function stopQrScanner ({ clearStatus = true } = {}) {
   scanStream?.getTracks().forEach(track => track.stop())
   scanStream = null
   qrVideo.srcObject = null
-  qrVideo.style.display = 'none'
-  stopScanButton.style.display = 'none'
   barcodeDetector = null
   scanAttempts = 0
   lastScanTime = 0
@@ -1918,7 +1959,9 @@ async function scanLoop (timestamp, sessionId) {
       return
     }
 
-    stopQrScanner({ clearStatus: false })
+    // Closing the dialog stops the camera through its `close` handler, so the
+    // scan is torn down by exactly one path whether it ended here or by Escape.
+    closeModal(scanModalEl)
     scanMode = null
     scanStatus.textContent = 'Correct QR type detected. Verifying signature…'
 
@@ -2002,20 +2045,40 @@ document.getElementById('invite-another').addEventListener('click', () => {
   createInvite(createOfferButton)
 })
 
-scanOfferButton.addEventListener('click', () => {
-  startQrScanner(QR_TYPE_OFFER).catch(error => {
+function beginScan (expectedType) {
+  scanModalTitleEl.textContent = expectedType === QR_TYPE_OFFER
+    ? 'Scan their code'
+    : 'Scan their reply'
+  openModal(scanModalEl)
+
+  startQrScanner(expectedType).catch(error => {
+    closeModal(scanModalEl)
     setStatus(`Camera failed: ${error.message}`)
   })
+}
+
+scanOfferButton.addEventListener('click', () => beginScan(QR_TYPE_OFFER))
+scanAnswerButton.addEventListener('click', () => beginScan(QR_TYPE_ANSWER))
+
+// Showing an invite means waiting for a reply, so both ways of receiving one
+// belong here rather than in a different part of the page.
+scanReplyButton.addEventListener('click', () => {
+  closeModal(inviteBoxEl)
+  beginScan(QR_TYPE_ANSWER)
 })
 
-scanAnswerButton.addEventListener('click', () => {
-  startQrScanner(QR_TYPE_ANSWER).catch(error => {
-    setStatus(`Camera failed: ${error.message}`)
-  })
+pasteReplyButton.addEventListener('click', () => {
+  closeModal(inviteBoxEl)
+  revealPasteField()
 })
+
+function revealPasteField () {
+  pasteFallbackEl.open = true
+  payloadDisplay.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  payloadDisplay.focus()
+}
 
 stopScanButton.addEventListener('click', () => {
-  stopQrScanner()
   scanMode = null
   setStatus('QR scan cancelled.')
 })
@@ -2199,6 +2262,9 @@ window.__libp2pQrTest = {
   needsAnimation,
   looksLikeUrPart,
   wakeLockState,
+  // Whether a camera track is still held. A modal that closes without releasing
+  // it leaves the phone's camera light on and the user rightly alarmed.
+  cameraActive: () => scanStream != null,
   // Exposed so the LED truth table can be asserted without depending on the
   // network the test happens to run on.
   summariseNetwork: (ipv4State, ipv6State) =>
@@ -2279,6 +2345,10 @@ handoff?.addEventListener('message', async event => {
 
   handoff.postMessage({ kind: 'reply-taken' })
   appendLog('A reply arrived from another tab.')
+  // The invite this tab was holding up has been answered, just not by anyone
+  // pointing a camera at it. Leaving the code on screen would ask for a scan
+  // that is no longer needed.
+  closeModal(inviteBoxEl)
   await useIncoming(payload)
 
   // Tell the other tab how it went. Without this it waits forever on a page

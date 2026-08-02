@@ -376,14 +376,6 @@ input[type='text']:focus {
 
 /* ---------- QR ---------- */
 
-.qr-stage {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 24px;
-  align-items: flex-start;
-  margin-top: 20px;
-}
-
 /* QR codes are scanned off this screen, so the code keeps its own white
    surface and quiet zone regardless of the surrounding dark theme.
    Module size is what decides whether a scan catches, so the code is given as
@@ -394,18 +386,6 @@ input[type='text']:focus {
   border-radius: var(--ls-radius-sm);
   padding: 10px;
   image-rendering: pixelated;
-}
-
-#qr-video {
-  width: min(100%, 340px);
-  border: 1px solid var(--ls-bg-3);
-  border-radius: var(--ls-radius-sm);
-  background: var(--ls-bg-1);
-}
-
-.scan-side {
-  flex: 1;
-  min-width: 240px;
 }
 
 #scan-status:not(:empty) {
@@ -563,10 +543,6 @@ button.is-busy::before {
     padding: 8px;
     border-radius: 0;
   }
-
-  .qr-stage {
-    gap: 16px;
-  }
 }
 
 /* ---------- file transfer ---------- */
@@ -647,31 +623,7 @@ button.is-busy::before {
   overflow-wrap: anywhere;
 }
 
-/* ---------- connect lanes ---------- */
-
-.lane {
-  border: 1px solid var(--ls-card-border);
-  border-radius: var(--ls-radius-sm);
-  padding: 18px;
-  margin-bottom: 16px;
-}
-
-.lane-title {
-  font-size: 0.95rem;
-  margin: 0 0 4px;
-}
-
-.lane-hint {
-  color: var(--ls-text-faint);
-  font-size: 0.82rem;
-  margin: 0 0 14px;
-}
-
-.invite-box {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--ls-card-border);
-}
+/* ---------- invite link ---------- */
 
 #invite-link {
   width: 100%;
@@ -885,6 +837,101 @@ button.is-busy::before {
 .peer-health.is-failed,
 .peer-health.is-closed {
   color: var(--ls-red);
+}
+
+/* ---------- modals ---------- */
+
+.modal {
+  width: min(100vw, 460px);
+  max-width: 100vw;
+  max-height: 100dvh;
+  padding: 20px;
+  border: 1px solid var(--ls-bg-3);
+  border-radius: var(--ls-radius);
+  background: var(--ls-bg-1);
+  color: var(--ls-text);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.modal::backdrop {
+  background: rgb(0 0 0 / 0.72);
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.modal-head h3 {
+  margin: 0;
+  font-size: 1.02rem;
+}
+
+.modal-close {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  font-size: 1.2rem;
+  line-height: 1;
+  border-radius: 50%;
+}
+
+.modal .actions {
+  margin-top: 14px;
+}
+
+#scan-modal video {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--ls-bg-3);
+  border-radius: var(--ls-radius-sm);
+  background: var(--ls-bg-2);
+}
+
+.scan-status {
+  margin-top: 12px;
+  font-size: 0.86rem;
+  color: var(--ls-text-dim);
+  min-height: 2.4em;
+}
+
+.invite-link-fallback,
+.paste-fallback {
+  margin-top: 16px;
+}
+
+.invite-link-fallback summary,
+.paste-fallback summary {
+  cursor: pointer;
+  font-size: 0.84rem;
+  color: var(--ls-text-faint);
+}
+
+.invite-link-fallback[open] summary,
+.paste-fallback[open] summary {
+  margin-bottom: 10px;
+}
+
+#scan-reply[hidden] {
+  display: none;
+}
+
+/* On a phone the dialog is the screen, and the code gets all of it - module
+   size is what decides whether a scan catches. */
+@media (max-width: 560px) {
+  .modal {
+    width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+    border: none;
+    border-radius: 0;
+  }
 }
 
 /* ---------- reconnect prompt ---------- */

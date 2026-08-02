@@ -227,6 +227,35 @@ This is not cosmetic. Without a reflexive IPv6 candidate the two peers never
 exchange IPv6 addresses, so the one path that beats carrier-grade NAT without
 any relay is never even attempted.
 
+## The connect step
+
+Two things happen there, and each gets the screen while it is happening.
+
+**Scanning opens a camera modal** with the status line under it — the same one
+that reports `Animated code: 3 of 6 parts`. It closes itself once a code is
+accepted, and by Escape or ×.
+
+**An invite opens as a code modal**: the code, the frame counter, and the ways of
+receiving a reply. Both of them are in there — *Scan their reply* and *They sent a
+link* — because showing an invite means waiting for a reply, and a modal makes
+the page behind it inert. A button that is behind the modal is a button that does
+not exist.
+
+It closes when the answer arrives, including when a second tab took it.
+
+Native `<dialog>` and `showModal()`, deliberately: the focus trap, Escape, the
+inert background and focus returning to whatever opened the dialog all come with
+it. Hand-rolled, that is a lot of code to get subtly wrong. What is left to do by
+hand is releasing the camera, which happens on the dialog's `close` event so that
+every way out — × , Escape, the stop button, or the app closing it after a
+successful scan — goes through one path.
+
+Underneath, the card shows two buttons instead of two lanes. Pasting a link is
+the fallback for a link that did not open the page by itself, so it sits behind a
+disclosure rather than in everyone's way.
+
+The setup cards fold away once a connection is up, and unfold if it drops.
+
 ## Network behavior
 
 - WebRTC DTLS encrypts the data channel.

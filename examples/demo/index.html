@@ -166,8 +166,8 @@
         <section class="card" id="step-connect">
           <h2 class="step-heading" tabindex="0" role="button" aria-expanded="true"><span class="step-no">2</span> Connect to someone</h2>
           <p class="hint">
-            Two ways in, and they end up in the same place: send an invite link, or scan a code. You only
-            ever do <strong>one</strong> of the two boxes below - whichever matches what you have.
+            Invite someone, or scan the code they are showing you. Either one gets you to the same
+            place.
           </p>
 
           <div id="reconnect-prompt" class="reconnect-prompt" role="status" hidden>
@@ -175,51 +175,24 @@
             <button id="reconnect" type="button" class="primary">Reconnect</button>
           </div>
 
-          <div class="lane">
-            <h3 class="lane-title">I want to invite someone</h3>
-            <div class="actions">
-              <button id="create-offer" class="primary" disabled>Create invite link</button>
-              <button id="scan-offer" disabled>Scan their code instead</button>
-            </div>
-
-            <div id="invite-box" class="invite-box" hidden>
-              <label for="invite-link">Send this link to the other person</label>
-              <input id="invite-link" type="text" readonly />
-              <div class="actions">
-                <button id="copy-payload" class="primary">Send link…</button>
-                <button id="create-offer-again">New link</button>
-              </div>
-              <p id="invite-freshness" class="freshness"></p>
-              <img id="qr-image" alt="Invite QR code" style="display:none;" />
-              <p id="qr-frame" class="qr-frame" role="status" hidden></p>
-              <p class="scan-help">
-                They can also point a phone camera at this code - it opens the same link.
-              </p>
-            </div>
+          <div class="actions">
+            <button id="create-offer" class="primary" disabled>Create invite link</button>
+            <button id="scan-offer" disabled>Scan their code</button>
           </div>
 
-          <div class="lane">
-            <h3 class="lane-title">Someone sent me a link</h3>
-            <p class="lane-hint">
-              Opening their link does everything by itself. Only paste here if tapping the link did not work.
-            </p>
+          <!-- The way in for someone whose link did not open the page by itself.
+               It is the rarer case, so it stays folded until it is needed. -->
+          <details class="paste-fallback">
+            <summary>Someone sent me a link and tapping it did not work</summary>
             <div class="field">
               <label for="payload-display">Paste the link they sent you</label>
               <textarea id="payload-display" rows="3" placeholder="https://webrtc-qr.le-space.de/#i=…"></textarea>
             </div>
             <div class="actions">
               <button id="process-payload" disabled>Use this link</button>
-              <button id="scan-answer" disabled>Scan their code</button>
+              <button id="scan-answer" disabled>Scan their reply</button>
             </div>
-          </div>
-
-          <div class="qr-stage">
-            <div class="scan-side">
-              <video id="qr-video" autoplay playsinline muted style="display:none;"></video>
-              <button id="stop-scan" type="button" style="display:none;">Stop scanning</button>
-              <div id="scan-status" aria-live="polite"></div>
-            </div>
-          </div>
+          </details>
         </section>
 
         <section class="card" id="step-data">
@@ -271,6 +244,51 @@
         <a href="https://local-first.le-space.de" target="_blank" rel="noopener noreferrer">local-first.le-space.de</a>
       </p>
     </footer>
+
+    <!--
+      Native <dialog>, deliberately: showModal() gives the focus trap, Escape to
+      close, the inert background and focus returning to whatever opened it. All
+      of that hand-rolled is a great deal of code to get subtly wrong.
+    -->
+    <dialog id="scan-modal" class="modal" aria-labelledby="scan-modal-title">
+      <div class="modal-head">
+        <h3 id="scan-modal-title">Scan their code</h3>
+        <button class="modal-close" data-close-modal type="button" aria-label="Close">×</button>
+      </div>
+      <video id="qr-video" autoplay playsinline muted></video>
+      <div id="scan-status" class="scan-status" aria-live="polite"></div>
+      <div class="actions">
+        <button id="stop-scan" type="button" data-close-modal>Stop scanning</button>
+      </div>
+    </dialog>
+
+    <dialog id="invite-box" class="modal" aria-labelledby="invite-modal-title">
+      <div class="modal-head">
+        <h3 id="invite-modal-title">Show this to the other person</h3>
+        <button class="modal-close" data-close-modal type="button" aria-label="Close">×</button>
+      </div>
+      <img id="qr-image" alt="Invite QR code" style="display:none;" />
+      <p id="qr-frame" class="qr-frame" role="status" hidden></p>
+      <p class="scan-help">
+        Their phone camera opens the same link - or send it to them.
+      </p>
+      <!-- Showing an invite means waiting for a reply, and the reply arrives one
+           of two ways. Both live here, because here is where the waiting happens. -->
+      <div class="actions">
+        <button id="copy-payload" class="primary">Send link…</button>
+        <button id="scan-reply">Scan their reply</button>
+        <button id="paste-reply">They sent a link</button>
+      </div>
+      <p id="invite-freshness" class="freshness"></p>
+      <details class="invite-link-fallback">
+        <summary>Copy the link instead</summary>
+        <label for="invite-link">Send this link to the other person</label>
+        <input id="invite-link" type="text" readonly />
+        <div class="actions">
+          <button id="create-offer-again" type="button">New link</button>
+        </div>
+      </details>
+    </dialog>
 
     <script type="module" src="./index.js"></script>
   </body>
