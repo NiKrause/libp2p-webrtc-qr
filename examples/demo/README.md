@@ -115,8 +115,10 @@ This covers the common case — a phone dozing off because nobody touched it whi
 the other person was reading. It does nothing when someone deliberately locks
 their phone, and it is not claimed to.
 
-**The Peer ID survives a reload**, kept in `sessionStorage`. The scope is the
-design:
+**The Peer ID survives a reload.** What is kept in `sessionStorage` is the
+private key; the Peer ID is derived from it, which is also why the other side can
+verify a signature with nothing but the ID — for Ed25519 the public key is
+embedded in it. The scope of that storage is the design:
 
 | | |
 | --- | --- |

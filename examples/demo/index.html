@@ -149,8 +149,12 @@
           <details class="peer">
             <summary>Your peer identity</summary>
             <p class="peer-note">
-              This is not what you send to anyone - it is the key your invite links are signed with.
-              It is kept for <strong>this tab</strong>, so reloading - or a phone waking from
+              Your Peer ID. It travels inside every invite you create — the other side needs it to
+              check your signature, because the public key is embedded in it. The private key it was
+              derived from is what actually signs, and it never leaves this tab.
+            </p>
+            <p class="peer-note">
+              That key is kept for <strong>this tab</strong>, so reloading - or a phone waking from
               standby - comes back as the same peer instead of a stranger, while another tab stays
               a different peer you can still connect to. It does not outlive the tab, and the same
               identifier appears in every invite from here until you reset it.
