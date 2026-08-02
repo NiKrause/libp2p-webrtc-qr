@@ -26,7 +26,7 @@ and base64url-encoded. Every ICE candidate makes it longer.
 
 **The idea:** [QWBP](https://magarcia.github.io/qwbp/) - the QR-WebRTC Bootstrap
 Protocol by Miguel García, described in
-[*Air-gapped WebRTC: breaking the QR limit*](https://magarcia.io/air-gapped-webrtc-breaking-the-qr-limit/)
+[_Air-gapped WebRTC: breaking the QR limit_](https://magarcia.io/air-gapped-webrtc-breaking-the-qr-limit/)
 and specified [here](https://magarcia.github.io/qwbp/spec.html) - gets the same
 handshake down to **41-100 bytes**. A 97.8% reduction, by refusing to send the
 SDP at all:
@@ -52,7 +52,7 @@ once the encrypted DataChannel is open, the peers exchange whatever they like
 over it - the article notes full audio/video SDPs of 6 KB+. Applied here, a
 peer with a long candidate list, IPv4 and IPv6 at once, or a TURN server would
 no longer be a problem to be encoded; it would be an exchange that happens
-*after* the connection exists.
+_after_ the connection exists.
 
 That makes this a **more attractive path than item 2**, which only makes large
 payloads scannable rather than making them unnecessary.
@@ -64,7 +64,7 @@ argument is that the SDP - and therefore the DTLS fingerprint inside it - is
 signed with the peer's libp2p key, which is what makes `skipEncryption: true`
 sound. A QWBP payload that we simply adopted would drop that.
 
-The interesting design is therefore the *combination*: QWBP's binary packing for
+The interesting design is therefore the _combination_: QWBP's binary packing for
 the connection parameters, plus a signature over those packed bytes and the
 Peer ID. The Peer ID has to travel anyway (38-42 bytes for Ed25519), and an
 Ed25519 signature is 64 bytes, so a signed QWBP-style payload lands somewhere
@@ -85,10 +85,10 @@ reconstruction; and how a peer signals which format it speaks.
 fragments of 220 bytes and cycled at 5fps; below that it stays a single static
 code. Measured on a 320px phone:
 
-| | modules | px/module |
-| --- | --- | --- |
-| one code | 125 | 2.29 |
-| six frames | 69 | **3.95** |
+|            | modules | px/module |
+| ---------- | ------- | --------- |
+| one code   | 125     | 2.29      |
+| six frames | 69      | **3.95**  |
 
 **This was promoted above item 1, against the ordering argued here.** The
 reasoning was that shrinking the payload removes the problem while animating only
@@ -147,12 +147,18 @@ upstream version.
 The package currently ships the transport and the signaling codec. The state
 machine that drives them - create offer, gather ICE, wait for `connected`,
 upgrade in the right direction, retry the dial while the peer attaches its muxer
+
 - lives in the examples, and by now **both** examples implement it separately.
 
 That duplication is the signal. It is also where the subtle bugs were: upgrading
 before the connection was up, the wrong `direction`, dialing into the gap before
 the answering peer attached its muxer. Every consumer of this package will hit
 all three, and none of them are obvious.
+
+Since this was written it has happened a third time, outside this repository:
+Yogasūcī re-derived the same state machine and the same three bugs without
+knowing this item existed. That is the argument for item 13, and it makes this
+item a prerequisite rather than a cleanup.
 
 A `QRSignalingSession` that owns the peer connection lifecycle and emits events
 would make the package usable without reading an example first. The work is
@@ -241,7 +247,7 @@ still fail to connect after a perfectly good scan - which is a confusing
 experience, because the QR part visibly worked.
 
 Two separable pieces: allowing a TURN server to be configured at all, and
-detecting the failure early enough to say *why* it failed rather than timing out.
+detecting the failure early enough to say _why_ it failed rather than timing out.
 
 **Both are done.** `?turn=` configures a server per visit, and starting the peer
 runs a STUN probe that reports IPv4 and IPv6 on separate indicators with a
@@ -294,7 +300,7 @@ need six scans, five need twenty, eight need fifty-six.
 The approach is to let **QR bootstrap and the wire complete**. Once one libp2p
 connection exists, no camera is needed: `@libp2p/webrtc`'s private-to-private
 transport already exchanges SDP over an existing libp2p stream. If A-B and A-C
-were scanned, B and C can signal *through A* and form a direct link without
+were scanned, B and C can signal _through A_ and form a direct link without
 anyone lifting a phone. That is item 1's two-layer idea generalised to a group,
 and it brings the cost down to n-1 links by camera.
 
@@ -351,7 +357,7 @@ streams with it. Nothing left to keep.
 Persisting the Peer ID exposed two bugs that could not happen while every
 reconnect brought a fresh identity, and both cost a debugging round:
 
-- libp2p still held the dead connection under the *same* peer id, so the new dial
+- libp2p still held the dead connection under the _same_ peer id, so the new dial
   died with `Remote closed connection during opening`
 - **`offerSessions` was never pruned**, and `getOutboundSession` returned the
   first match - which after a reconnect is the stale, closed session. It now
@@ -373,7 +379,7 @@ The question is whether the existing libp2p network can stand in.
 **AutoNAT cannot.** Its own documentation says it does not implement hole
 punching; it only reports whether addresses a node listens on are dialable, and a
 browser never has one. **DCUtR cannot either** - it coordinates simultaneous-open
-for TCP and QUIC, while a browser's hole punching *is* ICE, which is what already
+for TCP and QUIC, while a browser's hole punching _is_ ICE, which is what already
 failed.
 
 **Circuit relay v2 can, with limits worth knowing.** The js-libp2p defaults are
@@ -383,7 +389,7 @@ which reintroduces a known server. The honest framing is that circuit relay
 differs from TURN in addressing, not in topology.
 
 And any relay fallback must run a normal Noise handshake: `skipEncryption` is
-sound here *only* because the signature binds the DTLS fingerprint, and a circuit
+sound here _only_ because the signature binds the DTLS fingerprint, and a circuit
 carries no DTLS.
 
 The part no protocol removes: two peers, both behind symmetric NAT, nobody else
@@ -419,8 +425,8 @@ get two phones talking. The numbering is order of approach, not of value - the
 same caveat item 8 carries.
 
 The connect step shows everything at once and asks the user to work out which
-half applies to them. It opens by saying so in words - *"You only ever do **one**
-of the two boxes below"* - which is a fair description of the problem and not a
+half applies to them. It opens by saying so in words - _"You only ever do **one**
+of the two boxes below"_ - which is a fair description of the problem and not a
 solution to it.
 
 Two lanes are visible from the start. Below both sits a third area holding the
@@ -461,6 +467,86 @@ and unfold if it drops.
 
 ---
 
+## 13. Ship the connect experience, not just the protocol
+
+**Tracked in [#38](https://github.com/NiKrause/libp2p-webrtc-qr/issues/38).**
+
+Item 4 says the session orchestration is implemented twice and that the
+duplication is the signal. It is worse than that now, and the evidence arrived
+from outside this repository.
+
+[Yogasūcī](https://github.com/Le-Space/yogasuci) is a third implementation. It
+re-derived, independently, the same three failure modes item 4 lists: waiting for
+`connected` before upgrading, the right `direction`, and retrying the dial while
+the answering peer attaches its muxer. It has its own `DIAL_ATTEMPTS` loop with
+its own retry delay, arrived at the same way — by hitting the bug.
+
+Then it happened again, in the same week, one layer up. The demo hands a reply to
+the tab that owns the offer over a `BroadcastChannel`, because clicking a reply
+link in a messenger opens a new tab that holds no peer connection. Yogasūcī now
+has that too, written from scratch, down to the same decision not to use
+`localStorage` because a persisted value replays an old handshake. Neither knew
+about the other.
+
+Twice is a coincidence in the small and a design statement in the large: **the
+part people need is not the transport, it is the connect step.** What this
+package ships is the half that was never the hard part.
+
+### What the demo already has that a consumer will otherwise rebuild
+
+Not hypothetical — each of these exists here and is missing there:
+
+- **BC-UR multi-frame codes** (item 2). Yogasūcī has a hard 2200-character budget
+  and falls back to copy & paste above it, which it documents as a limitation.
+  That limitation is already solved in this repository.
+- **The status LEDs at connection start.** Yogasūcī has an open issue asking for
+  exactly this and would build it a second time.
+- **Mesh reconnection after a drop** (item 8). Yogasūcī reconnects by scanning
+  again.
+- **Surviving standby and a peer id across reload** (item 9).
+
+### What makes this hard, and the recommendation
+
+The demo is vanilla DOM. Yogasūcī is Svelte 5 with a hard rule that colours and
+type come only from its own brand tokens. Anything reusable across both has to be
+framework-neutral without taking the styling hostage.
+
+**Custom elements with shadow DOM, themed through CSS custom properties.** The
+consumer passes its brand in; the element owns structure, focus handling, camera
+lifecycle and the animation of a multi-frame code. Custom properties cross the
+shadow boundary, which is what makes this work at all — and shadow DOM is what
+keeps a consumer's global stylesheet from reaching in and breaking a modal it did
+not write.
+
+The alternative, a headless core with a hand-written view per framework, is more
+honest about styling and multiplies the view work by the number of consumers,
+which is the thing being fixed.
+
+### Order matters more than usual here
+
+**Item 4 first.** Extracting UI while the orchestration still lives in the view
+moves the duplication rather than removing it, and leaves the components carrying
+a state machine that belongs underneath them.
+
+Then item 12, which is where the modal shape gets proved on a real screen before
+anything is frozen into a published API. Only then extract.
+
+### The second consumer is the test, not a bonus
+
+A component library with one consumer is a refactor. With two it is an interface.
+
+`simple-todo` on a `webrtc-qr` branch is the candidate, and it is a good one
+because it is currently the _opposite_ of this project: it reaches its peers
+through a relay, with pinning and bootstrap. Making the same app work with a
+scanned code and nothing else is the sharpest available question about where the
+seams belong — and it is the only way to find out which parts of the demo were
+general and which were always about a chat window.
+
+Attempt it _while_ extracting, not after. A second consumer discovered late
+confirms the seams; a second consumer discovered early moves them.
+
+---
+
 ## Not planned
 
 - **Replacing WebRTC.** The point of this project is that libp2p can use a
@@ -475,7 +561,7 @@ and unfold if it drops.
 
 Reading these first will save time on items 1 and 2:
 
-- [*Air-gapped WebRTC: breaking the QR limit*](https://magarcia.io/air-gapped-webrtc-breaking-the-qr-limit/)
+- [_Air-gapped WebRTC: breaking the QR limit_](https://magarcia.io/air-gapped-webrtc-breaking-the-qr-limit/)
   and the [QWBP specification](https://magarcia.github.io/qwbp/spec.html) by
   Miguel García
 - [`AquiGorka/webrtc-qr`](https://github.com/AquiGorka/webrtc-qr) by Gorka
