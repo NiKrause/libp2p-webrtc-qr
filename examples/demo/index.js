@@ -129,6 +129,7 @@ let barcodeDetector = null
 let scanSessionId = 0
 let qrAnimationTimer = null
 let partAccumulator = null
+let receivingParts = false
 
 const inboundPeerConnections = new Set()
 const testState = {
@@ -1642,6 +1643,7 @@ function stopQrScanner ({ clearStatus = true } = {}) {
   // Half a sequence is worthless to the next scan, and keeping it would make a
   // fresh invite look like it was already partly received.
   partAccumulator?.reset()
+  receivingParts = false
 
   if (clearStatus) {
     scanStatus.textContent = ''
@@ -1672,7 +1674,11 @@ async function scanLoop (timestamp, sessionId) {
   lastScanTime = timestamp
   scanAttempts++
 
-  if (scanAttempts % 8 === 0) {
+  // Not while a sequence is coming in. Reading an animated code takes many
+  // attempts by design, so the nudge fires constantly - and "move a little
+  // closer" is exactly the wrong advice for someone whose scan is going fine.
+  // It also stamps over the part counter they are watching.
+  if (scanAttempts % 8 === 0 && !receivingParts) {
     scanStatus.textContent = `Still looking… ${scanAttempts} attempts. Move a little closer, hold steady, and avoid reflections.`
   }
 
@@ -1718,8 +1724,10 @@ async function scanLoop (timestamp, sessionId) {
     }
 
     if (progress.state === 'complete') {
+      receivingParts = false
       decodedText = progress.payload
     } else {
+      receivingParts = true
       scanStatus.textContent = progress.total > 0
         ? `Animated code: ${progress.received} of ${progress.total} parts. Keep holding steady.`
         : 'Animated code detected. Keep holding steady.'
