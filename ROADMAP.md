@@ -432,26 +432,32 @@ a freshness line and the frame counter.
 Nothing there is broken. It is laid out for someone who already knows the
 protocol.
 
-The work: a **camera modal** carrying the status line that already reports
-`Animated code: 3 of 6 parts`, closing itself once a payload is accepted and on
-Escape or ×. A **code modal** for the generated invite, with the frame counter and
-the send button, closing when the answer arrives - including when a second tab
-took it, since the handoff already reports that over `BroadcastChannel`. And a
-single button across: while showing an invite you are waiting for a reply, so
-switching to scan it should not mean finding the other lane.
+**Done.** A camera modal carrying the status line that already reports
+`Animated code: 3 of 6 parts`, and a code modal for the invite, each closing
+itself once it has served its purpose. The card underneath shows two buttons
+instead of two lanes, and pasting a link - the fallback for a link that did not
+open the page by itself - sits behind a disclosure.
 
-Modals are the easy half. The harder half is what the card underneath stops
-showing once they exist - one primary choice at a time, the other reachable
-without being in the way.
+Native `<dialog>` and `showModal()` rather than anything hand-rolled: the focus
+trap, Escape, the inert background and focus returning to whatever opened the
+dialog all come with it. Only releasing the camera is left to do by hand, and it
+hangs off the dialog's `close` event, so every way out - ×, Escape, the stop
+button, or the app closing it after a successful scan - goes through one path.
 
-Already done: the setup cards fold away once a connection is up and unfold if it
-drops. `setStepsCollapsed()` handles it, called from `attachChatStream`, and the
-tests cover it.
+**The inert background turned out to be the design.** With an invite on screen
+everything behind the modal is unreachable, so *both* ways of receiving a reply
+had to move inside it - scanning and pasting alike. A button behind the modal is
+a button that does not exist. That was not in the plan above; the suite found it,
+by failing to reach the paste field the moment the modal existed.
 
-Worth stating because a modal done badly is worse than the inline version:
-focus has to move in, be trapped, and return to the button that opened it; the
-camera track has to stop on every close path, not just the successful one; and at
-320px the modal is effectively the whole screen.
+The synthetic camera added for this is worth noting separately: Chromium and
+Firefox now run with a fake capture device, so the scan modal is driven end to
+end - opened, closed by three different routes, and checked for having released
+the track each time. **That is the first time any test has exercised the camera
+path at all**, and it makes a dent in the gap recorded under item 6.
+
+Already in place beforehand: the setup cards fold away once a connection is up
+and unfold if it drops.
 
 ---
 

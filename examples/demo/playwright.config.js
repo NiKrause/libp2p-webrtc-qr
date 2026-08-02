@@ -28,13 +28,25 @@ export default defineConfig({
     {
       name: 'chromium',
       use: {
-        ...devices['Desktop Chrome']
+        ...devices['Desktop Chrome'],
+        // A synthetic camera, so the scan modal can be driven end to end -
+        // opened, closed, and checked for having released the track. Without it
+        // `getUserMedia` rejects and there is nothing to release.
+        launchOptions: {
+          args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream']
+        }
       }
     },
     {
       name: 'firefox',
       use: {
-        ...devices['Desktop Firefox']
+        ...devices['Desktop Firefox'],
+        launchOptions: {
+          firefoxUserPrefs: {
+            'media.navigator.streams.fake': true,
+            'media.navigator.permission.disabled': true
+          }
+        }
       }
     },
     {
