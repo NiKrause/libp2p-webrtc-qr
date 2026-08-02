@@ -409,6 +409,52 @@ Worth settling early: the argument to operators should be about **IPv6, not NAT*
 A symmetric NAT is a rational response to IPv4 scarcity and a hotel cannot fix it
 without buying address space. Missing IPv6 is a real, fixable deficiency.
 
+## 12. Put the camera and the code in modals, and show one thing at a time
+
+**Tracked in [#36](https://github.com/NiKrause/libp2p-webrtc-qr/issues/36).**
+
+**By impact this belongs at the top.** Every other open item makes the protocol
+better; this one decides whether someone who does not know what a peer id is can
+get two phones talking. The numbering is order of approach, not of value - the
+same caveat item 8 carries.
+
+The connect step shows everything at once and asks the user to work out which
+half applies to them. It opens by saying so in words - *"You only ever do **one**
+of the two boxes below"* - which is a fair description of the problem and not a
+solution to it.
+
+Two lanes are visible from the start. Below both sits a third area holding the
+camera, the stop button and the scan status, so pressing **Scan their code**
+starts a video further down the page, on a phone often below the fold. The
+generated code appears in a fourth place, stacked with a link field, two buttons,
+a freshness line and the frame counter.
+
+Nothing there is broken. It is laid out for someone who already knows the
+protocol.
+
+The work: a **camera modal** carrying the status line that already reports
+`Animated code: 3 of 6 parts`, closing itself once a payload is accepted and on
+Escape or ×. A **code modal** for the generated invite, with the frame counter and
+the send button, closing when the answer arrives - including when a second tab
+took it, since the handoff already reports that over `BroadcastChannel`. And a
+single button across: while showing an invite you are waiting for a reply, so
+switching to scan it should not mean finding the other lane.
+
+Modals are the easy half. The harder half is what the card underneath stops
+showing once they exist - one primary choice at a time, the other reachable
+without being in the way.
+
+Already done: the setup cards fold away once a connection is up and unfold if it
+drops. `setStepsCollapsed()` handles it, called from `attachChatStream`, and the
+tests cover it.
+
+Worth stating because a modal done badly is worse than the inline version:
+focus has to move in, be trapped, and return to the button that opened it; the
+camera track has to stop on every close path, not just the successful one; and at
+320px the modal is effectively the whole screen.
+
+---
+
 ## Not planned
 
 - **Replacing WebRTC.** The point of this project is that libp2p can use a
