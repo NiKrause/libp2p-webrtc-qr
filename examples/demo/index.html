@@ -100,6 +100,28 @@
         <section class="card" id="step-start">
           <h2 class="step-heading" tabindex="0" role="button" aria-expanded="true"><span class="step-no">1</span> Start browser peer</h2>
           <p class="hint">Creates a libp2p node with a fresh key pair. Its Peer ID signs every payload you show.</p>
+
+          <details class="peer" id="stun-disclosure">
+            <summary>What this sends, and to whom</summary>
+            <p class="peer-note">
+              Checking the network means asking a STUN server what address your packets arrive
+              from. Two operators answer that question here, <strong>Cloudflare</strong> and
+              <strong>Google</strong>, and each sees the public address the request came from: over
+              IPv4 that is your router's address, shared with everyone behind it — over IPv6 it is
+              this device's own address, which is not shared with anyone.
+            </p>
+            <p class="peer-note">
+              A STUN request carries nothing else. No page address, no cookies, no browser name —
+              less than any website you open is told about you. It happens again whenever you create
+              or accept an invite, because a direct connection cannot be made without those
+              addresses.
+            </p>
+            <p class="peer-note">
+              The answer comes back to this page and stays here. Nothing is sent to us: this page has
+              no backend to send it to.
+            </p>
+          </details>
+
           <div class="actions">
             <button id="start-client" class="primary">Start client</button>
           </div>

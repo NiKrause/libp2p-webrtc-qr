@@ -378,6 +378,34 @@ test.describe('signed QR WebRTC signaling', () => {
     }
   })
 
+  test('says who sees the address before the check runs, not after', async ({ browser }) => {
+    const page = await browser.newPage()
+
+    try {
+      await page.goto('/')
+
+      // Before any click: the disclosure has to be readable while the choice to
+      // click is still open, and it has to name the operators that get the
+      // address rather than saying "a STUN server" and leaving it there.
+      const disclosure = page.locator('#stun-disclosure')
+      await expect(disclosure).toBeVisible()
+
+      const text = await disclosure.textContent()
+
+      expect(text).toContain('Cloudflare')
+      expect(text).toContain('Google')
+      expect(text).toMatch(/IPv6/)
+
+      // It sits above the button it describes.
+      const summary = await disclosure.locator('summary').boundingBox()
+      const button = await page.locator('#start-client').boundingBox()
+
+      expect(summary.y).toBeLessThan(button.y)
+    } finally {
+      await page.close()
+    }
+  })
+
   test('the summary LED is green when either family is usable', async ({ browser }) => {
     const page = await browser.newPage()
 
