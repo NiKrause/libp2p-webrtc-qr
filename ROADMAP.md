@@ -547,6 +547,47 @@ confirms the seams; a second consumer discovered early moves them.
 
 ---
 
+## 14. Scan a real code through the real camera path
+
+**Tracked in [#41](https://github.com/NiKrause/libp2p-webrtc-qr/issues/41).**
+
+Every field failure in this project has been in the camera path, and no test has
+ever gone through it:
+
+- the scanner rejected every QR, because it fed a link to a raw-payload parser
+- the code was too dense to read between two phones
+- the status line stamped over the part counter during a healthy animated scan
+
+All three were found by a person holding two phones, with the suite green
+throughout - because the suite exchanges payloads by copy/paste and programmatic
+calls.
+
+Item 12 added a synthetic capture device, so the scan modal is now opened, closed
+and checked for releasing its track. That is the plumbing. What it does not cover
+is the part that keeps breaking: **the camera never sees a QR code.** Chromium's
+fake device produces a rolling test pattern, so `jsQR` is handed frames with
+nothing in them to decode.
+
+The work is to feed the camera a video of the code the app itself rendered.
+Chromium takes `--use-file-for-fake-video-capture=<file.y4m>`, so the app's own
+QR output can be painted into frames, written as y4m at the animation's frame
+rate, and scanned by the real loop. Both shapes matter, and the second is the one
+that failed in the field: a static code, and an animated BC-UR sequence arriving
+at 5fps while the camera samples faster.
+
+Worth simulating rather than idealising: the failure being reproduced is *a code
+too small to resolve*, so a test that paints the code across the whole frame at
+full resolution proves less than it appears to.
+
+Two honest limits. **Chromium only** - Firefox's fake stream is a generated
+pattern with no file input, and WebKit has no fake device at all. And **not the
+physical layer**: focus, glare off a screen, moiré between a display's pixel grid
+and a camera sensor, and a hand that will not hold still. Those stay with hand
+testing, and saying so is part of the item, because a green suite otherwise
+implies they were covered.
+
+---
+
 ## Not planned
 
 - **Replacing WebRTC.** The point of this project is that libp2p can use a
