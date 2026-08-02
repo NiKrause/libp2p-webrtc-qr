@@ -30,7 +30,10 @@ async function createInvite (page) {
     await page.locator('#create-offer').click()
   }
 
-  await expect(page.locator('#invite-box')).toBeVisible()
+  // Gathering ICE against real STUN servers is seconds of work, and a loaded CI
+  // runner stretches it further - the default five seconds is a bet on the
+  // machine being idle, not an assertion about the app.
+  await expect(page.locator('#invite-box')).toBeVisible({ timeout: 30000 })
   // The box is emptied while the next invite is gathering, so waiting for any
   // `#i=` would otherwise hand back the previous person's link.
   await expect.poll(() => page.locator('#invite-link').inputValue()).toMatch(/#i=/)

@@ -72,14 +72,29 @@ async function library () {
 /**
  * Start fetching the library without waiting for it.
  *
- * Called once the peer is up, because the first invite is created seconds
- * later and the import is a couple of hundred kilobytes: without this the QR
- * area sits blank for the length of the download, on exactly the connection
- * that is likely to be slow. Failures are swallowed - whoever actually needs
- * the library will await it and see the error then.
+ * Called once the peer is up, because the first invite is created seconds later
+ * and the import is a couple of hundred kilobytes: without this the QR area sits
+ * blank for the length of the download, on exactly the connection that is likely
+ * to be slow.
+ *
+ * Deferred to idle rather than fired immediately, because the moment the peer
+ * starts is also the moment ICE is gathering and the first invite is being
+ * built. Fetching and parsing a few hundred kilobytes right then competes with
+ * the path the user is actually waiting on - which is not theoretical: it made
+ * "create invite" slow enough on a loaded CI runner to fail a test that had
+ * passed on the same commit minutes earlier.
+ *
+ * Failures are swallowed. Whoever actually needs the library awaits it and sees
+ * the error then.
  */
 export function preload () {
-  library().catch(() => {})
+  const start = () => { library().catch(() => {}) }
+
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(start, { timeout: 4000 })
+  } else {
+    setTimeout(start, 2000)
+  }
 }
 
 /**
