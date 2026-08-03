@@ -609,7 +609,7 @@ test.describe('signed QR WebRTC signaling', () => {
     try {
       await openPeer(page, pageErrors)
 
-      const modal = page.locator('#scan-modal')
+      const modal = page.locator('qr-scanner dialog')
 
       await expect(modal).toBeHidden()
       await page.locator('#scan-offer').click()
@@ -617,8 +617,8 @@ test.describe('signed QR WebRTC signaling', () => {
       // The camera the user just asked for is in front of them, not below the
       // fold of a long page.
       await expect(modal).toBeVisible()
-      await expect(page.locator('#qr-video')).toBeVisible()
-      await expect(page.locator('#scan-modal-title')).toHaveText('Scan their code')
+      await expect(page.locator('qr-scanner video')).toBeVisible()
+      await expect(page.locator('qr-scanner h3')).toHaveText('Scan their code')
       await expect.poll(() => page.evaluate(() => window.__libp2pQrTest.cameraActive()), {
         timeout: 20000
       }).toBe(true)
@@ -637,7 +637,7 @@ test.describe('signed QR WebRTC signaling', () => {
       // ...and the × does the same.
       await page.locator('#scan-offer').click()
       await expect(modal).toBeVisible()
-      await page.locator('#scan-modal [data-close-modal]').first().click()
+      await page.locator('qr-scanner button').click()
       await expect(modal).toBeHidden()
       await expect.poll(() => page.evaluate(() => window.__libp2pQrTest.cameraActive())).toBe(false)
 

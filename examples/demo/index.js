@@ -41,8 +41,6 @@ const CONNECTION_TIMEOUT = 30000
 // never land afterwards.
 const ANSWER_WAIT_TIMEOUT = 6 * 60 * 1000
 const MAX_QR_PAYLOAD_LENGTH = 2200
-const SCAN_INTERVAL = 140
-const SCAN_CANVAS_MAX_WIDTH = 960
 
 /*
  * The last two are reached by literal address on purpose.
@@ -84,17 +82,13 @@ const scanOfferButton = document.getElementById('scan-offer')
 const scanAnswerButton = document.getElementById('scan-answer')
 const processPayloadButton = document.getElementById('process-payload')
 const copyPayloadButton = document.getElementById('copy-payload')
-const stopScanButton = document.getElementById('stop-scan')
 const sendButton = document.getElementById('send')
 const qrImage = document.getElementById('qr-image')
-const qrVideo = document.getElementById('qr-video')
-const scanStatus = document.getElementById('scan-status')
 const dropZone = document.getElementById('drop-zone')
 const fileInput = document.getElementById('file-input')
 const receivedFilesEl = document.getElementById('received-files')
 const inviteBoxEl = document.getElementById('invite-box')
 const scanModalEl = document.getElementById('scan-modal')
-const scanModalTitleEl = document.getElementById('scan-modal-title')
 const scanReplyButton = document.getElementById('scan-reply')
 const pasteReplyButton = document.getElementById('paste-reply')
 const pasteFallbackEl = document.querySelector('.paste-fallback')
@@ -129,16 +123,8 @@ const peerConnections = new Map()
 // Peers the user dropped on purpose, so the same teardown is not reported as a
 // loss they need to do something about.
 const intentionalDrops = new Set()
-let scanStream = null
-let scanAnimationFrame = null
 let scanMode = null
-let lastScanTime = 0
-let scanAttempts = 0
-let barcodeDetector = null
-let scanSessionId = 0
 let qrAnimationTimer = null
-let partAccumulator = null
-let receivingParts = false
 
 const testState = {
   lastReceivedMessage: null,
@@ -616,7 +602,7 @@ function attachChatStream (stream, peerId, message) {
   clearReconnectPrompt()
   // Whatever was on screen was there to get to this point.
   closeModal(inviteBoxEl)
-  closeModal(scanModalEl)
+  scanModalEl.close()
   appendLog(message)
 
   // Both directions, so a mesh closes itself no matter who joined last.
@@ -1148,18 +1134,16 @@ function closeModal (dialog) {
   }
 }
 
-for (const dialog of [scanModalEl, inviteBoxEl]) {
-  dialog.addEventListener('click', event => {
-    if (event.target.closest('[data-close-modal]') != null) {
-      closeModal(dialog)
-    }
-  })
-}
+inviteBoxEl.addEventListener('click', event => {
+  if (event.target.closest('[data-close-modal]') != null) {
+    closeModal(inviteBoxEl)
+  }
+})
 
-// Every close path ends here - the ×, Escape, the stop button, or code calling
-// `close()` - so this is the one place the camera has to be released.
+// The element releases the camera itself; this only clears what this app was
+// waiting for.
 scanModalEl.addEventListener('close', () => {
-  stopQrScanner({ clearStatus: false })
+  scanMode = null
 })
 
 function setStepsCollapsed (collapsed) {
@@ -1426,207 +1410,40 @@ function updateControls () {
   copyPayloadButton.disabled = inviteLinkEl.value.length === 0
 }
 
-async function startQrScanner (expectedType) {
-  if (navigator.mediaDevices?.getUserMedia == null) {
-    throw new Error('Camera access is not supported by this browser')
-  }
-
-  stopQrScanner()
-  const sessionId = scanSessionId
+/**
+ * Open the scanner element and tell it what counts as the code we want.
+ *
+ * The element runs the camera and the scan loop; this decides whether what it
+ * read is the payload this screen is waiting for. Returning `ok: false` keeps
+ * the camera going with the reason on screen, which is what turns "that is a
+ * reply, not an invite" into a message rather than a dead end.
+ */
+function beginScan (expectedType) {
+  scanModalEl.label = expectedType === QR_TYPE_OFFER ? 'Scan their code' : 'Scan their reply'
   scanMode = expectedType
-  scanAttempts = 0
-  lastScanTime = 0
-  barcodeDetector = null
+  scanModalEl.validate = async text => classifyScanned(text, expectedType)
 
-  if ('BarcodeDetector' in window) {
-    try {
-      barcodeDetector = new window.BarcodeDetector({ formats: ['qr_code'] })
-    } catch {}
-  }
+  scanModalEl.open().catch(error => {
+    setStatus(`Camera failed: ${error.message}`)
+  })
+}
+
+scanModalEl.addEventListener('scan', async event => {
+  const expectedType = scanMode
+
+  scanMode = null
+  setStatus('Correct QR type detected. Verifying signature…')
 
   try {
-    scanStatus.textContent = `Starting camera for the ${expectedType} QR code…`
-    const mediaStream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: { ideal: 'environment' },
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        frameRate: { ideal: 30, max: 30 }
-      },
-      audio: false
-    })
+    const classified = await classifyScanned(event.detail.text, expectedType)
 
-    if (sessionId !== scanSessionId) {
-      mediaStream.getTracks().forEach(track => track.stop())
-      return
-    }
-
-    scanStream = mediaStream
-    const videoTrack = scanStream.getVideoTracks()[0]
-    const capabilities = videoTrack?.getCapabilities?.()
-
-    if (capabilities?.focusMode?.includes('continuous')) {
-      await videoTrack.applyConstraints({
-        advanced: [{ focusMode: 'continuous' }]
-      }).catch(() => {})
-    }
-
-    qrVideo.srcObject = scanStream
-    await qrVideo.play()
-    scanStatus.textContent = `Looking for the ${expectedType} QR code… Hold it steady and fill about half of the frame.`
-    scheduleNextScan(sessionId)
+    await handleReceivedPayload(classified.payloadText, expectedType)
+    updateControls()
   } catch (error) {
-    if (sessionId !== scanSessionId) {
-      return
-    }
-
-    stopQrScanner()
-    scanMode = null
-    throw error
+    setStatus(`QR processing failed: ${error.message}`)
+    appendLog(`QR processing failed: ${error.message}`)
   }
-}
-
-function stopQrScanner ({ clearStatus = true } = {}) {
-  scanSessionId++
-
-  if (scanAnimationFrame != null) {
-    cancelAnimationFrame(scanAnimationFrame)
-    scanAnimationFrame = null
-  }
-
-  scanStream?.getTracks().forEach(track => track.stop())
-  scanStream = null
-  qrVideo.srcObject = null
-  barcodeDetector = null
-  scanAttempts = 0
-  lastScanTime = 0
-
-  // Half a sequence is worthless to the next scan, and keeping it would make a
-  // fresh invite look like it was already partly received.
-  partAccumulator?.reset()
-  receivingParts = false
-
-  if (clearStatus) {
-    scanStatus.textContent = ''
-  }
-}
-
-function scheduleNextScan (sessionId) {
-  if (scanStream != null && sessionId === scanSessionId) {
-    scanAnimationFrame = requestAnimationFrame(timestamp => scanLoop(timestamp, sessionId))
-  }
-}
-
-async function scanLoop (timestamp, sessionId) {
-  if (sessionId !== scanSessionId) {
-    return
-  }
-
-  if (scanStream == null || qrVideo.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-    scheduleNextScan(sessionId)
-    return
-  }
-
-  if (timestamp - lastScanTime < SCAN_INTERVAL) {
-    scheduleNextScan(sessionId)
-    return
-  }
-
-  lastScanTime = timestamp
-  scanAttempts++
-
-  // Not while a sequence is coming in. Reading an animated code takes many
-  // attempts by design, so the nudge fires constantly - and "move a little
-  // closer" is exactly the wrong advice for someone whose scan is going fine.
-  // It also stamps over the part counter they are watching.
-  if (scanAttempts % 8 === 0 && !receivingParts) {
-    scanStatus.textContent = `Still looking… ${scanAttempts} attempts. Move a little closer, hold steady, and avoid reflections.`
-  }
-
-  let decodedText = null
-
-  if (barcodeDetector != null) {
-    try {
-      const codes = await barcodeDetector.detect(qrVideo)
-      decodedText = codes.find(code => code.format === 'qr_code')?.rawValue ?? codes[0]?.rawValue ?? null
-    } catch {
-      barcodeDetector = null
-    }
-  }
-
-  if (sessionId !== scanSessionId) {
-    return
-  }
-
-  if (decodedText == null) {
-    const scale = Math.min(1, SCAN_CANVAS_MAX_WIDTH / qrVideo.videoWidth)
-    qrCanvas.width = Math.max(1, Math.round(qrVideo.videoWidth * scale))
-    qrCanvas.height = Math.max(1, Math.round(qrVideo.videoHeight * scale))
-    qrCanvasContext.drawImage(qrVideo, 0, 0, qrCanvas.width, qrCanvas.height)
-
-    const image = qrCanvasContext.getImageData(0, 0, qrCanvas.width, qrCanvas.height)
-    const result = jsQR(image.data, image.width, image.height, {
-      inversionAttempts: 'attemptBoth'
-    })
-    decodedText = result?.data ?? null
-  }
-
-  // A multi-frame invite arrives one part at a time, and no single part is a
-  // payload. Feed them to the accumulator and keep the camera running until the
-  // message is whole - only then does it go down the normal path, which cannot
-  // tell it was ever split.
-  if (decodedText != null && looksLikeUrPart(decodedText)) {
-    partAccumulator = partAccumulator ?? await createPartAccumulator()
-
-    const progress = partAccumulator.receive(decodedText)
-
-    if (sessionId !== scanSessionId) {
-      return
-    }
-
-    if (progress.state === 'complete') {
-      receivingParts = false
-      decodedText = progress.payload
-    } else {
-      receivingParts = true
-      scanStatus.textContent = progress.total > 0
-        ? `Animated code: ${progress.received} of ${progress.total} parts. Keep holding steady.`
-        : 'Animated code detected. Keep holding steady.'
-      scheduleNextScan(sessionId)
-      return
-    }
-  }
-
-  if (decodedText != null) {
-    const expectedType = scanMode
-    const classified = await classifyScanned(decodedText, expectedType)
-
-    if (!classified.ok) {
-      scanStatus.textContent = classified.reason
-      scheduleNextScan(sessionId)
-      return
-    }
-
-    // Closing the dialog stops the camera through its `close` handler, so the
-    // scan is torn down by exactly one path whether it ended here or by Escape.
-    closeModal(scanModalEl)
-    scanMode = null
-    scanStatus.textContent = 'Correct QR type detected. Verifying signature…'
-
-    try {
-      await handleReceivedPayload(classified.payloadText, expectedType)
-      scanStatus.textContent = 'QR accepted.'
-      updateControls()
-    } catch (error) {
-      scanStatus.textContent = `QR detected, but rejected: ${error.message}`
-      setStatus(`QR processing failed: ${error.message}`)
-      appendLog(`QR processing failed: ${error.message}`)
-    }
-    return
-  }
-
-  scheduleNextScan(sessionId)
-}
+})
 
 startButton.addEventListener('click', async () => {
   startButton.disabled = true
@@ -1693,18 +1510,6 @@ document.getElementById('invite-another').addEventListener('click', () => {
   createInvite(createOfferButton)
 })
 
-function beginScan (expectedType) {
-  scanModalTitleEl.textContent = expectedType === QR_TYPE_OFFER
-    ? 'Scan their code'
-    : 'Scan their reply'
-  openModal(scanModalEl)
-
-  startQrScanner(expectedType).catch(error => {
-    closeModal(scanModalEl)
-    setStatus(`Camera failed: ${error.message}`)
-  })
-}
-
 scanOfferButton.addEventListener('click', () => beginScan(QR_TYPE_OFFER))
 scanAnswerButton.addEventListener('click', () => beginScan(QR_TYPE_ANSWER))
 
@@ -1725,11 +1530,6 @@ function revealPasteField () {
   payloadDisplay.scrollIntoView({ block: 'center', behavior: 'smooth' })
   payloadDisplay.focus()
 }
-
-stopScanButton.addEventListener('click', () => {
-  scanMode = null
-  setStatus('QR scan cancelled.')
-})
 
 async function useIncoming (text) {
   setButtonBusy(processPayloadButton, 'Connecting…')
@@ -1912,7 +1712,7 @@ window.__libp2pQrTest = {
   wakeLockState,
   // Whether a camera track is still held. A modal that closes without releasing
   // it leaves the phone's camera light on and the user rightly alarmed.
-  cameraActive: () => scanStream != null,
+  cameraActive: () => scanModalEl.isOpen,
   // Exposed so the LED truth table can be asserted without depending on the
   // network the test happens to run on.
   summariseNetwork: (ipv4State, ipv6State) =>

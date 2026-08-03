@@ -171,17 +171,17 @@ test.describe('the camera path', () => {
       await expect(scanner.locator('#status')).toContainText('Browser client started')
 
       await scanner.locator('#scan-offer').click()
-      await expect(scanner.locator('#scan-modal')).toBeVisible()
+      await expect(scanner.locator('qr-scanner dialog')).toBeVisible()
 
       // Parts arriving from a camera, not from a helper handing them over.
-      await expect(scanner.locator('#scan-status')).toContainText(/Animated code: \d+ of \d+ parts/, {
+      await expect(scanner.locator('qr-scanner p')).toContainText(/Animated code: \d+ of \d+ parts/, {
         timeout: 60000
       })
 
       // The whole path: frames decoded, parts reassembled, signature verified,
       // and an answer produced - with the modal closing itself on the way.
       await expect(scanner.locator('#invite-box')).toBeVisible({ timeout: 90000 })
-      await expect(scanner.locator('#scan-modal')).toBeHidden()
+      await expect(scanner.locator('qr-scanner dialog')).toBeHidden()
 
       const reply = await scanner.locator('#invite-link').inputValue()
 
@@ -242,10 +242,10 @@ test.describe('the camera path', () => {
       await expect(scanner.locator('#status')).toContainText('Browser client started')
 
       await scanner.locator('#scan-offer').click()
-      await expect(scanner.locator('#scan-modal')).toBeVisible()
+      await expect(scanner.locator('qr-scanner dialog')).toBeVisible()
 
       // It keeps looking, and says so, rather than inventing something.
-      await expect(scanner.locator('#scan-status')).toContainText(/Still looking/, { timeout: 30000 })
+      await expect(scanner.locator('qr-scanner p')).toContainText(/Still looking/, { timeout: 30000 })
       await expect(scanner.locator('#invite-box')).toBeHidden()
     } finally {
       await cameraBrowser?.close()

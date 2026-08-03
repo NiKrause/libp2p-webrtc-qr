@@ -250,21 +250,12 @@
     </footer>
 
     <!--
-      Native <dialog>, deliberately: showModal() gives the focus trap, Escape to
-      close, the inert background and focus returning to whatever opened it. All
-      of that hand-rolled is a great deal of code to get subtly wrong.
+      The scanner is an element now: it owns the camera, the scan loop and the
+      reassembly of a multi-frame code, and releases the camera on every way out
+      including being removed from the document. What stays here is deciding
+      whether a scanned payload is the one this screen was waiting for.
     -->
-    <dialog id="scan-modal" class="modal" aria-labelledby="scan-modal-title">
-      <div class="modal-head">
-        <h3 id="scan-modal-title">Scan their code</h3>
-        <button class="modal-close" data-close-modal type="button" aria-label="Close">×</button>
-      </div>
-      <video id="qr-video" autoplay playsinline muted></video>
-      <div id="scan-status" class="scan-status" aria-live="polite"></div>
-      <div class="actions">
-        <button id="stop-scan" type="button" data-close-modal>Stop scanning</button>
-      </div>
-    </dialog>
+    <qr-scanner id="scan-modal"></qr-scanner>
 
     <dialog id="invite-box" class="modal" aria-labelledby="invite-modal-title">
       <div class="modal-head">

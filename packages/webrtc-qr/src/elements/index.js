@@ -9,6 +9,7 @@
  *   import '@le-space/libp2p-webrtc-qr/elements'
  */
 export { QrInviteElement } from './qr-invite.js'
+export { QrScannerElement } from './qr-scanner.js'
 export {
   FRAME_INTERVAL_MS,
   MAX_FRAGMENT_BYTES,

@@ -139,6 +139,9 @@ importers:
       it-pushable:
         specifier: ^3.2.4
         version: 3.2.4
+      jsqr:
+        specifier: ^1.4.0
+        version: 1.4.0
       libp2p:
         specifier: ^3.3.7
         version: 3.3.7
