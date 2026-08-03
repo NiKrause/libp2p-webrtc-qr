@@ -8,6 +8,8 @@
  *
  *   import '@le-space/libp2p-webrtc-qr/elements'
  */
+import './buffer-shim.js'
+
 export { QrInviteElement } from './qr-invite.js'
 export { QrPeersElement } from './qr-peers.js'
 export { QrScannerElement } from './qr-scanner.js'

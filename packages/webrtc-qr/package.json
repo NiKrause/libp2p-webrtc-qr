@@ -23,33 +23,38 @@
   ],
   "exports": {
     ".": "./src/index.js",
-    "./elements": "./src/elements/index.js"
+    "./elements": "./dist/elements.js"
   },
   "files": [
-    "src"
+    "src",
+    "dist"
   ],
   "sideEffects": [
     "./src/elements/*.js"
   ],
   "scripts": {
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "build": "node scripts/build-elements.mjs",
+    "prepublishOnly": "npm run build"
   },
   "devDependencies": {
-    "@libp2p/crypto": "^5.1.21"
+    "@libp2p/crypto": "^5.1.21",
+    "@ngraveio/bc-ur": "^1.1.13",
+    "buffer": "^6.0.3",
+    "esbuild": "^0.25.0",
+    "jsqr": "^1.4.0",
+    "qrcode": "^1.5.4"
   },
   "dependencies": {
     "@libp2p/interface": "^3.2.4",
     "@libp2p/peer-id": "^6.0.13",
     "@libp2p/utils": "^7.2.3",
-    "@ngraveio/bc-ur": "^1.1.13",
     "it-length-prefixed": "^11.0.1",
     "it-pushable": "^3.2.4",
-    "jsqr": "^1.4.0",
     "p-defer": "^4.0.1",
     "p-event": "^7.1.0",
     "p-timeout": "^7.0.1",
     "protons-runtime": "^7.0.0",
-    "qrcode": "^1.5.4",
     "race-signal": "^2.0.0",
     "uint8-varint": "^3.0.0",
     "uint8arraylist": "^3.0.2",

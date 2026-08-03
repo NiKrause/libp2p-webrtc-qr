@@ -6,15 +6,9 @@ import { identify, identifyPush } from '@libp2p/identify'
 import { peerIdFromString } from '@libp2p/peer-id'
 import { ping } from '@libp2p/ping'
 import { multiaddr } from '@multiformats/multiaddr'
-import { Buffer } from 'buffer'
 import jsQR from 'jsqr'
 import { createLibp2p } from 'libp2p'
 
-// `@ngraveio/bc-ur`, behind the multi-frame codes, is written for Node and needs
-// a global Buffer. The package asks for one rather than importing its own,
-// because an application that already polyfills Buffer ends up with the same
-// specifier resolved two ways and a build that fails talking about externals.
-globalThis.Buffer ??= Buffer
 import '@le-space/libp2p-webrtc-qr/elements'
 import {
   createFrameSource,

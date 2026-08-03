@@ -14,7 +14,8 @@ export default defineConfig({
     timeout: 15000
   },
   webServer: {
-    command: `pnpm exec vite build && pnpm exec vite preview --host 127.0.0.1 --port ${port}`,
+    // The elements ship as a bundle, so it has to exist before the demo builds.
+    command: `pnpm --filter @le-space/libp2p-webrtc-qr build && pnpm exec vite build && pnpm exec vite preview --host 127.0.0.1 --port ${port}`,
     url: `http://127.0.0.1:${port}`,
     reuseExistingServer: false,
     timeout: 120000
