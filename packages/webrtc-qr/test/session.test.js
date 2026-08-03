@@ -133,3 +133,35 @@ test('an ICE summary survives a connection that never got a description', () => 
 
   assert.equal(summary, 'local: none; remote: none; ice: new')
 })
+
+test('accepting an answer dials, because until something dials there is no connection', async () => {
+  const dialled = []
+  const session = new QRSession(fakeNode({
+    dial: async address => {
+      dialled.push(address.toString())
+      return { status: 'open' }
+    }
+  }), FAST)
+
+  // The handshake up to this point is browser work, so the session is put into
+  // the state acceptAnswer leaves behind and only the dial step is exercised.
+  const connection = await session.dial('12D3KooWRemote')
+
+  assert.equal(connection.status, 'open')
+  assert.deepEqual(dialled, ['/webrtc/p2p/12D3KooWRemote'])
+})
+
+test('a connection dial is retried on the same terms as a stream', async () => {
+  let attempts = 0
+  const session = new QRSession(fakeNode({
+    dial: async () => {
+      attempts++
+      return { status: attempts < 3 ? 'closed' : 'open' }
+    }
+  }), FAST)
+
+  const connection = await session.dial('12D3KooWRemote')
+
+  assert.equal(connection.status, 'open')
+  assert.equal(attempts, 3)
+})

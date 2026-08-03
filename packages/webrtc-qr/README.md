@@ -21,7 +21,10 @@ const session = new QRSession(node, { rtcConfiguration })
 
 // one side
 const offer = await session.createOffer()               // show this
-const { peerId } = await session.acceptAnswer(reply)
+const { peerId, connection } = await session.acceptAnswer(reply)
+
+// only if you have a protocol of your own - pass { dial: false } above so the
+// connection is not dialled twice
 const stream = await session.dialProtocol(peerId, '/my/protocol/1.0.0')
 
 // the other side
@@ -46,6 +49,13 @@ reports itself through `connect`, or `error` if it never does.
 - **The first dial is retried.** Both peers reach `connected` at the same moment,
   but the answering peer still has to attach its muxer, and anything opened into
   that gap negotiates and is immediately reset.
+
+**`acceptAnswer` dials.** Until something dials there is no libp2p connection -
+only a WebRTC one with an upgrade context beside it. An app with a protocol of
+its own never notices, because dialling that protocol does it; an app that uses
+whatever connection exists, like a replicating database or a pubsub topic, sees
+the handshake succeed and no peer. That cost a second consumer an afternoon, so
+the session now does it and `{ dial: false }` opts out.
 
 `session.forget(peerId)` drops the libp2p connection *and* the offer session for
 a peer. Both have to go: a stale session hands the transport a closed peer
