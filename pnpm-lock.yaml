@@ -130,9 +130,6 @@ importers:
       '@ngraveio/bc-ur':
         specifier: ^1.1.13
         version: 1.1.13
-      buffer:
-        specifier: ^6.0.3
-        version: 6.0.3
       it-length-prefixed:
         specifier: ^11.0.1
         version: 11.0.1

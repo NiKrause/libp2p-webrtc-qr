@@ -55,13 +55,21 @@ let libraryPromise = null
 async function library () {
   if (libraryPromise == null) {
     libraryPromise = (async () => {
-      const { Buffer } = await import('buffer')
-
-      globalThis.Buffer = globalThis.Buffer ?? Buffer
+      // `@ngraveio/bc-ur` is written for Node and needs a global Buffer. This
+      // asks for one rather than importing its own: most libp2p applications
+      // already polyfill Buffer, and a second copy makes the bundler resolve
+      // the same specifier two ways - which fails the build with a message
+      // about externals that says nothing about the cause.
+      if (globalThis.Buffer == null) {
+        throw new Error(
+          'Multi-frame codes need a global Buffer. Assign one before use: ' +
+          "import { Buffer } from 'buffer'; globalThis.Buffer ??= Buffer"
+        )
+      }
 
       const bcur = await import('@ngraveio/bc-ur')
 
-      return { ...bcur, Buffer }
+      return { ...bcur, Buffer: globalThis.Buffer }
     })()
   }
 
