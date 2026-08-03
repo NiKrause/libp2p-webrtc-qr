@@ -569,7 +569,10 @@ async function acceptAnswerPayload (text) {
     throw new Error('This answer belongs to this browser. Use the answer QR created by the second browser')
   }
 
-  const { peerId, address, ageSeconds } = await session.acceptAnswer(text)
+  // `dial: false` because the next line opens a protocol stream, which dials by
+  // itself - this app has a protocol of its own and does not need the connection
+  // dialled twice.
+  const { peerId, address, ageSeconds } = await session.acceptAnswer(text, { dial: false })
 
   appendLog(`Reply arrived ${ageSeconds}s after the invite was created.`)
 

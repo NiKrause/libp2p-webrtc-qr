@@ -300,10 +300,13 @@ export class QRSession extends EventTarget {
 
   /**
    * Verify an answer to an offer this session created and complete the
-   * connection. Resolves once the WebRTC connection is up and the outbound
-   * upgrade context is in place; the caller dials whatever protocol it wants.
+   * connection - including the dial that turns it into a libp2p connection.
+   *
+   * Resolves with the connection. Pass `{ dial: false }` to stop before that
+   * step, for a caller that wants to open a protocol stream itself and would
+   * rather not have a connection dialled twice.
    */
-  async acceptAnswer (text) {
+  async acceptAnswer (text, options = {}) {
     const answer = await decodeSignedPayload(text, QR_TYPE_ANSWER)
 
     if (answer.peerId === this.node.peerId.toString()) {
@@ -345,13 +348,21 @@ export class QRSession extends EventTarget {
       { direction: 'outbound' }
     )
 
+    // Dial before reporting a connection, because until something dials there
+    // is no libp2p connection - only a WebRTC one with an upgrade context beside
+    // it. An app with a protocol of its own never notices, because dialling that
+    // protocol does it. An app that just uses whatever connection exists - a
+    // replicating database, a pubsub topic - sees `connect` fire and no peer.
+    const connection = options.dial === false ? null : await this.dial(answer.peerId)
+
     this.#emit('connect', {
       peerId: answer.peerId,
       peerConnection: session.peerConnection,
+      connection,
       direction: 'outbound'
     })
 
-    return { peerId: answer.peerId, address: this.#address(answer.peerId), ageSeconds }
+    return { peerId: answer.peerId, address: this.#address(answer.peerId), connection, ageSeconds }
   }
 
   /**

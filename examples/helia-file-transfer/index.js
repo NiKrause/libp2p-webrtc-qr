@@ -113,13 +113,9 @@ async function acceptOffer (text) {
 async function acceptAnswer (text) {
   await start()
 
+  // The session dials for us: bitswap needs a libp2p connection, not a protocol
+  // stream, and until something dials there is no libp2p connection at all.
   const { peerId } = await session.acceptAnswer(text)
-
-  // Dialing is what triggers the transport's upgrade. Bitswap needs the
-  // connection rather than a protocol stream, so this is the connection dial.
-  await session.dial(peerId)
-  setStatus(`Connected to ${peerId}`)
-  log('Bitswap can now reach the other peer.')
 
   return peerId
 }
