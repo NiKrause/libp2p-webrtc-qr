@@ -1506,6 +1506,13 @@ window.__libp2pQrTest = {
   decodePayload: async text => parsePayload(text),
   encodePayload: payload => compress(JSON.stringify(payload)),
   decodeQrDataUrl: async dataUrl => {
+    // The element renders asynchronously, so a caller can read `src` before
+    // there is one. WebKit throws "Missing source URL" from decode() rather
+    // than resolving to nothing, which reads like a corrupt image.
+    if (dataUrl == null || dataUrl === '') {
+      return null
+    }
+
     const image = new Image()
     image.src = dataUrl
     await image.decode()
