@@ -127,6 +127,12 @@ importers:
       '@multiformats/multiaddr':
         specifier: ^13.0.3
         version: 13.0.3
+      '@ngraveio/bc-ur':
+        specifier: ^1.1.13
+        version: 1.1.13
+      buffer:
+        specifier: ^6.0.3
+        version: 6.0.3
       it-length-prefixed:
         specifier: ^11.0.1
         version: 11.0.1
@@ -148,6 +154,9 @@ importers:
       protons-runtime:
         specifier: ^7.0.0
         version: 7.0.0
+      qrcode:
+        specifier: ^1.5.4
+        version: 1.5.4
       race-signal:
         specifier: ^2.0.0
         version: 2.0.0

@@ -843,21 +843,22 @@ test.describe('signed QR WebRTC signaling', () => {
     try {
       await openPeer(page, pageErrors)
       await page.locator('#create-offer').click()
-      await page.locator('#qr-image').waitFor({ state: 'visible', timeout: 30000 })
+      await page.locator('qr-invite img').waitFor({ state: 'visible', timeout: 30000 })
 
       const link = await page.locator('#invite-link').inputValue()
 
       // The whole point of the split, so the test is worthless if the payload
       // happened to be small enough for one code.
       expect(link.length).toBeGreaterThan(600)
-      await expect(page.locator('#qr-frame')).toBeVisible()
-      await expect(page.locator('#qr-frame')).toContainText(/Part \d+ of \d+/)
+      await expect(page.locator('qr-invite p')).toBeVisible()
+      await expect(page.locator('qr-invite p')).toContainText(/Part \d+ of \d+/)
 
       // Read what is actually on screen, frame by frame, exactly as a camera
       // would - then hand those strings to the accumulator.
       const reassembled = await page.evaluate(async () => {
         const seen = []
-        const image = document.getElementById('qr-image')
+        // The code is inside the element's shadow root now.
+        const image = document.getElementById('qr-image').shadowRoot.querySelector('img')
 
         for (let i = 0; i < 40; i++) {
           const decoded = await window.__libp2pQrTest.decodeQrDataUrl(image.src)
@@ -934,14 +935,15 @@ test.describe('signed QR WebRTC signaling', () => {
       // the payload already loaded instead of needing the in-app scanner. A link
       // too dense for one code is split into frames, and then it is the sequence
       // that carries it - so read whichever is on screen and reassemble.
-      await expect(page.locator('#qr-image')).toBeVisible()
+      await expect(page.locator('qr-invite img')).toBeVisible()
       // Polled, not read once: decoding a dense code off a canvas occasionally
       // sees a frame that has not finished painting and yields null. Retrying
       // does not weaken the assertion - a QR with the wrong contents still
       // never matches.
       await expect.poll(async () => {
         return page.evaluate(async () => {
-          const image = document.getElementById('qr-image')
+          // The code is inside the element's shadow root now.
+        const image = document.getElementById('qr-image').shadowRoot.querySelector('img')
           const first = await window.__libp2pQrTest.decodeQrDataUrl(image.src)
 
           if (first == null) {
@@ -1310,11 +1312,11 @@ test.describe('signed QR WebRTC signaling', () => {
 
       // The link lands in the box before the code is drawn, and a split code
       // has a library to fetch first - so wait for the image, do not race it.
-      await expect(page.locator('#qr-image')).toBeVisible({ timeout: 30000 })
+      await expect(page.locator('qr-invite img')).toBeVisible({ timeout: 30000 })
 
       // Module size decides whether a scan catches. Anything much below the
       // full viewport width is width given away to page margins.
-      const width = await page.locator('#qr-image').evaluate(img => img.clientWidth)
+      const width = await page.locator('qr-invite img').evaluate(img => img.clientWidth)
       expect(width).toBe(390)
 
       expect(pageErrors).toEqual([])

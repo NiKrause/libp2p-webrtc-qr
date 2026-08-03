@@ -380,12 +380,12 @@ input[type='text']:focus {
    surface and quiet zone regardless of the surrounding dark theme.
    Module size is what decides whether a scan catches, so the code is given as
    much width as the layout allows. */
+/* The element owns the code; the page says how big and what colour. Everything
+   here crosses the shadow boundary, which is the only thing that can. */
 #qr-image {
-  width: min(100%, 440px);
-  background: #fff;
-  border-radius: var(--ls-radius-sm);
-  padding: 10px;
-  image-rendering: pixelated;
+  --qr-invite-max-width: 440px;
+  --qr-invite-radius: var(--ls-radius-sm);
+  --qr-invite-caption-color: var(--ls-text-dim);
 }
 
 #scan-status:not(:empty) {
@@ -538,10 +538,10 @@ button.is-busy::before {
      given away to margins, for a code nobody reads but a camera. */
   #qr-image {
     width: 100vw;
-    max-width: none;
     margin-left: calc(50% - 50vw);
-    padding: 8px;
-    border-radius: 0;
+    --qr-invite-max-width: 100vw;
+    --qr-invite-padding: 8px;
+    --qr-invite-radius: 0;
   }
 }
 

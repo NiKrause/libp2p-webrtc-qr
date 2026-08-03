@@ -129,7 +129,8 @@ test.describe('the camera path', () => {
       // Sample what is actually on screen, so the video carries the app's own
       // frames rather than something a test re-encoded from the payload.
       const codes = await shown.evaluate(async () => {
-        const image = document.getElementById('qr-image')
+        // The code is inside the element's shadow root now.
+        const image = document.getElementById('qr-image').shadowRoot.querySelector('img')
         const seen = []
 
         for (let i = 0; i < 24; i++) {

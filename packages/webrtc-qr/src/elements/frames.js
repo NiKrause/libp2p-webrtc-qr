@@ -1,12 +1,11 @@
 /**
- * Multi-frame QR codes, for invites that do not fit one scannable code.
+ * Multi-frame codes, for payloads that do not fit one scannable code.
  *
- * The problem is not the encoder's capacity, it is the camera's. Measured on
- * the live demo with real STUN candidates, a 1122 character invite becomes a
- * 125-module code; rendered edge to edge on a 320px phone that is 2.29 pixels
- * per module, and a second phone cannot read it. The code already fills the
- * screen, so there is no display headroom left - the only remaining lever is
- * the number of modules, and that means splitting the payload.
+ * The problem is not the encoder's capacity, it is the camera's. A 1122
+ * character invite becomes a 125-module code; rendered edge to edge on a 320px
+ * phone that is 2.29 pixels per module, and a second phone cannot read it. Once
+ * the code already fills the screen there is no display headroom left - the only
+ * remaining lever is the number of modules, and that means splitting.
  *
  * BC-UR splits it into parts and, once the pure parts are exhausted, keeps
  * emitting fountain-coded combinations of them. The scanner therefore does not
