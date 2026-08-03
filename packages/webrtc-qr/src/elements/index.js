@@ -10,6 +10,13 @@
  */
 export { QrInviteElement } from './qr-invite.js'
 export { QrScannerElement } from './qr-scanner.js'
+export { QrStatusElement } from './qr-status.js'
+export {
+  DEFAULT_RTC_CONFIGURATION,
+  isGlobalUnicastV6,
+  probeNetwork,
+  summariseNetwork
+} from './network.js'
 export {
   FRAME_INTERVAL_MS,
   MAX_FRAGMENT_BYTES,

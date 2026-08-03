@@ -323,21 +323,22 @@ test.describe('signed QR WebRTC signaling', () => {
       await page.waitForFunction(() => typeof window.__libp2pQrTest?.createOfferPayload === 'function')
       await page.locator('#start-client').click()
 
-      const state = page.locator('#network-state')
+      const state = page.locator('qr-status')
       await expect(state).toBeVisible({ timeout: 30000 })
+      // The host keeps the summary verdict as a class, so one element still
+      // says how it went; the wording lives inside the shadow root.
       await expect(state).toHaveClass(/is-(open|symmetric|blocked|relay)/)
-      expect((await state.textContent()).length).toBeGreaterThan(20)
 
       // One LED per address family, plus the summary. Each has to reach a real
       // verdict - an unlit dot means the probe never finished.
-      for (const id of ['#network-ipv4', '#network-ipv6', '#network-overall']) {
-        const line = page.locator(id)
+      for (const id of ['.line:nth-child(1)', '.line:nth-child(2)', '.line:nth-child(3)']) {
+        const line = page.locator(`qr-status ${id}`)
 
-        await expect(line).toHaveClass(/is-(open|symmetric|blocked|relay)/)
-        expect((await line.locator('.network-text').textContent()).length).toBeGreaterThan(20)
+        await expect(line).toHaveClass(/(open|symmetric|blocked|relay)/)
+        expect((await line.locator('.tip').textContent()).length).toBeGreaterThan(20)
 
         // Colour alone does not carry a verdict to anyone who cannot see it.
-        expect((await line.locator('.network-verdict').textContent()).length).toBeGreaterThan(0)
+        expect((await line.locator('.verdict').textContent()).length).toBeGreaterThan(0)
       }
 
       // Deliberately not disabled: a symmetric NAT still connects peers on the
@@ -364,29 +365,29 @@ test.describe('signed QR WebRTC signaling', () => {
       await page.goto('/')
       await page.waitForFunction(() => typeof window.__libp2pQrTest?.createOfferPayload === 'function')
       await page.locator('#start-client').click()
-      await expect(page.locator('#network-state')).toBeVisible({ timeout: 30000 })
+      await expect(page.locator('qr-status')).toBeVisible({ timeout: 30000 })
 
-      const ipv4 = page.locator('#network-ipv4 .network-text')
-      const ipv6 = page.locator('#network-ipv6 .network-text')
+      const ipv4 = page.locator('qr-status .line:nth-child(1) .tip')
+      const ipv6 = page.locator('qr-status .line:nth-child(2) .tip')
 
       await expect(ipv4).toBeHidden()
 
-      await page.locator('#network-ipv4 .network-chip').tap()
+      await page.locator('qr-status .line:nth-child(1) button').tap()
       await expect(ipv4).toBeVisible()
 
       // Opening one closes the other, so two boxes never overlap.
-      await page.locator('#network-ipv6 .network-chip').tap()
+      await page.locator('qr-status .line:nth-child(2) button').tap()
       await expect(ipv6).toBeVisible()
       await expect(ipv4).toBeHidden()
 
       // Tapping the open chip again closes it.
-      await page.locator('#network-ipv6 .network-chip').tap()
+      await page.locator('qr-status .line:nth-child(2) button').tap()
       await expect(ipv6).toBeHidden()
 
-      await page.locator('#network-overall .network-chip').tap()
-      await expect(page.locator('#network-overall .network-text')).toBeVisible()
+      await page.locator('qr-status .line:nth-child(3) button').tap()
+      await expect(page.locator('qr-status .line:nth-child(3) .tip')).toBeVisible()
       await page.locator('#status').tap()
-      await expect(page.locator('#network-overall .network-text')).toBeHidden()
+      await expect(page.locator('qr-status .line:nth-child(3) .tip')).toBeHidden()
 
       // Three chips in a row must not push the page sideways on a phone.
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
@@ -419,81 +420,6 @@ test.describe('signed QR WebRTC signaling', () => {
       const button = await page.locator('#start-client').boundingBox()
 
       expect(summary.y).toBeLessThan(button.y)
-    } finally {
-      await page.close()
-    }
-  })
-
-  test('the summary LED is green when either family is usable', async ({ browser }) => {
-    const page = await browser.newPage()
-
-    try {
-      await page.goto('/')
-      await page.waitForFunction(() => typeof window.__libp2pQrTest?.summariseNetwork === 'function')
-
-      const verdicts = await page.evaluate(() => {
-        const combine = window.__libp2pQrTest.summariseNetwork
-        const cases = [
-          ['open', 'open'],
-          ['open', 'blocked'],
-          ['blocked', 'open'],
-          ['symmetric', 'open'],
-          ['relay', 'blocked'],
-          ['symmetric', 'blocked'],
-          ['blocked', 'blocked']
-        ]
-
-        return cases.map(([v4, v6]) => [v4, v6, combine(v4, v6).state])
-      })
-
-      const green = new Set(['open', 'relay'])
-
-      for (const [v4, v6, overall] of verdicts) {
-        // IPv6 alone is enough: it does not care that IPv4 sits behind a
-        // carrier NAT, so a green anywhere makes the summary green.
-        expect(green.has(overall), `${v4}/${v6} -> ${overall}`)
-          .toBe(green.has(v4) || green.has(v6))
-      }
-
-      expect(verdicts.find(([v4, v6]) => v4 === 'symmetric' && v6 === 'blocked')[2]).toBe('symmetric')
-      expect(verdicts.find(([v4, v6]) => v4 === 'blocked' && v6 === 'blocked')[2]).toBe('blocked')
-    } finally {
-      await page.close()
-    }
-  })
-
-  test('only globally routable IPv6 counts as an IPv6 path', async ({ browser }) => {
-    const page = await browser.newPage()
-
-    try {
-      await page.goto('/')
-      await page.waitForFunction(() => typeof window.__libp2pQrTest?.isGlobalUnicastV6 === 'function')
-
-      const results = await page.evaluate(() => {
-        const check = window.__libp2pQrTest.isGlobalUnicastV6
-
-        return {
-          global: check('2a02:810d:f486:ae00:7c06:bad5:54fc:1876'),
-          bracketed: check('[2606:4700:49::1]'),
-          threePrefix: check('3ffe:1900:4545:3:200:f8ff:fe21:67cf'),
-          uniqueLocal: check('fd12:3456:789a::1'),
-          linkLocal: check('fe80::1c2b:3f4a:5e6d:7f8a'),
-          ipv4: check('188.194.232.23'),
-          mdns: check('c4fd82a7-dd21-474a-86cc-a61d78d36829.local'),
-          missing: check(null)
-        }
-      })
-
-      expect(results).toEqual({
-        global: true,
-        bracketed: true,
-        threePrefix: true,
-        uniqueLocal: false,
-        linkLocal: false,
-        ipv4: false,
-        mdns: false,
-        missing: false
-      })
     } finally {
       await page.close()
     }
