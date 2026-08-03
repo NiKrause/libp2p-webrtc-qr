@@ -116,6 +116,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # The elements ship as a bundle rather than as source, so it has to exist
+      # before anything that imports them is built. `dist` is not committed.
+      - name: Build the elements bundle
+        run: pnpm --filter @le-space/libp2p-webrtc-qr build
+
       - name: Build demo
         run: pnpm --filter @le-space/libp2p-webrtc-qr-demo build
 
