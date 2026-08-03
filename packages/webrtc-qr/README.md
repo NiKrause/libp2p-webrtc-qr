@@ -145,6 +145,78 @@ Both fields are part of the signed canonical form, so rewriting them
 invalidates the signature instead of extending the payload. Pass `now` to
 either function to test the behaviour without waiting.
 
+## Elements
+
+The connect step, as custom elements, from a separate entry point:
+
+```js
+import '@le-space/libp2p-webrtc-qr/elements'
+```
+
+```html
+<qr-invite value="https://example/#i=…"></qr-invite>
+<qr-scanner id="scan" label="Scan their code"></qr-scanner>
+<qr-status auto></qr-status>
+<qr-peers id="peers"></qr-peers>
+```
+
+| | |
+| --- | --- |
+| `qr-invite` | renders a payload, splits it into an animated BC-UR sequence when one code would be too dense to read |
+| `qr-scanner` | the camera, the scan loop, multi-frame reassembly, and the modal around them |
+| `qr-status` | IPv4, IPv6 and a summary of what this network will allow, before anyone tries |
+| `qr-peers` | who is connected, and how each connection is doing |
+
+The scanner asks the host what a payload means, and keeps looking if the answer
+is no:
+
+```js
+scan.validate = async text => ({ ok: text.includes('#i='), reason: 'That is a reply, not an invite' })
+scan.addEventListener('scan', event => use(event.detail.text))
+await scan.open()
+```
+
+`qr-peers` is told rather than asking - who is connected lives in the
+application's own bookkeeping - and its `disconnect` event is a request, not an
+announcement:
+
+```js
+peers.peers = [{ peerId, state: 'connected' }]
+peers.addEventListener('disconnect', event => drop(event.detail.peerId))
+```
+
+### Theming
+
+Custom properties, because they are the only thing that crosses a shadow
+boundary. Each element documents its own; the shadow root is what stops a host
+stylesheet from reaching in and breaking a code that has to stay scannable.
+
+```css
+qr-invite {
+  --qr-invite-max-width: 320px;
+  --qr-invite-caption-color: #4b5563;
+}
+```
+
+### Two things worth knowing
+
+**It ships as a bundle, and the root does not.** Importing the package root gives
+the transport, the codec and the session as plain source, which you bundle and
+tree-shake like any dependency. The elements are a single pre-bundled browser
+file with nothing left to resolve, because they pull in a QR encoder and a CBOR
+stack that are CommonJS and reach for `Buffer` and `process` - and an
+application that already polyfills those otherwise resolves the same specifier
+two ways and fails its build talking about externals.
+
+**They do not render on a server.** `customElements` does not exist there, so
+under SSR import them where the browser runs:
+
+```js
+onMount(async () => {
+  await import('@le-space/libp2p-webrtc-qr/elements')
+})
+```
+
 ## Vendored upstream code
 
 `src/vendor` copies the `@libp2p/webrtc` internals that upstream does not put in
