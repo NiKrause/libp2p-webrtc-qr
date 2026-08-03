@@ -1,6 +1,6 @@
 {
   "name": "@le-space/libp2p-webrtc-qr",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Relay-free libp2p WebRTC transport that exchanges signed SDP signaling out-of-band as QR codes",
   "type": "module",
   "license": "Apache-2.0 OR MIT",
@@ -22,17 +22,28 @@
     "relay-free"
   ],
   "exports": {
-    ".": "./src/index.js"
+    ".": "./src/index.js",
+    "./elements": "./dist/elements.js"
   },
   "files": [
-    "src"
+    "src",
+    "dist"
   ],
-  "sideEffects": false,
+  "sideEffects": [
+    "./src/elements/*.js"
+  ],
   "scripts": {
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "build": "node scripts/build-elements.mjs",
+    "prepublishOnly": "npm run build"
   },
   "devDependencies": {
-    "@libp2p/crypto": "^5.1.21"
+    "@libp2p/crypto": "^5.1.21",
+    "@ngraveio/bc-ur": "^1.1.13",
+    "buffer": "^6.0.3",
+    "esbuild": "^0.25.0",
+    "jsqr": "^1.4.0",
+    "qrcode": "^1.5.4"
   },
   "dependencies": {
     "@libp2p/interface": "^3.2.4",

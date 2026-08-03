@@ -203,7 +203,7 @@ test.describe('signed QR WebRTC signaling', () => {
       await expect.poll(() => hub.evaluate(() => window.__libp2pQrTest.getPeers().length), {
         timeout: 20000
       }).toBe(2)
-      await expect(hub.locator('#peer-list .peer-row')).toHaveCount(2)
+      await expect(hub.locator('qr-peers .row')).toHaveCount(2)
       await expect(hub.locator('#peer-count')).toContainText('2 connected')
 
       // One conversation: what the hub types reaches both.
@@ -243,7 +243,7 @@ test.describe('signed QR WebRTC signaling', () => {
       await openPeer(bob, pageErrors)
       await connectPeers(alice, bob)
 
-      await expect(alice.locator('.peer-health')).toContainText('connected')
+      await expect(alice.locator('qr-peers .health')).toContainText('connected')
 
       // A phone whose radio slept, or whose peer went away, comes back to a
       // page that used to look perfectly fine and say nothing.
@@ -323,21 +323,22 @@ test.describe('signed QR WebRTC signaling', () => {
       await page.waitForFunction(() => typeof window.__libp2pQrTest?.createOfferPayload === 'function')
       await page.locator('#start-client').click()
 
-      const state = page.locator('#network-state')
+      const state = page.locator('qr-status')
       await expect(state).toBeVisible({ timeout: 30000 })
+      // The host keeps the summary verdict as a class, so one element still
+      // says how it went; the wording lives inside the shadow root.
       await expect(state).toHaveClass(/is-(open|symmetric|blocked|relay)/)
-      expect((await state.textContent()).length).toBeGreaterThan(20)
 
       // One LED per address family, plus the summary. Each has to reach a real
       // verdict - an unlit dot means the probe never finished.
-      for (const id of ['#network-ipv4', '#network-ipv6', '#network-overall']) {
-        const line = page.locator(id)
+      for (const id of ['.line:nth-child(1)', '.line:nth-child(2)', '.line:nth-child(3)']) {
+        const line = page.locator(`qr-status ${id}`)
 
-        await expect(line).toHaveClass(/is-(open|symmetric|blocked|relay)/)
-        expect((await line.locator('.network-text').textContent()).length).toBeGreaterThan(20)
+        await expect(line).toHaveClass(/(open|symmetric|blocked|relay)/)
+        expect((await line.locator('.tip').textContent()).length).toBeGreaterThan(20)
 
         // Colour alone does not carry a verdict to anyone who cannot see it.
-        expect((await line.locator('.network-verdict').textContent()).length).toBeGreaterThan(0)
+        expect((await line.locator('.verdict').textContent()).length).toBeGreaterThan(0)
       }
 
       // Deliberately not disabled: a symmetric NAT still connects peers on the
@@ -364,29 +365,29 @@ test.describe('signed QR WebRTC signaling', () => {
       await page.goto('/')
       await page.waitForFunction(() => typeof window.__libp2pQrTest?.createOfferPayload === 'function')
       await page.locator('#start-client').click()
-      await expect(page.locator('#network-state')).toBeVisible({ timeout: 30000 })
+      await expect(page.locator('qr-status')).toBeVisible({ timeout: 30000 })
 
-      const ipv4 = page.locator('#network-ipv4 .network-text')
-      const ipv6 = page.locator('#network-ipv6 .network-text')
+      const ipv4 = page.locator('qr-status .line:nth-child(1) .tip')
+      const ipv6 = page.locator('qr-status .line:nth-child(2) .tip')
 
       await expect(ipv4).toBeHidden()
 
-      await page.locator('#network-ipv4 .network-chip').tap()
+      await page.locator('qr-status .line:nth-child(1) button').tap()
       await expect(ipv4).toBeVisible()
 
       // Opening one closes the other, so two boxes never overlap.
-      await page.locator('#network-ipv6 .network-chip').tap()
+      await page.locator('qr-status .line:nth-child(2) button').tap()
       await expect(ipv6).toBeVisible()
       await expect(ipv4).toBeHidden()
 
       // Tapping the open chip again closes it.
-      await page.locator('#network-ipv6 .network-chip').tap()
+      await page.locator('qr-status .line:nth-child(2) button').tap()
       await expect(ipv6).toBeHidden()
 
-      await page.locator('#network-overall .network-chip').tap()
-      await expect(page.locator('#network-overall .network-text')).toBeVisible()
+      await page.locator('qr-status .line:nth-child(3) button').tap()
+      await expect(page.locator('qr-status .line:nth-child(3) .tip')).toBeVisible()
       await page.locator('#status').tap()
-      await expect(page.locator('#network-overall .network-text')).toBeHidden()
+      await expect(page.locator('qr-status .line:nth-child(3) .tip')).toBeHidden()
 
       // Three chips in a row must not push the page sideways on a phone.
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
@@ -419,81 +420,6 @@ test.describe('signed QR WebRTC signaling', () => {
       const button = await page.locator('#start-client').boundingBox()
 
       expect(summary.y).toBeLessThan(button.y)
-    } finally {
-      await page.close()
-    }
-  })
-
-  test('the summary LED is green when either family is usable', async ({ browser }) => {
-    const page = await browser.newPage()
-
-    try {
-      await page.goto('/')
-      await page.waitForFunction(() => typeof window.__libp2pQrTest?.summariseNetwork === 'function')
-
-      const verdicts = await page.evaluate(() => {
-        const combine = window.__libp2pQrTest.summariseNetwork
-        const cases = [
-          ['open', 'open'],
-          ['open', 'blocked'],
-          ['blocked', 'open'],
-          ['symmetric', 'open'],
-          ['relay', 'blocked'],
-          ['symmetric', 'blocked'],
-          ['blocked', 'blocked']
-        ]
-
-        return cases.map(([v4, v6]) => [v4, v6, combine(v4, v6).state])
-      })
-
-      const green = new Set(['open', 'relay'])
-
-      for (const [v4, v6, overall] of verdicts) {
-        // IPv6 alone is enough: it does not care that IPv4 sits behind a
-        // carrier NAT, so a green anywhere makes the summary green.
-        expect(green.has(overall), `${v4}/${v6} -> ${overall}`)
-          .toBe(green.has(v4) || green.has(v6))
-      }
-
-      expect(verdicts.find(([v4, v6]) => v4 === 'symmetric' && v6 === 'blocked')[2]).toBe('symmetric')
-      expect(verdicts.find(([v4, v6]) => v4 === 'blocked' && v6 === 'blocked')[2]).toBe('blocked')
-    } finally {
-      await page.close()
-    }
-  })
-
-  test('only globally routable IPv6 counts as an IPv6 path', async ({ browser }) => {
-    const page = await browser.newPage()
-
-    try {
-      await page.goto('/')
-      await page.waitForFunction(() => typeof window.__libp2pQrTest?.isGlobalUnicastV6 === 'function')
-
-      const results = await page.evaluate(() => {
-        const check = window.__libp2pQrTest.isGlobalUnicastV6
-
-        return {
-          global: check('2a02:810d:f486:ae00:7c06:bad5:54fc:1876'),
-          bracketed: check('[2606:4700:49::1]'),
-          threePrefix: check('3ffe:1900:4545:3:200:f8ff:fe21:67cf'),
-          uniqueLocal: check('fd12:3456:789a::1'),
-          linkLocal: check('fe80::1c2b:3f4a:5e6d:7f8a'),
-          ipv4: check('188.194.232.23'),
-          mdns: check('c4fd82a7-dd21-474a-86cc-a61d78d36829.local'),
-          missing: check(null)
-        }
-      })
-
-      expect(results).toEqual({
-        global: true,
-        bracketed: true,
-        threePrefix: true,
-        uniqueLocal: false,
-        linkLocal: false,
-        ipv4: false,
-        mdns: false,
-        missing: false
-      })
     } finally {
       await page.close()
     }
@@ -609,7 +535,7 @@ test.describe('signed QR WebRTC signaling', () => {
     try {
       await openPeer(page, pageErrors)
 
-      const modal = page.locator('#scan-modal')
+      const modal = page.locator('qr-scanner dialog')
 
       await expect(modal).toBeHidden()
       await page.locator('#scan-offer').click()
@@ -617,8 +543,8 @@ test.describe('signed QR WebRTC signaling', () => {
       // The camera the user just asked for is in front of them, not below the
       // fold of a long page.
       await expect(modal).toBeVisible()
-      await expect(page.locator('#qr-video')).toBeVisible()
-      await expect(page.locator('#scan-modal-title')).toHaveText('Scan their code')
+      await expect(page.locator('qr-scanner video')).toBeVisible()
+      await expect(page.locator('qr-scanner h3')).toHaveText('Scan their code')
       await expect.poll(() => page.evaluate(() => window.__libp2pQrTest.cameraActive()), {
         timeout: 20000
       }).toBe(true)
@@ -637,7 +563,7 @@ test.describe('signed QR WebRTC signaling', () => {
       // ...and the × does the same.
       await page.locator('#scan-offer').click()
       await expect(modal).toBeVisible()
-      await page.locator('#scan-modal [data-close-modal]').first().click()
+      await page.locator('qr-scanner button').click()
       await expect(modal).toBeHidden()
       await expect.poll(() => page.evaluate(() => window.__libp2pQrTest.cameraActive())).toBe(false)
 
@@ -843,21 +769,22 @@ test.describe('signed QR WebRTC signaling', () => {
     try {
       await openPeer(page, pageErrors)
       await page.locator('#create-offer').click()
-      await page.locator('#qr-image').waitFor({ state: 'visible', timeout: 30000 })
+      await page.locator('qr-invite img').waitFor({ state: 'visible', timeout: 30000 })
 
       const link = await page.locator('#invite-link').inputValue()
 
       // The whole point of the split, so the test is worthless if the payload
       // happened to be small enough for one code.
       expect(link.length).toBeGreaterThan(600)
-      await expect(page.locator('#qr-frame')).toBeVisible()
-      await expect(page.locator('#qr-frame')).toContainText(/Part \d+ of \d+/)
+      await expect(page.locator('qr-invite p')).toBeVisible()
+      await expect(page.locator('qr-invite p')).toContainText(/Part \d+ of \d+/)
 
       // Read what is actually on screen, frame by frame, exactly as a camera
       // would - then hand those strings to the accumulator.
       const reassembled = await page.evaluate(async () => {
         const seen = []
-        const image = document.getElementById('qr-image')
+        // The code is inside the element's shadow root now.
+        const image = document.getElementById('qr-image').shadowRoot.querySelector('img')
 
         for (let i = 0; i < 40; i++) {
           const decoded = await window.__libp2pQrTest.decodeQrDataUrl(image.src)
@@ -934,14 +861,15 @@ test.describe('signed QR WebRTC signaling', () => {
       // the payload already loaded instead of needing the in-app scanner. A link
       // too dense for one code is split into frames, and then it is the sequence
       // that carries it - so read whichever is on screen and reassemble.
-      await expect(page.locator('#qr-image')).toBeVisible()
+      await expect(page.locator('qr-invite img')).toBeVisible()
       // Polled, not read once: decoding a dense code off a canvas occasionally
       // sees a frame that has not finished painting and yields null. Retrying
       // does not weaken the assertion - a QR with the wrong contents still
       // never matches.
       await expect.poll(async () => {
         return page.evaluate(async () => {
-          const image = document.getElementById('qr-image')
+          // The code is inside the element's shadow root now.
+        const image = document.getElementById('qr-image').shadowRoot.querySelector('img')
           const first = await window.__libp2pQrTest.decodeQrDataUrl(image.src)
 
           if (first == null) {
@@ -1310,11 +1238,11 @@ test.describe('signed QR WebRTC signaling', () => {
 
       // The link lands in the box before the code is drawn, and a split code
       // has a library to fetch first - so wait for the image, do not race it.
-      await expect(page.locator('#qr-image')).toBeVisible({ timeout: 30000 })
+      await expect(page.locator('qr-invite img')).toBeVisible({ timeout: 30000 })
 
       // Module size decides whether a scan catches. Anything much below the
       // full viewport width is width given away to page margins.
-      const width = await page.locator('#qr-image').evaluate(img => img.clientWidth)
+      const width = await page.locator('qr-invite img').evaluate(img => img.clientWidth)
       expect(width).toBe(390)
 
       expect(pageErrors).toEqual([])

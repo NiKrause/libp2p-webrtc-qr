@@ -124,12 +124,13 @@ test.describe('the camera path', () => {
 
       // Only worth running against the shape that failed in the field.
       expect(invite.length).toBeGreaterThan(600)
-      await expect(shown.locator('#qr-frame')).toContainText(/Part \d+ of \d+/)
+      await expect(shown.locator('qr-invite p')).toContainText(/Part \d+ of \d+/)
 
       // Sample what is actually on screen, so the video carries the app's own
       // frames rather than something a test re-encoded from the payload.
       const codes = await shown.evaluate(async () => {
-        const image = document.getElementById('qr-image')
+        // The code is inside the element's shadow root now.
+        const image = document.getElementById('qr-image').shadowRoot.querySelector('img')
         const seen = []
 
         for (let i = 0; i < 24; i++) {
@@ -170,17 +171,17 @@ test.describe('the camera path', () => {
       await expect(scanner.locator('#status')).toContainText('Browser client started')
 
       await scanner.locator('#scan-offer').click()
-      await expect(scanner.locator('#scan-modal')).toBeVisible()
+      await expect(scanner.locator('qr-scanner dialog')).toBeVisible()
 
       // Parts arriving from a camera, not from a helper handing them over.
-      await expect(scanner.locator('#scan-status')).toContainText(/Animated code: \d+ of \d+ parts/, {
+      await expect(scanner.locator('qr-scanner p')).toContainText(/Animated code: \d+ of \d+ parts/, {
         timeout: 60000
       })
 
       // The whole path: frames decoded, parts reassembled, signature verified,
       // and an answer produced - with the modal closing itself on the way.
       await expect(scanner.locator('#invite-box')).toBeVisible({ timeout: 90000 })
-      await expect(scanner.locator('#scan-modal')).toBeHidden()
+      await expect(scanner.locator('qr-scanner dialog')).toBeHidden()
 
       const reply = await scanner.locator('#invite-link').inputValue()
 
@@ -241,10 +242,10 @@ test.describe('the camera path', () => {
       await expect(scanner.locator('#status')).toContainText('Browser client started')
 
       await scanner.locator('#scan-offer').click()
-      await expect(scanner.locator('#scan-modal')).toBeVisible()
+      await expect(scanner.locator('qr-scanner dialog')).toBeVisible()
 
       // It keeps looking, and says so, rather than inventing something.
-      await expect(scanner.locator('#scan-status')).toContainText(/Still looking/, { timeout: 30000 })
+      await expect(scanner.locator('qr-scanner p')).toContainText(/Still looking/, { timeout: 30000 })
       await expect(scanner.locator('#invite-box')).toBeHidden()
     } finally {
       await cameraBrowser?.close()

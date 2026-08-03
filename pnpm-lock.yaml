@@ -164,6 +164,21 @@ importers:
       '@libp2p/crypto':
         specifier: ^5.1.21
         version: 5.1.21
+      '@ngraveio/bc-ur':
+        specifier: ^1.1.13
+        version: 1.1.13
+      buffer:
+        specifier: ^6.0.3
+        version: 6.0.3
+      esbuild:
+        specifier: ^0.25.0
+        version: 0.25.12
+      jsqr:
+        specifier: ^1.4.0
+        version: 1.4.0
+      qrcode:
+        specifier: ^1.5.4
+        version: 1.5.4
 
 packages:
 
