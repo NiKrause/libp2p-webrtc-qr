@@ -203,7 +203,7 @@ test.describe('signed QR WebRTC signaling', () => {
       await expect.poll(() => hub.evaluate(() => window.__libp2pQrTest.getPeers().length), {
         timeout: 20000
       }).toBe(2)
-      await expect(hub.locator('#peer-list .peer-row')).toHaveCount(2)
+      await expect(hub.locator('qr-peers .row')).toHaveCount(2)
       await expect(hub.locator('#peer-count')).toContainText('2 connected')
 
       // One conversation: what the hub types reaches both.
@@ -243,7 +243,7 @@ test.describe('signed QR WebRTC signaling', () => {
       await openPeer(bob, pageErrors)
       await connectPeers(alice, bob)
 
-      await expect(alice.locator('.peer-health')).toContainText('connected')
+      await expect(alice.locator('qr-peers .health')).toContainText('connected')
 
       // A phone whose radio slept, or whose peer went away, comes back to a
       // page that used to look perfectly fine and say nothing.

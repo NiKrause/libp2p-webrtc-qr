@@ -446,38 +446,10 @@ function renderPeers () {
   // place the wake lock has to be kept in step with.
   syncWakeLock(chatStreams.size > 0)
 
-  peerListEl.replaceChildren()
-
-  for (const peerId of chatStreams.keys()) {
-    const row = document.createElement('div')
-    row.className = 'peer-row'
-    row.dataset.peer = peerId
-
-    const name = document.createElement('span')
-    name.className = 'peer-name'
-    name.textContent = shortPeer(peerId)
-    name.title = peerId
-
-    const state = peerConnections.get(peerId)?.connectionState ?? 'connected'
-    const health = document.createElement('span')
-    health.className = `peer-health is-${state}`
-    health.textContent = state === 'disconnected' ? 'reconnecting…' : state
-
-    const drop = document.createElement('button')
-    drop.type = 'button'
-    drop.className = 'peer-drop'
-    drop.textContent = 'Disconnect'
-    drop.setAttribute('aria-label', `Disconnect from ${peerId}`)
-    drop.addEventListener('click', () => {
-      // Closing only the stream left the WebRTC connection open behind it.
-      intentionalDrops.add(peerId)
-      chatStreams.get(peerId)?.close().catch(() => {})
-      peerConnections.get(peerId)?.close()
-    })
-
-    row.append(name, health, drop)
-    peerListEl.appendChild(row)
-  }
+  peerListEl.peers = [...chatStreams.keys()].map(peerId => ({
+    peerId,
+    state: peerConnections.get(peerId)?.connectionState ?? 'connected'
+  }))
 
   peerCountEl.textContent = chatStreams.size === 0
     ? 'No one connected yet.'
@@ -1304,6 +1276,17 @@ createOfferAgainButton.addEventListener('click', () => createInvite(createOfferA
 reconnectButton.addEventListener('click', () => {
   clearReconnectPrompt()
   createInvite(reconnectButton)
+})
+
+// Disconnecting is the host's to do: the element asks, and the list changes
+// when this says it has. Closing only the stream left the WebRTC connection
+// open behind it, which is why both go.
+peerListEl.addEventListener('disconnect', event => {
+  const { peerId } = event.detail
+
+  intentionalDrops.add(peerId)
+  chatStreams.get(peerId)?.close().catch(() => {})
+  peerConnections.get(peerId)?.close()
 })
 
 // Reachable without reopening the folded card: once connected, inviting the

@@ -9,6 +9,7 @@
  *   import '@le-space/libp2p-webrtc-qr/elements'
  */
 export { QrInviteElement } from './qr-invite.js'
+export { QrPeersElement } from './qr-peers.js'
 export { QrScannerElement } from './qr-scanner.js'
 export { QrStatusElement } from './qr-status.js'
 export {

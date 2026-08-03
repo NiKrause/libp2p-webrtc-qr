@@ -776,33 +776,16 @@ button.is-busy::before {
   color: var(--ls-text-dim);
 }
 
-.peer-list:empty {
-  display: none;
-}
-
-.peer-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 9px 14px;
-  margin-bottom: 8px;
-  border: 1px solid var(--ls-bg-3);
-  border-left: 2px solid var(--ls-green);
-  border-radius: 0 var(--ls-radius-sm) var(--ls-radius-sm) 0;
-  background: var(--ls-bg-1);
-}
-
-.peer-name {
-  flex: 1;
-  font-family: var(--ls-font-mono);
-  font-size: 0.8rem;
-  color: var(--ls-green);
-  overflow-wrap: anywhere;
-}
-
-.peer-drop {
-  padding: 4px 12px;
-  font-size: 0.78rem;
+/* The element owns the rows; the page says what they should look like. */
+#peer-list {
+  --qr-peers-background: var(--ls-bg-1);
+  --qr-peers-border: var(--ls-bg-3);
+  --qr-peers-accent: var(--ls-green);
+  --qr-peers-degraded: var(--ls-amber);
+  --qr-peers-lost: var(--ls-red);
+  --qr-peers-muted: var(--ls-text-faint);
+  --qr-peers-radius: var(--ls-radius-sm);
+  --qr-peers-mono: var(--ls-font-mono);
 }
 
 .link-button {
@@ -817,26 +800,6 @@ button.is-busy::before {
   background: none;
   border: none;
   text-decoration: underline;
-}
-
-.peer-health {
-  font-size: 0.72rem;
-  font-family: var(--ls-font-mono);
-  color: var(--ls-text-faint);
-  white-space: nowrap;
-}
-
-.peer-health.is-connected {
-  color: var(--ls-green);
-}
-
-.peer-health.is-disconnected {
-  color: var(--ls-amber);
-}
-
-.peer-health.is-failed,
-.peer-health.is-closed {
-  color: var(--ls-red);
 }
 
 /* ---------- modals ---------- */
