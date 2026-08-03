@@ -29,7 +29,7 @@
   ],
   "sideEffects": false,
   "scripts": {
-    "test": "node --test test/signaling.test.js"
+    "test": "node --test test/*.test.js"
   },
   "devDependencies": {
     "@libp2p/crypto": "^5.1.21"

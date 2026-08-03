@@ -1,25 +1,14 @@
 import { identify, identifyPush } from '@libp2p/identify'
-import { peerIdFromString } from '@libp2p/peer-id'
-import { multiaddr } from '@multiformats/multiaddr'
 import { withBitswap } from '@helia/bitswap'
 import { unixfs } from '@helia/unixfs'
 import { withLibp2p } from '@helia/libp2p'
 import { createHeliaLight } from 'helia'
 import { createLibp2p } from 'libp2p'
 import { fromString, toString } from 'uint8arrays'
-import {
-  createWebRTCUpgradeContext,
-  decodeSignedPayload,
-  encodeSignedPayload,
-  parsePayload,
-  webRTCQR,
-  PAYLOAD_VERSION,
-  QR_TYPE_ANSWER,
-  QR_TYPE_OFFER
-} from '@le-space/libp2p-webrtc-qr'
+import { QRSession, parsePayload, webRTCQR } from '@le-space/libp2p-webrtc-qr'
 
-const ICE_GATHERING_TIMEOUT = 15000
-const CONNECTION_TIMEOUT = 30000
+/** How long to wait for a block. A Helia concern, not a handshake one. */
+const FETCH_TIMEOUT = 30_000
 
 const statusEl = document.getElementById('status')
 const peerIdEl = document.getElementById('peer-id')
@@ -32,9 +21,8 @@ const contentEl = document.getElementById('content')
 let node = null
 let helia = null
 let fs = null
-let offerSession = null
+let session = null
 
-const inboundPeerConnections = new Set()
 const testState = { lastFetched: null }
 
 function log (text) {
@@ -57,21 +45,13 @@ function rtcConfiguration () {
     : { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
 }
 
-function addressFor (peerId) {
-  return multiaddr(`/webrtc/p2p/${peerId}`)
-}
-
-function outboundSessionFor (remotePeerId) {
-  return offerSession?.remotePeerId === remotePeerId ? offerSession.upgradeContext : null
-}
-
 async function start () {
   if (node != null) {
     return node
   }
 
   node = await createLibp2p({
-    transports: [webRTCQR({ getOutboundSession: outboundSessionFor })],
+    transports: [webRTCQR({ getOutboundSession: remotePeerId => session?.getOutboundSession(remotePeerId) ?? null })],
     services: {
       identify: identify(),
       identifyPush: identifyPush()
@@ -96,6 +76,21 @@ async function start () {
   await helia.start()
   fs = unixfs(helia)
 
+  // Everything this example used to spell out by hand - the negotiated init
+  // channel, waiting for `connected` before upgrading, the upgrade direction,
+  // the dial retry - now comes from the package. It was written here and in the
+  // demo separately, and then a third time in an unrelated project.
+  session = new QRSession(node, { rtcConfiguration })
+
+  session.addEventListener('connect', event => {
+    setStatus(`Connected to ${event.detail.peerId}`)
+    log('Bitswap can now reach the other peer.')
+  })
+
+  session.addEventListener('error', event => {
+    setStatus(`Connection failed: ${event.detail.error.message}`)
+  })
+
   peerIdEl.textContent = node.peerId.toString()
   setStatus('Helia node started. Create or paste an offer.')
   log(`Started Helia on libp2p peer ${node.peerId}`)
@@ -103,186 +98,30 @@ async function start () {
   return node
 }
 
-async function waitForIceGathering (peerConnection) {
-  if (peerConnection.iceGatheringState === 'complete') {
-    return
-  }
-
-  await new Promise(resolve => {
-    const timeout = setTimeout(done, ICE_GATHERING_TIMEOUT)
-
-    function done () {
-      clearTimeout(timeout)
-      peerConnection.removeEventListener('icegatheringstatechange', onChange)
-      resolve()
-    }
-
-    function onChange () {
-      if (peerConnection.iceGatheringState === 'complete') {
-        done()
-      }
-    }
-
-    peerConnection.addEventListener('icegatheringstatechange', onChange)
-  })
-}
-
-async function waitForConnected (peerConnection) {
-  if (peerConnection.connectionState === 'connected') {
-    return
-  }
-
-  await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      cleanup()
-      reject(new Error('WebRTC connection timed out'))
-    }, CONNECTION_TIMEOUT)
-
-    function cleanup () {
-      clearTimeout(timeout)
-      peerConnection.removeEventListener('connectionstatechange', onChange)
-    }
-
-    function onChange () {
-      if (peerConnection.connectionState === 'connected') {
-        cleanup()
-        resolve()
-      } else if (['failed', 'closed'].includes(peerConnection.connectionState)) {
-        cleanup()
-        reject(new Error(`WebRTC connection entered state ${peerConnection.connectionState}`))
-      }
-    }
-
-    peerConnection.addEventListener('connectionstatechange', onChange)
-  })
-}
-
 async function createOffer () {
   await start()
-  offerSession?.peerConnection.close()
 
-  const peerConnection = new RTCPeerConnection(rtcConfiguration())
-  const sessionId = crypto.randomUUID()
-  // Negotiated so the remote muxer never adopts this unframed channel.
-  const initDataChannel = peerConnection.createDataChannel('init', { negotiated: true, id: 1023 })
-
-  await peerConnection.setLocalDescription(await peerConnection.createOffer())
-  await waitForIceGathering(peerConnection)
-
-  offerSession = { sessionId, peerConnection, initDataChannel, remotePeerId: null, upgradeContext: null }
-
-  return encodeSignedPayload(node.components.privateKey, {
-    version: PAYLOAD_VERSION,
-    type: QR_TYPE_OFFER,
-    sessionId,
-    peerId: node.peerId.toString(),
-    sdp: peerConnection.localDescription.sdp
-  })
+  return session.createOffer()
 }
 
 async function acceptOffer (text) {
   await start()
-  const offer = await decodeSignedPayload(text, QR_TYPE_OFFER)
 
-  if (offer.peerId === node.peerId.toString()) {
-    throw new Error('This offer belongs to this browser. Use the second browser')
-  }
-
-  const peerConnection = new RTCPeerConnection(rtcConfiguration())
-  const addr = addressFor(offer.peerId)
-  const upgradeContext = createWebRTCUpgradeContext(node.components, peerConnection, addr, {
-    direction: 'inbound'
-  })
-
-  inboundPeerConnections.add(peerConnection)
-
-  await peerConnection.setRemoteDescription({ type: 'offer', sdp: offer.sdp })
-  await peerConnection.setLocalDescription(await peerConnection.createAnswer())
-  await waitForIceGathering(peerConnection)
-
-  // The offering peer only attaches its muxer once it reads this answer, so
-  // upgrade after the connection is actually up.
-  waitForConnected(peerConnection)
-    .then(async () => {
-      await node.components.upgrader.upgradeInbound(upgradeContext.connection, {
-        skipEncryption: true,
-        skipProtection: true,
-        remotePeer: peerIdFromString(offer.peerId),
-        muxerFactory: upgradeContext.muxerFactory,
-        signal: AbortSignal.timeout(CONNECTION_TIMEOUT)
-      })
-
-      setStatus(`Connected to ${offer.peerId}`)
-      log('Bitswap can now reach the other peer.')
-    })
-    .catch(error => {
-      inboundPeerConnections.delete(peerConnection)
-      peerConnection.close()
-      setStatus(`Connection failed: ${error.message}`)
-    })
-
-  return encodeSignedPayload(node.components.privateKey, {
-    version: PAYLOAD_VERSION,
-    type: QR_TYPE_ANSWER,
-    sessionId: offer.sessionId,
-    peerId: node.peerId.toString(),
-    offerPeerId: offer.peerId,
-    sdp: peerConnection.localDescription.sdp
-  })
+  return session.acceptOffer(text)
 }
 
 async function acceptAnswer (text) {
-  if (node == null || offerSession == null) {
-    throw new Error('Create an offer first')
-  }
+  await start()
 
-  const answer = await decodeSignedPayload(text, QR_TYPE_ANSWER)
+  const { peerId } = await session.acceptAnswer(text)
 
-  if (answer.sessionId !== offerSession.sessionId) {
-    throw new Error('The answer belongs to a different QR session')
-  }
+  // Dialing is what triggers the transport's upgrade. Bitswap needs the
+  // connection rather than a protocol stream, so this is the connection dial.
+  await session.dial(peerId)
+  setStatus(`Connected to ${peerId}`)
+  log('Bitswap can now reach the other peer.')
 
-  if (answer.offerPeerId !== node.peerId.toString()) {
-    throw new Error('The answer was not created for this peer')
-  }
-
-  await offerSession.peerConnection.setRemoteDescription({ type: 'answer', sdp: answer.sdp })
-  await waitForConnected(offerSession.peerConnection)
-  offerSession.initDataChannel.close()
-
-  const addr = addressFor(answer.peerId)
-  offerSession.remotePeerId = answer.peerId
-  offerSession.upgradeContext = createWebRTCUpgradeContext(
-    node.components,
-    offerSession.peerConnection,
-    addr,
-    { direction: 'outbound' }
-  )
-
-  // Dialing the connection is what triggers the transport's upgrade. Retry
-  // while the answering peer is still attaching its muxer.
-  let lastError = new Error('The remote peer never accepted a connection')
-
-  for (let attempt = 0; attempt < 15; attempt++) {
-    try {
-      const connection = await node.dial(addr, { signal: AbortSignal.timeout(CONNECTION_TIMEOUT) })
-      await new Promise(resolve => setTimeout(resolve, 200))
-
-      if (connection.status === 'open') {
-        setStatus(`Connected to ${answer.peerId}`)
-        log('Bitswap can now reach the other peer.')
-        return addr.toString()
-      }
-
-      lastError = new Error(`Connection was ${connection.status} right after opening`)
-    } catch (error) {
-      lastError = error
-    }
-
-    await new Promise(resolve => setTimeout(resolve, 300))
-  }
-
-  throw lastError
+  return peerId
 }
 
 async function addFile (name, bytes) {
@@ -306,7 +145,7 @@ async function fetchFile (cidText) {
   // peer. A session would first try content routing to find providers, and this
   // node has no routers at all - the only peer it knows is the one from the QR
   // handshake, which is exactly the peer that has the block.
-  const options = { session: false, signal: AbortSignal.timeout(CONNECTION_TIMEOUT) }
+  const options = { session: false, signal: AbortSignal.timeout(FETCH_TIMEOUT) }
 
   for await (const chunk of fs.cat(cidText, options)) {
     chunks.push(chunk)

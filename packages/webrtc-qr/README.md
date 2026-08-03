@@ -8,10 +8,59 @@ connection. No circuit relay, no signaling server.
 pnpm add @le-space/libp2p-webrtc-qr libp2p @multiformats/multiaddr
 ```
 
+## Session
+
+Start here. `QRSession` owns the handshake, and what it handles is exactly what
+every consumer gets wrong once - this state machine had been written three times
+independently before it lived in the package.
+
+```js
+import { QRSession } from '@le-space/libp2p-webrtc-qr'
+
+const session = new QRSession(node, { rtcConfiguration })
+
+// one side
+const offer = await session.createOffer()               // show this
+const { peerId } = await session.acceptAnswer(reply)
+const stream = await session.dialProtocol(peerId, '/my/protocol/1.0.0')
+
+// the other side
+const answer = await session.acceptOffer(offer)         // show this back
+session.addEventListener('connect', event => { /* event.detail.peerId */ })
+```
+
+`acceptOffer` returns as soon as the answer is signed, because the offering peer
+cannot finish until it reads that answer. The connection completes afterwards and
+reports itself through `connect`, or `error` if it never does.
+
+### What it handles that the transport API does not tell you
+
+- **The init data channel is negotiated.** WebRTC gathers no candidates without a
+  channel, but a normal one fires `datachannel` on the remote and the libp2p
+  muxer adopts that unframed channel as an incoming stream - after which no real
+  protocol stream ever arrives.
+- **The upgrade waits for `connected`, in the right direction.** The offering peer
+  attaches its muxer only when it reads the answer, so upgrading earlier writes
+  an identify stream into a connection with nothing behind it. A wrong
+  `direction` leaves the answering side blind to incoming streams.
+- **The first dial is retried.** Both peers reach `connected` at the same moment,
+  but the answering peer still has to attach its muxer, and anything opened into
+  that gap negotiates and is immediately reset.
+
+`session.forget(peerId)` drops the libp2p connection *and* the offer session for
+a peer. Both have to go: a stale session hands the transport a closed peer
+connection, and the next dial then fails with `Remote closed connection during
+opening`, which points nowhere near the cause.
+
+Errors carry an ICE summary - `local: 6 host, 1 srflx; remote: …; ice: failed` -
+because a failure after clean signalling is almost always about candidate types.
+
 ## Signaling codec
 
-The codec signs a payload with the local libp2p private key and verifies a
-scanned payload against the public key embedded in the Peer ID it claims.
+Used by the session, and exposed for callers that want to sign or verify a
+payload themselves. The codec signs with the local libp2p private key and
+verifies a scanned payload against the public key embedded in the Peer ID it
+claims.
 
 ```js
 import { encodeSignedPayload, decodeSignedPayload, QR_TYPE_OFFER, PAYLOAD_VERSION } from '@le-space/libp2p-webrtc-qr'

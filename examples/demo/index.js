@@ -21,6 +21,7 @@ import { forgetIdentity, loadOrCreateIdentity } from './identity.js'
 import { state as wakeLockState, sync as syncWakeLock } from './wakelock.js'
 import { fromString, toString } from 'uint8arrays'
 import {
+  QRSession,
   compress,
   createWebRTCUpgradeContext,
   decodeSignedPayload,
@@ -33,7 +34,6 @@ import {
 } from '@le-space/libp2p-webrtc-qr'
 
 const CHAT_PROTOCOL = '/libp2p/examples/webrtc-qr-chat/1.0.0'
-const ICE_GATHERING_TIMEOUT = 15000
 const CONNECTION_TIMEOUT = 30000
 // How long the answering peer keeps its side open while waiting for the other
 // person to open the reply. 30 seconds is right for two phones in one room and
@@ -120,11 +120,11 @@ const qrCanvas = document.createElement('canvas')
 const qrCanvasContext = qrCanvas.getContext('2d', { willReadFrequently: true })
 
 let node = null
+let session = null
 let helia = null
 let fs = null
 // Keyed by session id until an answer names the peer, then indexed by peer id
 // as well - an outgoing offer does not know who will take it.
-const offerSessions = new Map()
 const chatStreams = new Map()
 // Kept per peer so the page can say what happened to each connection while it
 // was in the background, instead of going quiet.
@@ -143,7 +143,6 @@ let qrAnimationTimer = null
 let partAccumulator = null
 let receivingParts = false
 
-const inboundPeerConnections = new Set()
 const testState = {
   lastReceivedMessage: null,
   receivedMessages: [],
@@ -236,28 +235,6 @@ function getRtcConfiguration () {
 
 function remoteAddress (peerId) {
   return multiaddr(`/webrtc/p2p/${peerId}`)
-}
-
-/**
- * The *newest* matching session, not the first.
- *
- * Sessions are keyed by session id, so reconnecting to a peer leaves the dead
- * one in the map alongside the new one. Returning the first match handed the
- * transport a closed peer connection and the dial died with "Remote closed
- * connection during opening" - a failure that only became reachable once the
- * Peer ID started surviving a reload, because before that a reconnecting peer
- * never matched an older session.
- */
-function getOutboundSession (remotePeerId) {
-  let newest = null
-
-  for (const session of offerSessions.values()) {
-    if (session.remotePeerId === remotePeerId && (newest == null || session.createdAt >= newest.createdAt)) {
-      newest = session
-    }
-  }
-
-  return newest?.upgradeContext ?? null
 }
 
 function shortPeer (peerId) {
@@ -483,13 +460,39 @@ async function createNode () {
   node = await createLibp2p({
     privateKey: identity.privateKey,
     transports: [
-      webRTCQR({ getOutboundSession })
+      webRTCQR({ getOutboundSession: remotePeerId => session?.getOutboundSession(remotePeerId) ?? null })
     ],
     services: {
       identify: identify(),
       identifyPush: identifyPush(),
       ping: ping()
     }
+  })
+
+  // The handshake state machine lives in the package. What is left here is what
+  // this app does with a connection once it exists.
+  session = new QRSession(node, {
+    rtcConfiguration: getRtcConfiguration,
+    answerWaitTimeout: ANSWER_WAIT_TIMEOUT,
+    connectionTimeout: CONNECTION_TIMEOUT
+  })
+
+  session.addEventListener('connect', event => {
+    const { peerId, peerConnection, direction } = event.detail
+
+    if (direction === 'inbound') {
+      watchConnection(peerId, peerConnection)
+      setStatus(`Connected to ${peerId}`)
+    }
+  })
+
+  session.addEventListener('error', event => {
+    const { error } = event.detail
+
+    setStatus(/timed out/i.test(error.message)
+      ? 'They never opened your reply, so this attempt expired. Ask them for a fresh invite link.'
+      : explain(error))
+    appendLog(`Inbound upgrade failed: ${error.message}`)
   })
 
   // libp2p 3 passes the handler positional arguments, not a single object.
@@ -527,147 +530,16 @@ async function createNode () {
   return node
 }
 
-async function waitForIceGatheringComplete (peerConnection) {
-  if (peerConnection.iceGatheringState === 'complete') {
-    return
-  }
-
-  await new Promise(resolve => {
-    const timeout = setTimeout(done, ICE_GATHERING_TIMEOUT)
-
-    function done () {
-      clearTimeout(timeout)
-      peerConnection.removeEventListener('icegatheringstatechange', onStateChange)
-      resolve()
-    }
-
-    function onStateChange () {
-      if (peerConnection.iceGatheringState === 'complete') {
-        done()
-      }
-    }
-
-    peerConnection.addEventListener('icegatheringstatechange', onStateChange)
-  })
-}
-
-/**
- * Summarise what ICE actually had to work with. A failure after clean signalling
- * is almost always about candidate types, and those are invisible otherwise:
- *
- * - `.local` host candidates are mDNS-obfuscated. Browsers on the same LAN
- *   generally do resolve each other's - a phone and a laptop on one wifi have
- *   been confirmed working - so their presence alone is not a diagnosis.
- * - With only host and srflx on both sides, two peers behind the same router
- *   may need NAT hairpinning, which not every home router does.
- * - `relay` means a TURN server was available. There is none configured here,
- *   so there is no fallback when the pair above finds nothing.
- */
-function describeIce (peerConnection) {
-  const summarise = sdp => {
-    const lines = (sdp ?? '').split(/\r?\n/).filter(line => line.startsWith('a=candidate:'))
-    const types = {}
-
-    for (const line of lines) {
-      const type = line.match(/ typ (\w+)/)?.[1] ?? 'unknown'
-      types[type] = (types[type] ?? 0) + 1
-    }
-
-    const mdns = lines.filter(line => /\s[0-9a-f-]{36}\.local\s/.test(line)).length
-    const summary = Object.entries(types).map(([type, count]) => `${count} ${type}`).join(', ')
-
-    return `${summary || 'none'}${mdns > 0 ? ` (${mdns} mDNS .local)` : ''}`
-  }
-
-  return `local: ${summarise(peerConnection.localDescription?.sdp)}; remote: ${summarise(peerConnection.remoteDescription?.sdp)}; ice: ${peerConnection.iceConnectionState}`
-}
-
-async function waitForConnected (peerConnection, timeoutMs = CONNECTION_TIMEOUT) {
-  if (peerConnection.connectionState === 'connected') {
-    return
-  }
-
-  await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      cleanup()
-      reject(new Error('WebRTC connection timed out'))
-    }, timeoutMs)
-
-    function cleanup () {
-      clearTimeout(timeout)
-      peerConnection.removeEventListener('connectionstatechange', onStateChange)
-    }
-
-    function onStateChange () {
-      if (peerConnection.connectionState === 'connected') {
-        cleanup()
-        resolve()
-        return
-      }
-
-      if (['failed', 'closed'].includes(peerConnection.connectionState)) {
-        cleanup()
-
-        if (peerConnection.connectionState === 'failed') {
-          const summary = describeIce(peerConnection)
-          appendLog(`ICE candidates - ${summary}`)
-
-          if (!summary.includes('relay')) {
-            appendLog('No relay candidate on either side. Networks like mobile data usually need a TURN server - see the readme for ?turn=.')
-          }
-        }
-
-        reject(new Error(`WebRTC connection entered state ${peerConnection.connectionState}`))
-      }
-    }
-
-    peerConnection.addEventListener('connectionstatechange', onStateChange)
-  })
-}
-
 async function createOfferPayload () {
   if (node == null) {
     throw new Error('Start the browser client first')
   }
 
-  const peerConnection = new RTCPeerConnection(getRtcConfiguration())
-  const sessionId = crypto.randomUUID()
-
-  // WebRTC needs at least one data channel before it will gather candidates.
-  // Negotiate it out-of-band so the remote peer never gets a `datachannel`
-  // event for it - otherwise the libp2p muxer adopts this unframed channel as
-  // an incoming stream and the real protocol streams never arrive.
-  const initDataChannel = peerConnection.createDataChannel('init', {
-    negotiated: true,
-    id: 1023
-  })
-
-  const offer = await peerConnection.createOffer()
-  await peerConnection.setLocalDescription(offer)
-  await waitForIceGatheringComplete(peerConnection)
-
-  if (peerConnection.localDescription == null) {
-    throw new Error('WebRTC did not create an SDP offer')
-  }
-
-  offerSessions.set(sessionId, {
-    sessionId,
-    createdAt: Date.now(),
-    peerConnection,
-    initDataChannel,
-    remotePeerId: null,
-    upgradeContext: null
-  })
+  const offer = await session.createOffer()
 
   updateControls()
 
-  return signPayload({
-    version: PAYLOAD_VERSION,
-    type: QR_TYPE_OFFER,
-    sessionId,
-    peerId: node.peerId.toString(),
-    sdp: peerConnection.localDescription.sdp
-  })
+  return offer
 }
 
 async function acceptOfferPayload (text) {
@@ -675,182 +547,39 @@ async function acceptOfferPayload (text) {
     throw new Error('Start the browser client first')
   }
 
-  const offerPayload = await parseAndVerifyPayload(text, QR_TYPE_OFFER)
+  const parsed = await parseAndVerifyPayload(text, QR_TYPE_OFFER)
 
-  if (offerPayload.peerId === node.peerId.toString()) {
+  // Checked here rather than in the package because the useful wording depends
+  // on what the user is looking at, and here that is two browser windows.
+  if (parsed.peerId === node.peerId.toString()) {
     throw new Error('This offer belongs to this browser. Scan it with the second browser instead')
   }
 
-  const peerConnection = new RTCPeerConnection(getRtcConfiguration())
-  const addr = remoteAddress(offerPayload.peerId)
-  // This peer answered the offer, so it is the inbound side of the session.
-  const upgradeContext = createWebRTCUpgradeContext(node.components, peerConnection, addr, {
-    direction: 'inbound'
-  })
-
-  inboundPeerConnections.add(peerConnection)
-  peerConnection.addEventListener('connectionstatechange', () => {
-    if (peerConnection.connectionState === 'connected') {
-      setStatus(`WebRTC connected to ${offerPayload.peerId}`)
-    }
-
-    if (peerConnection.connectionState === 'closed') {
-      inboundPeerConnections.delete(peerConnection)
-    }
-  })
-
-  try {
-    await peerConnection.setRemoteDescription({
-      type: 'offer',
-      sdp: offerPayload.sdp
-    })
-
-    const answer = await peerConnection.createAnswer()
-    await peerConnection.setLocalDescription(answer)
-    await waitForIceGatheringComplete(peerConnection)
-
-    if (peerConnection.localDescription == null) {
-      throw new Error('WebRTC did not create an SDP answer')
-    }
-
-    // Upgrade only once the WebRTC connection is actually up. The offering peer
-    // does not attach its own muxer until it scans this answer, so upgrading
-    // any earlier means our identify stream is written into a connection with
-    // nothing on the other end - which tears the whole session down.
-    const upgraded = waitForConnected(peerConnection, ANSWER_WAIT_TIMEOUT)
-      .then(async () => {
-        await node.components.upgrader.upgradeInbound(upgradeContext.connection, {
-          skipEncryption: true,
-          skipProtection: true,
-          // Skipping encryption means no handshake tells libp2p who the remote
-          // is, so it insists on being told. The peer id comes from the offer
-          // whose signature we just verified - that is what makes it safe.
-          remotePeer: peerIdFromString(offerPayload.peerId),
-          muxerFactory: upgradeContext.muxerFactory,
-          signal: AbortSignal.timeout(CONNECTION_TIMEOUT)
-        })
-
-        watchConnection(offerPayload.peerId, peerConnection)
-        setStatus(`Connected to ${offerPayload.peerId}`)
-      })
-
-    upgraded.catch(error => {
-      if (peerConnection.connectionState === 'failed') {
-        appendLog(`ICE candidates - ${describeIce(peerConnection)}`)
-      }
-
-      inboundPeerConnections.delete(peerConnection)
-      peerConnection.close()
-      setStatus(/timed out/i.test(error.message)
-        ? 'They never opened your reply, so this attempt expired. Ask them for a fresh invite link.'
-        : explain(error))
-      appendLog(`Inbound upgrade failed: ${error.message}`)
-    })
-
-    return signPayload({
-      version: PAYLOAD_VERSION,
-      type: QR_TYPE_ANSWER,
-      sessionId: offerPayload.sessionId,
-      peerId: node.peerId.toString(),
-      offerPeerId: offerPayload.peerId,
-      sdp: peerConnection.localDescription.sdp
-    })
-  } catch (error) {
-    inboundPeerConnections.delete(peerConnection)
-    peerConnection.close()
-    throw error
-  }
+  return session.acceptOffer(text)
 }
 
 async function acceptAnswerPayload (text) {
-  if (node == null || offerSessions.size === 0) {
+  if (node == null || session.offers.size === 0) {
     throw new Error('Create an offer before accepting an answer')
   }
 
-  const answerPayload = await parseAndVerifyPayload(text, QR_TYPE_ANSWER)
+  const parsed = await parseAndVerifyPayload(text, QR_TYPE_ANSWER)
 
-  if (answerPayload.peerId === node.peerId.toString()) {
+  if (parsed.peerId === node.peerId.toString()) {
     throw new Error('This answer belongs to this browser. Use the answer QR created by the second browser')
   }
 
-  const session = offerSessions.get(answerPayload.sessionId)
+  const { peerId, address, ageSeconds } = await session.acceptAnswer(text)
 
-  if (session == null) {
-    throw new Error('The answer belongs to a different QR session')
-  }
-
-  if (answerPayload.offerPeerId !== node.peerId.toString()) {
-    throw new Error('The answer was not created for this peer')
-  }
-
-  const ageSeconds = Math.round((Date.now() - session.createdAt) / 1000)
   appendLog(`Reply arrived ${ageSeconds}s after the invite was created.`)
 
-  await session.peerConnection.setRemoteDescription({
-    type: 'answer',
-    sdp: answerPayload.sdp
-  })
+  const stream = await session.dialProtocol(peerId, CHAT_PROTOCOL)
 
-  try {
-    await waitForConnected(session.peerConnection)
-  } catch (error) {
-    // A NAT keeps a UDP binding open for as long as packets flow through it -
-    // often well under two minutes. The candidates in an invite that sat in a
-    // chat can point at bindings that no longer exist, and the connection then
-    // fails with signalling that went through perfectly.
-    throw ageSeconds > 90
-      ? new Error(`WebRTC connection failed after the invite sat for ${ageSeconds}s - it was probably too old. Create a new invite and send it straight away.`)
-      : error
-  }
-  session.initDataChannel.close()
+  watchConnection(peerId, session.offers.get(parsed.sessionId)?.peerConnection)
+  attachChatStream(stream, peerId, `Connected to ${shortPeer(peerId)}.`)
+  setStatus(`Connected to ${peerId}`)
 
-  const addr = remoteAddress(answerPayload.peerId)
-  session.remotePeerId = answerPayload.peerId
-  session.upgradeContext = createWebRTCUpgradeContext(
-    node.components,
-    session.peerConnection,
-    addr,
-    { direction: 'outbound' }
-  )
-
-  const stream = await dialChatStream(addr)
-
-  watchConnection(answerPayload.peerId, session.peerConnection)
-  attachChatStream(stream, answerPayload.peerId, `Connected to ${shortPeer(answerPayload.peerId)}.`)
-  setStatus(`Connected to ${answerPayload.peerId}`)
-
-  return addr.toString()
-}
-
-/**
- * Both peers reach the WebRTC `connected` state at the same moment, but the
- * answering peer still has to attach its libp2p muxer. A stream opened into
- * that gap negotiates and is then reset, so retry until one stays open.
- */
-async function dialChatStream (addr, attempts = 15) {
-  let lastError = new Error('The remote peer never accepted a chat stream')
-
-  for (let attempt = 0; attempt < attempts; attempt++) {
-    try {
-      const stream = await node.dialProtocol(addr, CHAT_PROTOCOL, {
-        signal: AbortSignal.timeout(CONNECTION_TIMEOUT)
-      })
-
-      await new Promise(resolve => setTimeout(resolve, 200))
-
-      if (stream.status === 'open') {
-        return stream
-      }
-
-      lastError = new Error(`Chat stream was ${stream.status} right after opening`)
-    } catch (error) {
-      lastError = error
-    }
-
-    await new Promise(resolve => setTimeout(resolve, 300))
-  }
-
-  throw lastError
+  return address.toString()
 }
 
 function watchConnection (peerId, peerConnection) {
@@ -1061,32 +790,6 @@ async function meshConnect (target, via) {
  * with it, so there is nothing left to keep. A fresh connection is both simpler
  * and, from the user's side, indistinguishable - no camera either way.
  */
-/**
- * Close what libp2p still believes it has to a peer.
- *
- * A dead `RTCPeerConnection` leaves the libp2p connection on top of it
- * registered, and since the Peer ID now survives a reload, the peer coming back
- * arrives under the *same* id. libp2p then matches the new session against the
- * stale one and the dial dies with "Remote closed connection during opening" -
- * a failure that could not happen while every reconnect brought a new identity.
- */
-function dropStaleConnections (peerId) {
-  for (const connection of node?.getConnections() ?? []) {
-    if (connection.remotePeer.toString() === peerId) {
-      connection.close().catch(() => {})
-    }
-  }
-
-  // And the session that produced it, or the map grows a dead entry per drop
-  // and `getOutboundSession` has more to sift through on every dial.
-  for (const [sessionId, session] of offerSessions) {
-    if (session.remotePeerId === peerId) {
-      session.peerConnection?.close()
-      offerSessions.delete(sessionId)
-    }
-  }
-}
-
 function resumeAfterLoss (peerId) {
   meshAttempts.delete(peerId)
 
@@ -1094,7 +797,7 @@ function resumeAfterLoss (peerId) {
   // than this. Until it does, `meshConnect` would see the peer as still
   // connected and decline to do anything - so record the truth now.
   chatStreams.delete(peerId)
-  dropStaleConnections(peerId)
+  session.forget(peerId)
   renderPeers()
 
   const routes = [...chatStreams.keys()].filter(id => id !== peerId)
@@ -1210,7 +913,7 @@ async function handleMeshMessage (message, from) {
         if (chatStreams.has(parsed.peerId)) {
           appendLog(`${shortPeer(parsed.peerId)} is re-establishing a connection we still thought was up.`)
           chatStreams.delete(parsed.peerId)
-          dropStaleConnections(parsed.peerId)
+          session.forget(parsed.peerId)
           renderPeers()
         }
 
@@ -1773,7 +1476,7 @@ function updateControls () {
   createOfferButton.disabled = !started
   createOfferAgainButton.disabled = !started
   scanOfferButton.disabled = !started
-  scanAnswerButton.disabled = !started || offerSessions.size === 0
+  scanAnswerButton.disabled = !started || session.offers.size === 0
   processPayloadButton.disabled = !started || payloadFrom(payloadDisplay.value).length === 0
   copyPayloadButton.disabled = inviteLinkEl.value.length === 0
 }
@@ -2339,7 +2042,7 @@ window.__libp2pQrTest = {
 handoff?.addEventListener('message', async event => {
   const { kind, payload } = event.data ?? {}
 
-  if (kind !== 'reply' || offerSessions.size === 0) {
+  if (kind !== 'reply' || session.offers.size === 0) {
     return
   }
 
