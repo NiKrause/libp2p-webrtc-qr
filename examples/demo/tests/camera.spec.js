@@ -124,7 +124,7 @@ test.describe('the camera path', () => {
 
       // Only worth running against the shape that failed in the field.
       expect(invite.length).toBeGreaterThan(600)
-      await expect(shown.locator('#qr-frame')).toContainText(/Part \d+ of \d+/)
+      await expect(shown.locator('qr-invite p')).toContainText(/Part \d+ of \d+/)
 
       // Sample what is actually on screen, so the video carries the app's own
       // frames rather than something a test re-encoded from the payload.
