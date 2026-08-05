@@ -18,14 +18,19 @@ Each QR payload carries an SDP description, a session id and the sender's libp2p
 Peer ID. It is signed with the sender's libp2p private key and verified against
 the public key embedded in that Peer ID before the SDP is accepted.
 
-The signature is what makes it safe to skip the usual libp2p connection
-encryption handshake: the SDP contains the DTLS fingerprint, so signing the SDP
-binds the WebRTC session to the Peer ID - the same idea that `certhash` uses in
-WebRTC-Direct. A tampered payload fails verification before any dial happens.
+The signature is what makes it safe to skip the usual libp2p Noise handshake.
+DTLS still encrypts - that never goes away - but in WebRTC, Noise is there to
+*authenticate*, and signing the SDP has already done that: the SDP contains the
+DTLS fingerprint, so a valid signature binds the WebRTC session to the Peer ID,
+the same idea that `certhash` uses in WebRTC-Direct. A tampered payload fails
+verification before any dial happens.
+[`docs/connection-security.md`](docs/connection-security.md) works through this
+in full, including when it stops being safe.
 
 Payloads are deflate-compressed before rendering so the code stays inside the
-size a phone camera can still resolve. Above that budget the UI falls back to
-copy/paste.
+size a phone camera can still resolve. One that still does not fit is split into
+an animated BC-UR sequence rather than sent to copy/paste - fountain-coded, so
+frames can be read in any order and a missed one costs nothing.
 
 ```
 Browser A                             Browser B

@@ -331,7 +331,9 @@ test.describe('signed QR WebRTC signaling', () => {
 
       // One LED per address family, plus the summary. Each has to reach a real
       // verdict - an unlit dot means the probe never finished.
-      for (const id of ['.line:nth-child(1)', '.line:nth-child(2)', '.line:nth-child(3)']) {
+      // Five rows now: browser and camera either side of the two families, with
+      // the summary last.
+      for (const id of [1, 2, 3, 4, 5].map(row => `.line:nth-child(${row})`)) {
         const line = page.locator(`qr-status ${id}`)
 
         await expect(line).toHaveClass(/(open|symmetric|blocked|relay)/)
@@ -367,29 +369,32 @@ test.describe('signed QR WebRTC signaling', () => {
       await page.locator('#start-client').click()
       await expect(page.locator('qr-status')).toBeVisible({ timeout: 30000 })
 
-      const ipv4 = page.locator('qr-status .line:nth-child(1) .tip')
-      const ipv6 = page.locator('qr-status .line:nth-child(2) .tip')
+      // browser, IPv4, IPv6, camera, summary - so the two families are the
+      // second and third chips rather than the first and second.
+      const chip = row => page.locator(`qr-status .line:nth-child(${row}) button`)
+      const tip = row => page.locator(`qr-status .line:nth-child(${row}) .tip`)
 
-      await expect(ipv4).toBeHidden()
+      await expect(tip(2)).toBeHidden()
 
-      await page.locator('qr-status .line:nth-child(1) button').tap()
-      await expect(ipv4).toBeVisible()
+      await chip(2).tap()
+      await expect(tip(2)).toBeVisible()
 
       // Opening one closes the other, so two boxes never overlap.
-      await page.locator('qr-status .line:nth-child(2) button').tap()
-      await expect(ipv6).toBeVisible()
-      await expect(ipv4).toBeHidden()
+      await chip(3).tap()
+      await expect(tip(3)).toBeVisible()
+      await expect(tip(2)).toBeHidden()
 
       // Tapping the open chip again closes it.
-      await page.locator('qr-status .line:nth-child(2) button').tap()
-      await expect(ipv6).toBeHidden()
+      await chip(3).tap()
+      await expect(tip(3)).toBeHidden()
 
-      await page.locator('qr-status .line:nth-child(3) button').tap()
-      await expect(page.locator('qr-status .line:nth-child(3) .tip')).toBeVisible()
+      // ...and tapping anywhere else does too.
+      await chip(5).tap()
+      await expect(tip(5)).toBeVisible()
       await page.locator('#status').tap()
-      await expect(page.locator('qr-status .line:nth-child(3) .tip')).toBeHidden()
+      await expect(tip(5)).toBeHidden()
 
-      // Three chips in a row must not push the page sideways on a phone.
+      // Five chips in a row must not push the page sideways on a phone.
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
       expect(overflow).toBeLessThanOrEqual(0)
     } finally {

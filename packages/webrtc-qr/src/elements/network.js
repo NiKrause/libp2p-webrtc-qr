@@ -156,3 +156,62 @@ export async function probeNetwork (rtcConfiguration = DEFAULT_RTC_CONFIGURATION
 
   return { ipv4, ipv6, overall: summariseNetwork(ipv4, ipv6) }
 }
+
+/**
+ * Whether this browser can do WebRTC at all.
+ *
+ * Cheap and side-effect free, and worth asking before anything else: a browser
+ * without it fails every later check for a reason that has nothing to do with
+ * the network. Playwright's WebKit build for Linux is the case that makes this
+ * more than theoretical.
+ */
+export function probeBrowser () {
+  if (typeof RTCPeerConnection !== 'function') {
+    return { state: 'blocked', text: 'This browser has no WebRTC. Nothing here can connect.' }
+  }
+
+  // A peer connection that cannot open a data channel is no use either, and
+  // that is a separate capability rather than a given.
+  try {
+    const probe = new RTCPeerConnection({ iceServers: [] })
+    const channel = probe.createDataChannel('probe', { negotiated: true, id: 1023 })
+
+    channel.close()
+    probe.close()
+  } catch (error) {
+    return { state: 'blocked', text: `WebRTC data channels are unavailable: ${error.message}` }
+  }
+
+  return { state: 'open', text: 'WebRTC and data channels are available.' }
+}
+
+/**
+ * Whether the camera is usable, without asking for it.
+ *
+ * Deliberately does not call `getUserMedia`: a readiness panel that triggers a
+ * permission prompt has made a decision on the user's behalf. The Permissions
+ * API answers the question passively, and "not asked yet" is a normal state
+ * rather than a fault - which is why it is amber and not red.
+ */
+export async function probeCamera () {
+  if (navigator.mediaDevices?.getUserMedia == null) {
+    return { state: 'blocked', text: 'This browser offers no camera access. Codes can still be pasted.' }
+  }
+
+  try {
+    const permission = await navigator.permissions?.query({ name: 'camera' })
+
+    if (permission?.state === 'granted') {
+      return { state: 'open', text: 'Camera access is granted.' }
+    }
+
+    if (permission?.state === 'denied') {
+      return { state: 'blocked', text: 'Camera access is blocked. Codes can still be pasted.' }
+    }
+  } catch {
+    // Firefox rejects a camera permission query outright rather than answering
+    // it, so an unknown answer is the normal case here and not a failure.
+  }
+
+  return { state: 'symmetric', text: 'Camera not asked for yet - scanning will request it.' }
+}

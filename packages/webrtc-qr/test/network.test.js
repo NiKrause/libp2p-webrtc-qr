@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { isGlobalUnicastV6, summariseNetwork } from '../src/elements/network.js'
+import { isGlobalUnicastV6, probeBrowser, probeCamera, summariseNetwork } from '../src/elements/network.js'
 
 /**
  * The two pure parts of the network check.
@@ -54,4 +54,24 @@ test('only globally routable IPv6 counts', () => {
   assert.equal(isGlobalUnicastV6('188.194.232.23'), false)
   assert.equal(isGlobalUnicastV6('c4fd82a7-dd21-474a-86cc-a61d78d36829.local'), false)
   assert.equal(isGlobalUnicastV6(null), false)
+})
+
+test('a browser without WebRTC is reported as blocked, not guessed at', () => {
+  // Node has no RTCPeerConnection, which is exactly the shape of the case this
+  // exists for: Playwright's WebKit build for Linux has none either.
+  const verdict = probeBrowser()
+
+  assert.equal(verdict.state, 'blocked')
+  assert.match(verdict.text, /no WebRTC/i)
+})
+
+test('a camera nobody has been asked about is amber, not red', async () => {
+  // No mediaDevices in Node, so this covers the unsupported branch. The
+  // distinction that matters is elsewhere and is asserted by the wording: not
+  // having asked yet is a normal state, and painting it red would report a
+  // fault where there is none.
+  const verdict = await probeCamera()
+
+  assert.equal(verdict.state, 'blocked')
+  assert.match(verdict.text, /pasted/)
 })
