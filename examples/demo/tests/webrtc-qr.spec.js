@@ -538,9 +538,30 @@ test.describe('signed QR WebRTC signaling', () => {
     const pageErrors = []
 
     try {
+      // Watch what the browser actually handed out, rather than whether the
+      // dialog closed. A modal can close over a track that is still live, and
+      // that is the failure users report as spyware: the camera light stays on
+      // with nothing on screen to explain it.
+      await page.addInitScript(() => {
+        window.__cameraTracks = []
+        const media = navigator.mediaDevices
+
+        if (media?.getUserMedia) {
+          const original = media.getUserMedia.bind(media)
+
+          media.getUserMedia = async constraints => {
+            const stream = await original(constraints)
+            window.__cameraTracks.push(...stream.getTracks())
+            return stream
+          }
+        }
+      })
+
       await openPeer(page, pageErrors)
 
       const modal = page.locator('qr-scanner dialog')
+      const cameraLive = () =>
+        page.evaluate(() => window.__cameraTracks.some(track => track.readyState === 'live'))
 
       await expect(modal).toBeHidden()
       await page.locator('#scan-offer').click()
@@ -550,15 +571,17 @@ test.describe('signed QR WebRTC signaling', () => {
       await expect(modal).toBeVisible()
       await expect(page.locator('qr-scanner video')).toBeVisible()
       await expect(page.locator('qr-scanner h3')).toHaveText('Scan their code')
-      await expect.poll(() => page.evaluate(() => window.__libp2pQrTest.cameraActive()), {
+      await expect.poll(() => page.evaluate(() => window.__libp2pQrTest.scannerOpen()), {
         timeout: 20000
       }).toBe(true)
+      await expect.poll(cameraLive, { timeout: 20000 }).toBe(true)
 
       // Escape is a close path the app never sees, so it is the one most likely
       // to leak a camera track.
       await page.keyboard.press('Escape')
       await expect(modal).toBeHidden()
-      await expect.poll(() => page.evaluate(() => window.__libp2pQrTest.cameraActive())).toBe(false)
+      await expect.poll(() => page.evaluate(() => window.__libp2pQrTest.scannerOpen())).toBe(false)
+      await expect.poll(cameraLive).toBe(false)
 
       // Focus goes back where it came from, which `showModal()` handles - the
       // assertion is here so replacing it with a hand-rolled modal cannot
@@ -570,7 +593,31 @@ test.describe('signed QR WebRTC signaling', () => {
       await expect(modal).toBeVisible()
       await page.locator('qr-scanner button').click()
       await expect(modal).toBeHidden()
-      await expect.poll(() => page.evaluate(() => window.__libp2pQrTest.cameraActive())).toBe(false)
+      await expect.poll(() => page.evaluate(() => window.__libp2pQrTest.scannerOpen())).toBe(false)
+      await expect.poll(cameraLive).toBe(false)
+
+      // The path with no close at all: a framework unmounts the element while
+      // the camera is running, so only disconnectedCallback can release it.
+      //
+      // Asserting on the track would prove nothing here. Chromium ends a fake
+      // device's track when the <video> consuming it leaves the document, so
+      // that assertion passes just as well with the release deleted - checked
+      // by deleting it. What only the release produces is a detached element
+      // holding no stream, so that is what this asserts.
+      await page.locator('#scan-offer').click()
+      await expect(modal).toBeVisible()
+      await expect.poll(cameraLive, { timeout: 20000 }).toBe(true)
+
+      const releasedOnDetach = await page.evaluate(() => {
+        const scanner = document.querySelector('qr-scanner')
+
+        scanner.remove()
+
+        return scanner.shadowRoot.querySelector('video').srcObject == null
+      })
+
+      expect(releasedOnDetach).toBe(true)
+      await expect.poll(cameraLive).toBe(false)
 
       expect(pageErrors).toEqual([])
     } finally {
