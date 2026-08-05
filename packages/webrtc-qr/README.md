@@ -131,6 +131,10 @@ await node.components.upgrader.upgradeInbound(context.connection, {
 
 ## Why encryption is skipped
 
+[`docs/connection-security.md`](../../docs/connection-security.md) is the long
+version: where encryption comes from, where authentication comes from, and when
+this is *not* safe.
+
 `skipEncryption` is safe here **only because the SDP was signed**. The SDP
 carries the DTLS fingerprint, so a valid signature binds the DTLS session to the
 Peer ID - the same binding `certhash` provides in WebRTC-Direct. If you accept
@@ -164,7 +168,7 @@ import '@le-space/libp2p-webrtc-qr/elements'
 | --- | --- |
 | `qr-invite` | renders a payload, splits it into an animated BC-UR sequence when one code would be too dense to read |
 | `qr-scanner` | the camera, the scan loop, multi-frame reassembly, and the modal around them |
-| `qr-status` | IPv4, IPv6 and a summary of what this network will allow, before anyone tries |
+| `qr-status` | what this network will allow, before anyone tries |
 | `qr-peers` | who is connected, and how each connection is doing |
 
 The scanner asks the host what a payload means, and keeps looking if the answer
@@ -175,6 +179,18 @@ scan.validate = async text => ({ ok: text.includes('#i='), reason: 'That is a re
 scan.addEventListener('scan', event => use(event.detail.text))
 await scan.open()
 ```
+
+`qr-status` picks its own rows. The default is the two address families and a
+summary; `rows` takes any subset of `browser ipv4 ipv6 camera overall` in any
+order:
+
+```html
+<qr-status auto rows="browser ipv4 ipv6 camera overall"></qr-status>
+```
+
+`browser` and `camera` are cheap - one throwaway `RTCPeerConnection` and a
+Permissions API query - and neither touches the camera itself, so adding them
+does not raise a permission prompt on load.
 
 `qr-peers` is told rather than asking - who is connected lives in the
 application's own bookkeeping - and its `disconnect` event is a request, not an

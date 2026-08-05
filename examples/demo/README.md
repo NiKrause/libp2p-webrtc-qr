@@ -189,19 +189,34 @@ two chunks, and most invites never need it. The main bundle grows by 1.8 kB
 gzipped. It is fetched in the background as soon as the peer starts, so the code
 is not waiting on a download when the invite is created.
 
-## What the three LEDs mean
+## What the five LEDs mean
 
 Starting the peer runs a throwaway `RTCPeerConnection` against both STUN servers
 and reads the candidates per address family:
 
 | LED | Green when |
 | --- | --- |
+| Browser | `RTCPeerConnection` exists and a negotiated data channel can be opened |
 | IPv4 | one reflexive port for the family - the mapping does not change per destination |
 | IPv6 | STUN answered from a global unicast address (`2000::/3`) |
-| Result | either of the two is green |
+| Camera | camera permission is already granted |
+| Result | either address family is green |
 
 Either family being usable is enough, so the summary is green if either one is.
 Amber means only peers on this same network are reachable.
+
+Which chips appear is the host's choice - `rows="browser ipv4 ipv6 camera
+overall"` here, the two families and the summary by default. The two ends of the
+row answer questions the middle cannot: a browser with no WebRTC at all fails
+before any network question is meaningful, and a scan that never starts is
+usually a camera permission rather than anything about connectivity.
+
+The camera chip reads the Permissions API and never calls `getUserMedia`.
+Checking by *asking* would raise the permission prompt this chip exists to
+report on, and would do it at page load, before anyone pressed Scan. So a
+browser that does not expose camera permission state - Safari, today - reports
+amber and says the answer is unknown until you try. Amber here is honest
+ignorance, not a warning.
 
 The base address behind a reflexive candidate is masked - every engine reports
 `raddr 0.0.0.0 rport 0` - so candidates can only be grouped by family. That has

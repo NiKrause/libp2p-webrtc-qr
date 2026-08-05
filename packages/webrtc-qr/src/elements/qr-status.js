@@ -1,4 +1,4 @@
-import { DEFAULT_RTC_CONFIGURATION, probeNetwork } from './network.js'
+import { DEFAULT_RTC_CONFIGURATION, probeBrowser, probeCamera, probeNetwork } from './network.js'
 
 /**
  * `<qr-status>` - what this network will let you do, before anyone tries.
@@ -27,7 +27,20 @@ const VERDICTS = {
   blocked: 'none'
 }
 
-const ROWS = [['ipv4', 'IPv4'], ['ipv6', 'IPv6'], ['overall', 'Result']]
+const LABELS = {
+  browser: 'Browser',
+  ipv4: 'IPv4',
+  ipv6: 'IPv6',
+  camera: 'Camera',
+  overall: 'Result'
+}
+
+/**
+ * The network rows only, unless a consumer asks for more. Adding rows by
+ * default would shift what every existing caller renders, and a readiness panel
+ * that silently grows is one nobody can write a test against.
+ */
+const DEFAULT_ROWS = ['ipv4', 'ipv6', 'overall']
 
 const STYLE = `
   :host {
@@ -135,7 +148,10 @@ const STYLE = `
 `
 
 export class QrStatusElement extends HTMLElement {
+  static observedAttributes = ['rows']
+
   #rows = {}
+  #keys = DEFAULT_ROWS
   #result = null
   #dismiss = null
 
@@ -152,8 +168,16 @@ export class QrStatusElement extends HTMLElement {
     style.textContent = STYLE
     list.className = 'rows'
     list.setAttribute('role', 'status')
+    this.__list = list
+    root.append(style, list)
+    this.#build()
+  }
 
-    for (const [key, label] of ROWS) {
+  #build () {
+    this.__list.replaceChildren()
+    this.#rows = {}
+
+    for (const key of this.#keys) {
       const line = document.createElement('div')
       const chip = document.createElement('button')
       const name = document.createElement('span')
@@ -163,20 +187,27 @@ export class QrStatusElement extends HTMLElement {
       line.className = 'line'
       chip.type = 'button'
       chip.setAttribute('aria-expanded', 'false')
-      name.textContent = label
+      name.textContent = LABELS[key] ?? key
       verdict.className = 'verdict'
       tip.className = 'tip'
       tip.setAttribute('role', 'tooltip')
 
       chip.append(name, verdict)
       line.append(chip, tip)
-      list.append(line)
+      this.__list.append(line)
       chip.addEventListener('click', () => this.#toggle(chip))
 
       this.#rows[key] = { line, chip, verdict, tip }
     }
+  }
 
-    root.append(style, list)
+  attributeChangedCallback () {
+    const requested = (this.getAttribute('rows') ?? '').trim()
+
+    this.#keys = requested.length > 0
+      ? requested.split(/\s+/).filter(key => key in LABELS)
+      : DEFAULT_ROWS
+    this.#build()
   }
 
   get result () {
@@ -238,12 +269,23 @@ export class QrStatusElement extends HTMLElement {
    * log it, or decide something on the strength of it.
    */
   async probe () {
-    const result = await probeNetwork(this.rtcConfiguration)
+    const network = await probeNetwork(this.rtcConfiguration)
+    const result = {
+      ...network,
+      // Asked for only when displayed. The camera query is passive but still a
+      // question, and the browser check builds a peer connection.
+      ...(this.#keys.includes('browser') ? { browser: probeBrowser() } : {}),
+      ...(this.#keys.includes('camera') ? { camera: await probeCamera() } : {})
+    }
 
     this.#result = result
 
-    for (const [key] of ROWS) {
+    for (const key of this.#keys) {
       const row = this.#rows[key]
+
+      if (row == null || result[key] == null) {
+        continue
+      }
 
       row.line.className = `line ${result[key].state}`
       row.verdict.textContent = VERDICTS[result[key].state] ?? ''

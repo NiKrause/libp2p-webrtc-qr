@@ -1498,9 +1498,11 @@ window.__libp2pQrTest = {
   needsAnimation,
   looksLikeUrPart,
   wakeLockState,
-  // Whether a camera track is still held. A modal that closes without releasing
-  // it leaves the phone's camera light on and the user rightly alarmed.
-  cameraActive: () => scanModalEl.isOpen,
+  // Whether the scanner modal is on screen. Deliberately *not* named after the
+  // camera: it reports the dialog, and a dialog that has closed says nothing
+  // about whether the track behind it was released. The test measures that
+  // separately, by watching what getUserMedia handed out.
+  scannerOpen: () => scanModalEl.isOpen,
   createOfferPayload,
   acceptOfferPayload,
   acceptAnswerPayload,

@@ -331,7 +331,9 @@ test.describe('signed QR WebRTC signaling', () => {
 
       // One LED per address family, plus the summary. Each has to reach a real
       // verdict - an unlit dot means the probe never finished.
-      for (const id of ['.line:nth-child(1)', '.line:nth-child(2)', '.line:nth-child(3)']) {
+      // Five rows now: browser and camera either side of the two families, with
+      // the summary last.
+      for (const id of [1, 2, 3, 4, 5].map(row => `.line:nth-child(${row})`)) {
         const line = page.locator(`qr-status ${id}`)
 
         await expect(line).toHaveClass(/(open|symmetric|blocked|relay)/)
@@ -367,29 +369,32 @@ test.describe('signed QR WebRTC signaling', () => {
       await page.locator('#start-client').click()
       await expect(page.locator('qr-status')).toBeVisible({ timeout: 30000 })
 
-      const ipv4 = page.locator('qr-status .line:nth-child(1) .tip')
-      const ipv6 = page.locator('qr-status .line:nth-child(2) .tip')
+      // browser, IPv4, IPv6, camera, summary - so the two families are the
+      // second and third chips rather than the first and second.
+      const chip = row => page.locator(`qr-status .line:nth-child(${row}) button`)
+      const tip = row => page.locator(`qr-status .line:nth-child(${row}) .tip`)
 
-      await expect(ipv4).toBeHidden()
+      await expect(tip(2)).toBeHidden()
 
-      await page.locator('qr-status .line:nth-child(1) button').tap()
-      await expect(ipv4).toBeVisible()
+      await chip(2).tap()
+      await expect(tip(2)).toBeVisible()
 
       // Opening one closes the other, so two boxes never overlap.
-      await page.locator('qr-status .line:nth-child(2) button').tap()
-      await expect(ipv6).toBeVisible()
-      await expect(ipv4).toBeHidden()
+      await chip(3).tap()
+      await expect(tip(3)).toBeVisible()
+      await expect(tip(2)).toBeHidden()
 
       // Tapping the open chip again closes it.
-      await page.locator('qr-status .line:nth-child(2) button').tap()
-      await expect(ipv6).toBeHidden()
+      await chip(3).tap()
+      await expect(tip(3)).toBeHidden()
 
-      await page.locator('qr-status .line:nth-child(3) button').tap()
-      await expect(page.locator('qr-status .line:nth-child(3) .tip')).toBeVisible()
+      // ...and tapping anywhere else does too.
+      await chip(5).tap()
+      await expect(tip(5)).toBeVisible()
       await page.locator('#status').tap()
-      await expect(page.locator('qr-status .line:nth-child(3) .tip')).toBeHidden()
+      await expect(tip(5)).toBeHidden()
 
-      // Three chips in a row must not push the page sideways on a phone.
+      // Five chips in a row must not push the page sideways on a phone.
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
       expect(overflow).toBeLessThanOrEqual(0)
     } finally {
@@ -533,9 +538,30 @@ test.describe('signed QR WebRTC signaling', () => {
     const pageErrors = []
 
     try {
+      // Watch what the browser actually handed out, rather than whether the
+      // dialog closed. A modal can close over a track that is still live, and
+      // that is the failure users report as spyware: the camera light stays on
+      // with nothing on screen to explain it.
+      await page.addInitScript(() => {
+        window.__cameraTracks = []
+        const media = navigator.mediaDevices
+
+        if (media?.getUserMedia) {
+          const original = media.getUserMedia.bind(media)
+
+          media.getUserMedia = async constraints => {
+            const stream = await original(constraints)
+            window.__cameraTracks.push(...stream.getTracks())
+            return stream
+          }
+        }
+      })
+
       await openPeer(page, pageErrors)
 
       const modal = page.locator('qr-scanner dialog')
+      const cameraLive = () =>
+        page.evaluate(() => window.__cameraTracks.some(track => track.readyState === 'live'))
 
       await expect(modal).toBeHidden()
       await page.locator('#scan-offer').click()
@@ -545,15 +571,17 @@ test.describe('signed QR WebRTC signaling', () => {
       await expect(modal).toBeVisible()
       await expect(page.locator('qr-scanner video')).toBeVisible()
       await expect(page.locator('qr-scanner h3')).toHaveText('Scan their code')
-      await expect.poll(() => page.evaluate(() => window.__libp2pQrTest.cameraActive()), {
+      await expect.poll(() => page.evaluate(() => window.__libp2pQrTest.scannerOpen()), {
         timeout: 20000
       }).toBe(true)
+      await expect.poll(cameraLive, { timeout: 20000 }).toBe(true)
 
       // Escape is a close path the app never sees, so it is the one most likely
       // to leak a camera track.
       await page.keyboard.press('Escape')
       await expect(modal).toBeHidden()
-      await expect.poll(() => page.evaluate(() => window.__libp2pQrTest.cameraActive())).toBe(false)
+      await expect.poll(() => page.evaluate(() => window.__libp2pQrTest.scannerOpen())).toBe(false)
+      await expect.poll(cameraLive).toBe(false)
 
       // Focus goes back where it came from, which `showModal()` handles - the
       // assertion is here so replacing it with a hand-rolled modal cannot
@@ -565,7 +593,31 @@ test.describe('signed QR WebRTC signaling', () => {
       await expect(modal).toBeVisible()
       await page.locator('qr-scanner button').click()
       await expect(modal).toBeHidden()
-      await expect.poll(() => page.evaluate(() => window.__libp2pQrTest.cameraActive())).toBe(false)
+      await expect.poll(() => page.evaluate(() => window.__libp2pQrTest.scannerOpen())).toBe(false)
+      await expect.poll(cameraLive).toBe(false)
+
+      // The path with no close at all: a framework unmounts the element while
+      // the camera is running, so only disconnectedCallback can release it.
+      //
+      // Asserting on the track would prove nothing here. Chromium ends a fake
+      // device's track when the <video> consuming it leaves the document, so
+      // that assertion passes just as well with the release deleted - checked
+      // by deleting it. What only the release produces is a detached element
+      // holding no stream, so that is what this asserts.
+      await page.locator('#scan-offer').click()
+      await expect(modal).toBeVisible()
+      await expect.poll(cameraLive, { timeout: 20000 }).toBe(true)
+
+      const releasedOnDetach = await page.evaluate(() => {
+        const scanner = document.querySelector('qr-scanner')
+
+        scanner.remove()
+
+        return scanner.shadowRoot.querySelector('video').srcObject == null
+      })
+
+      expect(releasedOnDetach).toBe(true)
+      await expect.poll(cameraLive).toBe(false)
 
       expect(pageErrors).toEqual([])
     } finally {
