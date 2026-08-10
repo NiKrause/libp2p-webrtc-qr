@@ -61,7 +61,17 @@ pnpm test    # unit + both e2e suites, on Chromium, Firefox and WebKit
 - **The e2e suite runs with `?ice=host`**, which exercises the loopback path.
   Real ICE with STUN candidates produces larger SDP, and therefore larger QR
   payloads, than the suite measures. Measured on the live demo: 933 characters
-  host-only, 1057 with STUN, against a 2200 budget.
+  host-only, 1057 with STUN, against a 2200 budget - and **266 characters** for
+  the same offer as a compact (v3) payload, which is what the connect step
+  produces by default. The compact figure barely moves with STUN, because it
+  carries candidates as 7 or 19 bytes each rather than as SDP lines.
+- **What a smaller payload buys is one code, not a sparser one.** Above 600
+  characters the invite is split into a BC-UR animation whose frames are small
+  by construction, so a v2 payload draws several codes of roughly the same
+  density rather than one dense code. Measured in the browser: compact 284
+  characters in **1** frame of 65 modules, v2 994 characters in **5** frames of
+  69. The difference a person feels is a single glance instead of holding a
+  phone steady through a sequence.
 - **WebKit's WebRTC is only verified on macOS.** Playwright's WebKit build for
   Linux has no working WebRTC, so CI runs every WebKit spec that does not need
   a peer connection and skips the ones that do. Chromium and Firefox are

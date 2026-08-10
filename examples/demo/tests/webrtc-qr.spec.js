@@ -820,6 +820,11 @@ test.describe('signed QR WebRTC signaling', () => {
 
     try {
       await openPeer(page, pageErrors)
+      // A compact payload fits one static code, which is the point of it - so
+      // this test asks for the long format explicitly rather than hoping the
+      // payload is big. Turning the box off is also the only way a person meets
+      // an older peer, so the path is worth keeping exercised either way.
+      await page.locator('#compact-payload').uncheck()
       await page.locator('#create-offer').click()
       await page.locator('qr-invite img').waitFor({ state: 'visible', timeout: 30000 })
 
@@ -1303,6 +1308,72 @@ test.describe('signed QR WebRTC signaling', () => {
     }
   })
 
+  test('the compact payload fits one code where the full one needs an animation', async ({ page, browserName }) => {
+    skipWithoutWebRTC(test, browserName)
+
+    const pageErrors = []
+
+    await openPeer(page, pageErrors)
+
+    // Measured, and the measurement corrected a claim rather than confirming it.
+    //
+    // "A smaller payload draws a sparser code" is only true up to 600
+    // characters. Above that <qr-invite> splits into a BC-UR sequence, and every
+    // frame in that sequence is small by construction - so a v2 payload does not
+    // draw a *denser* code than a compact one, it draws several codes of about
+    // the same density, one after another.
+    //
+    // The benefit is therefore not a sparser symbol. It is that the invitation
+    // fits in **one** symbol at all: a single glance instead of holding a phone
+    // steady through an animation. That is what this test pins down.
+    const measure = async () => {
+      await page.evaluate(() => {
+        window.__render = new Promise(resolve => {
+          document.querySelector('qr-invite')
+            .addEventListener('render', event => resolve(event.detail), { once: true })
+        })
+      })
+      await createInvite(page)
+      return page.evaluate(() => window.__render)
+    }
+
+    const compact = await measure()
+
+    // The invite modal is open over the setup card, so the checkbox behind it is
+    // not clickable until it is dismissed.
+    await page.keyboard.press('Escape')
+    await expect(page.locator('#invite-box')).toBeHidden()
+    await page.locator('#compact-payload').uncheck()
+
+    const full = await measure()
+
+    // Recorded, so a regression that quietly grows the payload is visible in the
+    // log rather than only when it crosses a threshold.
+    console.log(
+      `compact: ${compact.characters} chars, ${compact.modules} modules, ${compact.frames} frame(s)\n` +
+      `v2:      ${full.characters} chars, ${full.modules} modules, ${full.frames} frame(s)`
+    )
+
+    // The payload claim of #6: an order of magnitude, or close to it.
+    expect(compact.characters).toBeLessThan(full.characters / 3)
+
+    // The claim that actually matters at a counter. One static code against a
+    // multi-frame animation - this is the difference a person feels, and it is
+    // the one the character count is a proxy for.
+    expect(compact.frames).toBe(1)
+    expect(full.frames).toBeGreaterThan(1)
+
+    // Module counts are recorded above and deliberately not asserted against each
+    // other. Comparing one whole code against one frame of five is not a
+    // like-for-like measurement - a frame of five is small because it is a fifth,
+    // not because the format is better - and the numbers say so: on Firefox,
+    // which gathers more candidates, the compact code is 73 modules against 69
+    // per animation frame. Larger, and still the easier code to scan, because
+    // there is one of it.
+
+    expect(pageErrors).toEqual([])
+  })
+
   test('transfers a dropped file over bitswap and offers it as a download', async ({ browser, browserName }) => {
     skipWithoutWebRTC(test, browserName)
 
@@ -1342,6 +1413,97 @@ test.describe('signed QR WebRTC signaling', () => {
     }
   })
 
+  test('the short code is a quarter the size, and the box is what decides', async ({ browser }) => {
+    const page = await browser.newPage()
+    const pageErrors = []
+
+    try {
+      await openPeer(page, pageErrors)
+
+      // Default on, because a sparser code is the entire point: it scans from
+      // further away, at worse angles, off dimmer screens.
+      await expect(page.locator('#compact-payload')).toBeChecked()
+
+      await page.locator('#create-offer').click()
+      await expect(page.locator('#invite-box')).toBeVisible({ timeout: 30000 })
+      await expect.poll(() => page.locator('#invite-link').inputValue()).toMatch(/#i=q3/)
+
+      const compact = (await page.locator('#invite-link').inputValue()).length
+
+      // The invite is a modal, so the page behind it is inert - which is the
+      // point of a modal and the reason the box cannot simply be clicked.
+      await page.keyboard.press('Escape')
+      await expect(page.locator('#invite-box')).toBeHidden()
+
+      await page.locator('#compact-payload').uncheck()
+      await page.locator('#create-offer').click()
+
+      // Not `.not.toMatch(/q3/)`: the field is emptied while the next invite
+      // gathers, and an empty string does not match either - so that poll
+      // passes instantly on nothing at all, which is exactly what it did.
+      await expect.poll(
+        async () => {
+          const value = await page.locator('#invite-link').inputValue()
+          return value.includes('#i=') && !value.includes('#i=q3')
+        },
+        { timeout: 30000 }
+      ).toBe(true)
+
+      const full = (await page.locator('#invite-link').inputValue()).length
+
+      // Printed, not just asserted: the number is what the whole change is for,
+      // and a regression that doubled it while staying under a generous ceiling
+      // would otherwise pass unnoticed.
+      console.log(`invite link: ${compact} characters compact, ${full} full`)
+
+      expect(compact).toBeLessThan(full / 2)
+      expect(compact).toBeLessThan(400)
+    } finally {
+      await page.close()
+      expect(pageErrors).toEqual([])
+    }
+  })
+
+  test('rejects a compact offer whose fingerprint was altered', async ({ browser }) => {
+    const offerer = await browser.newPage()
+    const answerer = await browser.newPage()
+    const pageErrors = []
+
+    try {
+      await openPeer(offerer, pageErrors)
+      await openPeer(answerer, pageErrors)
+
+      const offerPayload = await offerer.evaluate(() => window.__libp2pQrTest.createOfferPayload())
+
+      expect(offerPayload.startsWith('q3:')).toBe(true)
+
+      // Byte 2 is the first byte of the DTLS fingerprint. This is the field the
+      // whole security argument rests on - a valid signature over it is what
+      // binds the WebRTC session to the Peer ID and lets the transport skip the
+      // Noise handshake. Flipping one bit of it has to be fatal, and it has to
+      // be fatal *here*, in the app, not only in a unit test.
+      const bytes = Buffer.from(offerPayload.slice('q3:'.length), 'base64url')
+
+      bytes[2] ^= 1
+
+      const tampered = `q3:${bytes.toString('base64url')}`
+      const errorMessage = await answerer.evaluate(async offer => {
+        try {
+          await window.__libp2pQrTest.acceptOfferPayload(offer)
+          return null
+        } catch (error) {
+          return error.message
+        }
+      }, tampered)
+
+      expect(errorMessage).toContain('signature is invalid')
+    } finally {
+      await offerer.close()
+      await answerer.close()
+      expect(pageErrors).toEqual([])
+    }
+  })
+
   test('rejects a modified signed offer', async ({ browser }) => {
     const offerer = await browser.newPage()
     const answerer = await browser.newPage()
@@ -1350,6 +1512,11 @@ test.describe('signed QR WebRTC signaling', () => {
     try {
       await openPeer(offerer, pageErrors)
       await openPeer(answerer, pageErrors)
+
+      // The v2 shape: this tamper works by editing the transported SDP, which a
+      // compact payload does not have. Both formats have to stay guarded, so
+      // this one asks for v2 and the test above covers v3.
+      await offerer.locator('#compact-payload').uncheck()
 
       const offerPayload = await offerer.evaluate(() => {
         return window.__libp2pQrTest.createOfferPayload()

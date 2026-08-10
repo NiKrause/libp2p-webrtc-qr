@@ -117,6 +117,9 @@ test.describe('the camera path', () => {
       await shown.waitForFunction(() => typeof window.__libp2pQrTest?.createOfferPayload === 'function')
       await shown.locator('#start-client').click()
       await expect(shown.locator('#status')).toContainText('Browser client started')
+      // The animated path is what this test exists for, and a compact payload
+      // fits one static code - so ask for the long format on purpose.
+      await shown.locator('#compact-payload').uncheck()
       await shown.locator('#create-offer').click()
       await shown.locator('#invite-box[open]').waitFor({ timeout: 40000 })
 

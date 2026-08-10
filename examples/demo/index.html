@@ -165,6 +165,16 @@
             <button id="scan-offer" disabled>Scan their code</button>
           </div>
 
+          <!-- On by default: a shorter code is a sparser code, and a sparse code
+               is what scans from across a table rather than from 10cm away. Off
+               is for meeting a peer on 0.6.0 or older, which cannot read the
+               compact format. Reading is never affected - this browser accepts
+               both formats whatever the box says. -->
+          <label class="option">
+            <input id="compact-payload" type="checkbox" checked>
+            <span>Short code <small>(smaller QR; older peers need this off)</small></span>
+          </label>
+
           <!-- The way in for someone whose link did not open the page by itself.
                It is the rarer case, so it stays folded until it is needed. -->
           <details class="paste-fallback">
