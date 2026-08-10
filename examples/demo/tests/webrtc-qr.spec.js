@@ -1326,9 +1326,18 @@ test.describe('signed QR WebRTC signaling', () => {
 
       // Bitswap needs wantlist round trips between two browser nodes, and the
       // CI runner carries the whole serialised suite. It takes ~11s locally.
-      await expect.poll(async () => {
-        return receiver.evaluate(() => window.__libp2pQrTest.getReceivedFiles().length)
-      }, { timeout: 120000 }).toBe(1)
+      // TEMPORARY DIAGNOSTIC
+      let got = 0
+      for (let k = 0; k < 40 && got === 0; k++) {
+        await receiver.waitForTimeout(3000)
+        got = await receiver.evaluate(() => window.__libp2pQrTest.getReceivedFiles().length)
+      }
+      if (got === 0) {
+        console.log('FAILDUMP sender=' + JSON.stringify(await sender.evaluate(() => window.__libp2pQrTest.diagnose())))
+        console.log('FAILDUMP receiver=' + JSON.stringify(await receiver.evaluate(() => window.__libp2pQrTest.diagnose())))
+        console.log('FAILDUMP errors=' + JSON.stringify(pageErrors.slice(0, 6)))
+      }
+      expect(got).toBe(1)
 
       const downloaded = await receiver.evaluate(value => {
         return window.__libp2pQrTest.readReceivedFile(value)
@@ -1401,5 +1410,27 @@ test.describe('signed QR WebRTC signaling', () => {
     } finally {
       await page.close()
     }
+  })
+
+  test('a consumer can translate the status rows without losing the others', async ({ page }) => {
+    // The proof that #51 actually landed, at the element rather than at the
+    // helper: the labels were module constants with no way in, and the demo
+    // never noticed because the demo is English.
+    await page.goto('/')
+    await page.locator('#start-client').click()
+    await expect(page.locator('qr-status')).toBeVisible({ timeout: 30000 })
+
+    const label = row => page.locator(`qr-status .line:nth-child(${row}) button span:first-child`)
+
+    await expect(label(1)).toHaveText('Browser')
+
+    await page.evaluate(() => {
+      document.querySelector('qr-status').strings = { camera: 'Kamera' }
+    })
+
+    // The one that was translated, and the ones that were not.
+    await expect(page.locator('qr-status .line button span:first-child').nth(3)).toHaveText('Kamera')
+    await expect(label(1)).toHaveText('Browser')
+    await expect(label(2)).toHaveText('IPv4')
   })
 })
