@@ -8,7 +8,16 @@ export {
   QR_TYPE_ANSWER,
   compress,
   decompress,
-  parsePayload,
   encodeSignedPayload,
   decodeSignedPayload
 } from './signaling.js'
+export {
+  COMPACT_PREFIX,
+  COMPACT_VERSION,
+  decodeCompactPayload,
+  encodeCompactPayload,
+  isCompactPayload
+} from './compact.js'
+// Deliberately the format-aware one, not signaling.js's: a host routing a
+// scanned code must never be handed a parser that only knows one format.
+export { parsePayload, decodePayload } from './payload.js'

@@ -1,5 +1,15 @@
 import { mergeStrings, resolveText } from './strings.js'
 import QRCode from 'qrcode'
+
+/** @param {string} text */
+function moduleCount (text) {
+  try {
+    return QRCode.create(text, { errorCorrectionLevel: 'M' }).modules.size
+  } catch {
+    // Never fail a render over a diagnostic.
+    return null
+  }
+}
 import { MAX_FRAGMENT_BYTES, STATIC_QR_MAX_LENGTH, createFrameSource } from './frames.js'
 
 /**
@@ -165,12 +175,15 @@ export class QrInviteElement extends HTMLElement {
 
       this.#image.src = url
       this.#caption.hidden = true
-      this.dispatchEvent(new CustomEvent('render', { detail: { frames: 1 } }))
+      this.dispatchEvent(new CustomEvent('render', {
+        detail: { frames: 1, modules: moduleCount(value), characters: value.length }
+      }))
       return
     }
 
     const source = await createFrameSource(value, { maxFragmentBytes: MAX_FRAGMENT_BYTES })
-    const rendered = [await this.#toDataUrl(source.next())]
+    const first = source.next()
+    const rendered = [await this.#toDataUrl(first)]
 
     if (token !== this.#renderToken) {
       return
@@ -182,7 +195,9 @@ export class QrInviteElement extends HTMLElement {
     this.#image.src = rendered[0]
     this.#caption.hidden = false
     this.#caption.textContent = this.#captionFor(0, source.total)
-    this.dispatchEvent(new CustomEvent('render', { detail: { frames: source.total } }))
+    this.dispatchEvent(new CustomEvent('render', {
+      detail: { frames: source.total, modules: moduleCount(first), characters: value.length }
+    }))
 
     const tick = async () => {
       if (token !== this.#renderToken) {
@@ -227,6 +242,17 @@ export class QrInviteElement extends HTMLElement {
       : resolveText(this.#strings.recovery)
   }
 
+  /**
+   * How dense the code actually is.
+   *
+   * Reported because it is the thing that decides whether a code scans, and
+   * because character counts do not answer it: QR packs uppercase alphanumeric
+   * at 5.5 bits per character and everything else at 8, so a shorter payload in
+   * the wrong alphabet can need a *larger* symbol. A caller measuring the
+   * benefit of a smaller payload should measure this, not the string length.
+   *
+   * Side length in modules: 21 for version 1, 177 for version 40.
+   */
   #toDataUrl (text) {
     return QRCode.toDataURL(text, {
       errorCorrectionLevel: 'M',

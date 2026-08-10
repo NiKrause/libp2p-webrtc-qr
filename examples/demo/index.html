@@ -165,6 +165,16 @@
             <button id="scan-offer" disabled>Scan their code</button>
           </div>
 
+          <!-- Off by default while issue #6 is open: a connection built from a
+               reconstructed SDP goes silent under load often enough that a
+               smaller code is not worth it. Reading is never affected - this
+               browser accepts both formats whatever the box says - so turning
+               it on only changes what this device hands out. -->
+          <label class="option">
+            <input id="compact-payload" type="checkbox">
+            <span>Short code <small>(experimental; one code instead of an animation)</small></span>
+          </label>
+
           <!-- The way in for someone whose link did not open the page by itself.
                It is the rarer case, so it stays folded until it is needed. -->
           <details class="paste-fallback">

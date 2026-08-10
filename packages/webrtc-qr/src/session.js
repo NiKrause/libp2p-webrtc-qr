@@ -2,12 +2,16 @@ import { peerIdFromString } from '@libp2p/peer-id'
 import { multiaddr } from '@multiformats/multiaddr'
 import { createWebRTCUpgradeContext } from './transport.js'
 import {
-  PAYLOAD_VERSION,
-  QR_TYPE_ANSWER,
-  QR_TYPE_OFFER,
-  decodeSignedPayload,
-  encodeSignedPayload
-} from './signaling.js'
+  decodeAnswer,
+  decodeOffer,
+  encodeAnswer,
+  encodeOffer,
+  newSessionId,
+  replyFormatFor,
+  setLocalDescription,
+  setRemoteDescription
+} from './payload.js'
+import { QR_TYPE_ANSWER, QR_TYPE_OFFER } from './signaling.js'
 
 /**
  * The session state machine that drives the transport.
@@ -47,6 +51,23 @@ const DEFAULTS = {
   answerWaitTimeout: 6 * 60 * 1000,
   dialAttempts: 15,
   dialRetryDelay: 300,
+  /**
+   * Produce compact (v3) payloads - one static code instead of an animated
+   * sequence, and about a quarter the characters.
+   *
+   * **Off by default, and not because the format is unfinished.** A connection
+   * built from a reconstructed SDP goes silent under load: measured in isolated
+   * worktrees, four of eight runs left both peers holding an open stream that
+   * carried no bytes, against zero of eight on v2. The cause is not understood
+   * (NiKrause/libp2p-webrtc-qr#6), and a code a quarter the size is not worth a
+   * connection that fails half the time under load.
+   *
+   * *Reading* is unconditional and unaffected: a peer accepts either format
+   * whatever this says, so turning it on is safe on the receiving side today.
+   * Set `true` to opt in - useful for measuring, and for a controlled setting
+   * where load is not a factor.
+   */
+  compact: false,
   /** A stream can report open and be reset a moment later. Look again. */
   dialSettleDelay: 200
 }
@@ -192,15 +213,22 @@ export class QRSession extends EventTarget {
     return newest?.upgradeContext ?? null
   }
 
-  /** Create a signed offer, and hold the peer connection until it is answered. */
-  async createOffer () {
+  /**
+   * Create a signed offer, and hold the peer connection until it is answered.
+   *
+   * `{ compact: false }` produces a v2 payload for this offer only - for a host
+   * that knows it is inviting an older peer, and for tests that need the large
+   * payload the animated code exists for.
+   */
+  async createOffer (options = {}) {
+    const compact = options.compact ?? this.options.compact
     const peerConnection = new RTCPeerConnection(this.#rtcConfiguration())
-    const sessionId = crypto.randomUUID()
+    const sessionId = newSessionId(compact)
     // Negotiated, so the remote never sees a `datachannel` event for it.
     const initDataChannel = peerConnection.createDataChannel('init', { negotiated: true, id: 1023 })
 
     try {
-      await peerConnection.setLocalDescription(await peerConnection.createOffer())
+      await setLocalDescription(peerConnection, await peerConnection.createOffer(), compact)
       await waitForIceGathering(peerConnection, this.options.iceGatheringTimeout)
 
       if (peerConnection.localDescription == null) {
@@ -216,12 +244,12 @@ export class QRSession extends EventTarget {
         upgradeContext: null
       })
 
-      return await encodeSignedPayload(this.node.components.privateKey, {
-        version: PAYLOAD_VERSION,
-        type: QR_TYPE_OFFER,
-        sessionId,
+      return await encodeOffer({
+        privateKey: this.node.components.privateKey,
         peerId: this.node.peerId.toString(),
-        sdp: peerConnection.localDescription.sdp
+        sessionId,
+        sdp: peerConnection.localDescription.sdp,
+        compact
       })
     } catch (error) {
       peerConnection.close()
@@ -238,7 +266,10 @@ export class QRSession extends EventTarget {
    * reports itself through the `connect` event - or `error` if it never does.
    */
   async acceptOffer (text) {
-    const offer = await decodeSignedPayload(text, QR_TYPE_OFFER)
+    const offer = await decodeOffer(text)
+    // Answer in the format the offer arrived in, not in this peer's preference -
+    // an offerer that sent v2 cannot read a v3 answer.
+    const compact = replyFormatFor(text)
 
     if (offer.peerId === this.node.peerId.toString()) {
       throw new SessionError('This offer was created by this peer')
@@ -254,8 +285,8 @@ export class QRSession extends EventTarget {
     this.inbound.add(peerConnection)
 
     try {
-      await peerConnection.setRemoteDescription({ type: 'offer', sdp: offer.sdp })
-      await peerConnection.setLocalDescription(await peerConnection.createAnswer())
+      await setRemoteDescription(peerConnection, offer, 'offer')
+      await setLocalDescription(peerConnection, await peerConnection.createAnswer(), compact)
       await waitForIceGathering(peerConnection, this.options.iceGatheringTimeout)
 
       if (peerConnection.localDescription == null) {
@@ -283,13 +314,13 @@ export class QRSession extends EventTarget {
           this.#emit('error', { peerId: offer.peerId, peerConnection, error, direction: 'inbound' })
         })
 
-      return await encodeSignedPayload(this.node.components.privateKey, {
-        version: PAYLOAD_VERSION,
-        type: QR_TYPE_ANSWER,
-        sessionId: offer.sessionId,
+      return await encodeAnswer({
+        privateKey: this.node.components.privateKey,
         peerId: this.node.peerId.toString(),
         offerPeerId: offer.peerId,
-        sdp: peerConnection.localDescription.sdp
+        sessionId: offer.sessionId,
+        sdp: peerConnection.localDescription.sdp,
+        compact
       })
     } catch (error) {
       this.inbound.delete(peerConnection)
@@ -307,7 +338,7 @@ export class QRSession extends EventTarget {
    * rather not have a connection dialled twice.
    */
   async acceptAnswer (text, options = {}) {
-    const answer = await decodeSignedPayload(text, QR_TYPE_ANSWER)
+    const answer = await decodeAnswer(text)
 
     if (answer.peerId === this.node.peerId.toString()) {
       throw new SessionError('This answer was created by this peer')
@@ -325,7 +356,7 @@ export class QRSession extends EventTarget {
 
     const ageSeconds = Math.round((Date.now() - session.createdAt) / 1000)
 
-    await session.peerConnection.setRemoteDescription({ type: 'answer', sdp: answer.sdp })
+    await setRemoteDescription(session.peerConnection, answer, 'answer')
 
     try {
       await waitForConnected(session.peerConnection, this.options.connectionTimeout)

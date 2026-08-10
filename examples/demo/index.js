@@ -24,7 +24,7 @@ import {
   QRSession,
   compress,
   createWebRTCUpgradeContext,
-  decodeSignedPayload,
+  decodePayload,
   encodeSignedPayload,
   parsePayload,
   webRTCQR,
@@ -100,6 +100,7 @@ const handoffBannerEl = document.getElementById('handoff-banner')
 const peerListEl = document.getElementById('peer-list')
 const peerCountEl = document.getElementById('peer-count')
 const networkStateEl = document.getElementById('network-state')
+const compactPayloadEl = document.getElementById('compact-payload')
 const setupCards = [document.getElementById('step-start'), document.getElementById('step-connect')]
 const dataCard = document.getElementById('step-data')
 
@@ -225,7 +226,10 @@ async function signPayload (payload) {
 }
 
 async function parseAndVerifyPayload (text, expectedType) {
-  return decodeSignedPayload(text, expectedType)
+  // decodePayload, not decodeSignedPayload: the latter only knows v2, and a
+  // host that verifies a code itself must accept every format the session can
+  // produce or it rejects codes it could have read.
+  return decodePayload(text, expectedType)
 }
 
 
@@ -323,7 +327,9 @@ async function createOfferPayload () {
     throw new Error('Start the browser client first')
   }
 
-  const offer = await session.createOffer()
+  // Per offer rather than per session: the box can be changed between two
+  // invites, and the person changing it means the *next* one.
+  const offer = await session.createOffer({ compact: compactPayloadEl?.checked ?? false })
 
   updateControls()
 
