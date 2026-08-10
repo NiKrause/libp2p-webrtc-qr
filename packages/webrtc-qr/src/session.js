@@ -52,15 +52,22 @@ const DEFAULTS = {
   dialAttempts: 15,
   dialRetryDelay: 300,
   /**
-   * Produce compact (v3) payloads - a code around a quarter the size.
+   * Produce compact (v3) payloads - one static code instead of an animated
+   * sequence, and about a quarter the characters.
    *
-   * On by default because a sparser code is the whole point: it scans from
-   * further away, at worse angles, off dimmer screens. The cost is that a peer
-   * running 0.6.0 or older cannot read one. Set `false` to keep producing v2
-   * while meeting older peers; *reading* both is unconditional either way, so a
-   * peer never refuses a code it could have understood.
+   * **Off by default, and not because the format is unfinished.** A connection
+   * built from a reconstructed SDP goes silent under load: measured in isolated
+   * worktrees, four of eight runs left both peers holding an open stream that
+   * carried no bytes, against zero of eight on v2. The cause is not understood
+   * (NiKrause/libp2p-webrtc-qr#6), and a code a quarter the size is not worth a
+   * connection that fails half the time under load.
+   *
+   * *Reading* is unconditional and unaffected: a peer accepts either format
+   * whatever this says, so turning it on is safe on the receiving side today.
+   * Set `true` to opt in - useful for measuring, and for a controlled setting
+   * where load is not a factor.
    */
-  compact: true,
+  compact: false,
   /** A stream can report open and be reset a moment later. Look again. */
   dialSettleDelay: 200
 }

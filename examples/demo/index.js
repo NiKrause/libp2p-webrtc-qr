@@ -329,7 +329,7 @@ async function createOfferPayload () {
 
   // Per offer rather than per session: the box can be changed between two
   // invites, and the person changing it means the *next* one.
-  const offer = await session.createOffer({ compact: compactPayloadEl?.checked ?? true })
+  const offer = await session.createOffer({ compact: compactPayloadEl?.checked ?? false })
 
   updateControls()
 

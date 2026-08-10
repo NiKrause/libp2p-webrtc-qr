@@ -1337,15 +1337,18 @@ test.describe('signed QR WebRTC signaling', () => {
       return page.evaluate(() => window.__render)
     }
 
-    const compact = await measure()
+    // Default first, which is now the full payload, then the compact one behind
+    // the checkbox. The order follows the default so this test would notice a
+    // silent flip of it.
+    const full = await measure()
 
     // The invite modal is open over the setup card, so the checkbox behind it is
     // not clickable until it is dismissed.
     await page.keyboard.press('Escape')
     await expect(page.locator('#invite-box')).toBeHidden()
-    await page.locator('#compact-payload').uncheck()
+    await page.locator('#compact-payload').check()
 
-    const full = await measure()
+    const compact = await measure()
 
     // Recorded, so a regression that quietly grows the payload is visible in the
     // log rather than only when it crosses a threshold.
@@ -1420,27 +1423,17 @@ test.describe('signed QR WebRTC signaling', () => {
     try {
       await openPeer(page, pageErrors)
 
-      // Default on, because a sparser code is the entire point: it scans from
-      // further away, at worse angles, off dimmer screens.
-      await expect(page.locator('#compact-payload')).toBeChecked()
+      // Off by default while #6 is open - a connection built from a
+      // reconstructed SDP goes silent under load - so the default is the full
+      // payload and the box is what opts in.
+      await expect(page.locator('#compact-payload')).not.toBeChecked()
 
       await page.locator('#create-offer').click()
       await expect(page.locator('#invite-box')).toBeVisible({ timeout: 30000 })
-      await expect.poll(() => page.locator('#invite-link').inputValue()).toMatch(/#i=q3/)
 
-      const compact = (await page.locator('#invite-link').inputValue()).length
-
-      // The invite is a modal, so the page behind it is inert - which is the
-      // point of a modal and the reason the box cannot simply be clicked.
-      await page.keyboard.press('Escape')
-      await expect(page.locator('#invite-box')).toBeHidden()
-
-      await page.locator('#compact-payload').uncheck()
-      await page.locator('#create-offer').click()
-
-      // Not `.not.toMatch(/q3/)`: the field is emptied while the next invite
-      // gathers, and an empty string does not match either - so that poll
-      // passes instantly on nothing at all, which is exactly what it did.
+      // Not `.not.toMatch(/q3/)`: the field is emptied while an invite gathers,
+      // and an empty string does not match either - so that poll passes
+      // instantly on nothing at all, which is exactly what it did.
       await expect.poll(
         async () => {
           const value = await page.locator('#invite-link').inputValue()
@@ -1450,6 +1443,18 @@ test.describe('signed QR WebRTC signaling', () => {
       ).toBe(true)
 
       const full = (await page.locator('#invite-link').inputValue()).length
+
+      // The invite is a modal, so the page behind it is inert - which is the
+      // point of a modal and the reason the box cannot simply be clicked.
+      await page.keyboard.press('Escape')
+      await expect(page.locator('#invite-box')).toBeHidden()
+
+      await page.locator('#compact-payload').check()
+      await page.locator('#create-offer').click()
+      await expect(page.locator('#invite-box')).toBeVisible({ timeout: 30000 })
+      await expect.poll(() => page.locator('#invite-link').inputValue()).toMatch(/#i=q3/)
+
+      const compact = (await page.locator('#invite-link').inputValue()).length
 
       // Printed, not just asserted: the number is what the whole change is for,
       // and a regression that doubled it while staying under a generous ceiling
@@ -1472,6 +1477,10 @@ test.describe('signed QR WebRTC signaling', () => {
     try {
       await openPeer(offerer, pageErrors)
       await openPeer(answerer, pageErrors)
+
+      // The box decides the format and is off by default, so this test has to
+      // ask for the thing it is about.
+      await offerer.locator('#compact-payload').check()
 
       const offerPayload = await offerer.evaluate(() => window.__libp2pQrTest.createOfferPayload())
 
