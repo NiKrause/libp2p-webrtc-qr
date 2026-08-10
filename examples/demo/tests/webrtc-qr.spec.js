@@ -1425,6 +1425,63 @@ test.describe('signed QR WebRTC signaling', () => {
     }
   })
 
+  test('a folded step 1 still says which peer you are', async ({ page, browserName }) => {
+    skipWithoutWebRTC(test, browserName)
+
+    const pageErrors = []
+
+    await openPeer(page, pageErrors)
+
+    const full = await page.locator('#peer-id').textContent()
+
+    expect(full).toMatch(/^12D3KooW/)
+
+    // Folding is what the app does by itself once you are connected; clicking is
+    // the same state, reachable without a second peer.
+    await page.locator('#step-start .step-heading').click()
+    await expect(page.locator('#step-start')).toHaveClass(/is-collapsed/)
+
+    // The whole point: a collapsed card hides every child but the heading, so an
+    // id that lives under two disclosures disappears exactly when it stops being
+    // easy to find. Which peer you are is what the other side checks a signature
+    // against.
+    const brief = page.locator('#peer-id-brief')
+
+    await expect(brief).toBeVisible()
+    await expect(brief).toHaveAttribute('title', full)
+
+    // Head *and* tail: every id here starts `12D3KooW`, so a prefix alone would
+    // identify nothing and two devices could not be told apart.
+    await expect(brief).toContainText(full.slice(0, 8))
+    await expect(brief).toContainText(full.slice(-6))
+
+    expect(pageErrors).toEqual([])
+  })
+
+  test('reading the specification does not switch the format on', async ({ page }) => {
+    await page.goto('/')
+
+    const box = page.locator('#compact-payload')
+
+    await expect(box).not.toBeChecked()
+
+    // A link inside a <label> is a trap. If the label forwards the activation,
+    // following it to read what QWBP is would silently change what this device
+    // hands out - and the person would find out when an older peer could not
+    // read their code.
+    const link = page.locator('label.option a[href*="qwbp"]')
+
+    await expect(link).toHaveAttribute('href', /magarcia\.github\.io\/qwbp/)
+
+    const [popup] = await Promise.all([
+      page.context().waitForEvent('page').catch(() => null),
+      link.click()
+    ])
+
+    await popup?.close()
+    await expect(box).not.toBeChecked()
+  })
+
   test('the short code is a quarter the size, and the box is what decides', async ({ browser }) => {
     const page = await browser.newPage()
     const pageErrors = []

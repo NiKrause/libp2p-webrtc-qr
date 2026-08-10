@@ -756,6 +756,27 @@ button.is-busy::before {
   color: var(--ls-green);
 }
 
+/* Only while collapsed. Expanded, the full id sits under "Your peer identity"
+   with the explanation next to it, and two copies of the same string in view at
+   once reads as two different things. */
+.peer-brief {
+  display: none;
+}
+
+.card.is-collapsed .peer-brief {
+  display: inline;
+  margin-left: 10px;
+  font-family: var(--ls-mono, monospace);
+  font-size: 0.72rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--ls-green);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
 .card.is-collapsed h2::after {
   content: 'done - tap to reopen';
   margin-left: auto;
