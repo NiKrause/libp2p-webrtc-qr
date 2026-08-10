@@ -1,3 +1,4 @@
+import { mergeStrings, resolveText } from './strings.js'
 import jsQR from 'jsqr'
 import { createPartAccumulator, looksLikeUrPart } from './frames.js'
 
@@ -107,6 +108,27 @@ const STYLE = `
   }
 `
 
+/**
+ * Everything this element says, in English. Replace any of it through the
+ * `strings` property; what you leave out keeps these.
+ *
+ * The two entries that carry numbers are functions, for the reason given in
+ * ./strings.js.
+ */
+export const QR_SCANNER_STRINGS = {
+  label: 'Scan a code',
+  close: 'Close',
+  unsupported: 'Camera access is not supported by this browser',
+  starting: 'Starting the camera…',
+  looking: 'Looking for a code… hold it steady and fill about half of the frame.',
+  stillLooking: ({ attempts }) =>
+    `Still looking… ${attempts} attempts. Move a little closer, hold steady, and avoid reflections.`,
+  rejected: 'That code is not the one this screen is waiting for.',
+  animated: ({ received, total }) =>
+    `Animated code: ${received} of ${total} parts. Keep holding steady.`,
+  animatedUnknown: 'Animated code detected. Keep holding steady.'
+}
+
 export class QrScannerElement extends HTMLElement {
   static observedAttributes = ['label']
 
@@ -121,6 +143,7 @@ export class QrScannerElement extends HTMLElement {
   #frame = null
   #session = 0
   #detector = null
+  #strings = { ...QR_SCANNER_STRINGS }
   #accumulator = null
   #receiving = false
   #attempts = 0
@@ -152,7 +175,7 @@ export class QrScannerElement extends HTMLElement {
     close.className = 'close'
     close.type = 'button'
     close.textContent = '×'
-    close.setAttribute('aria-label', 'Close')
+    close.setAttribute('aria-label', resolveText(this.#strings.close))
     close.addEventListener('click', () => this.close())
 
     header.append(this.#title, close)
@@ -167,8 +190,23 @@ export class QrScannerElement extends HTMLElement {
     })
   }
 
+  /**
+   * The text this element shows. A partial table keeps the rest.
+   *
+   * The `label` attribute still wins where it is set: an attribute is the more
+   * specific instruction, and a consumer that set both meant the attribute.
+   */
+  get strings () {
+    return { ...this.#strings }
+  }
+
+  set strings (value) {
+    this.#strings = mergeStrings(QR_SCANNER_STRINGS, value)
+    this.#title.textContent = this.label
+  }
+
   get label () {
-    return this.getAttribute('label') ?? 'Scan a code'
+    return this.getAttribute('label') ?? resolveText(this.#strings.label)
   }
 
   set label (next) {
@@ -197,7 +235,7 @@ export class QrScannerElement extends HTMLElement {
 
   async open () {
     if (navigator.mediaDevices?.getUserMedia == null) {
-      throw new Error('Camera access is not supported by this browser')
+      throw new Error(resolveText(this.#strings.unsupported))
     }
 
     if (!this.#dialog.open) {
@@ -210,7 +248,7 @@ export class QrScannerElement extends HTMLElement {
     this.#lastScan = 0
     this.#receiving = false
     this.#detector = null
-    this.#status.textContent = 'Starting the camera…'
+    this.#status.textContent = resolveText(this.#strings.starting)
 
     if ('BarcodeDetector' in window) {
       try {
@@ -238,7 +276,7 @@ export class QrScannerElement extends HTMLElement {
       this.#stream = stream
       this.#video.srcObject = stream
       await this.#video.play()
-      this.#status.textContent = 'Looking for a code… hold it steady and fill about half of the frame.'
+      this.#status.textContent = resolveText(this.#strings.looking)
       this.#schedule(session)
     } catch (error) {
       this.close()
@@ -295,7 +333,7 @@ export class QrScannerElement extends HTMLElement {
     // design, and "move closer" is the wrong advice for a scan that is going
     // fine - it also stamps over the part counter the user is watching.
     if (this.#attempts % 8 === 0 && !this.#receiving) {
-      this.#status.textContent = `Still looking… ${this.#attempts} attempts. Move a little closer, hold steady, and avoid reflections.`
+      this.#status.textContent = resolveText(this.#strings.stillLooking, { attempts: this.#attempts })
     }
 
     let text = await this.#read()
@@ -324,7 +362,7 @@ export class QrScannerElement extends HTMLElement {
     }
 
     if (verdict.ok === false) {
-      this.#status.textContent = verdict.reason ?? 'That code is not the one this screen is waiting for.'
+      this.#status.textContent = verdict.reason ?? resolveText(this.#strings.rejected)
       this.#schedule(session)
       return
     }
@@ -349,8 +387,8 @@ export class QrScannerElement extends HTMLElement {
 
     this.#receiving = true
     this.#status.textContent = progress.total > 0
-      ? `Animated code: ${progress.received} of ${progress.total} parts. Keep holding steady.`
-      : 'Animated code detected. Keep holding steady.'
+      ? resolveText(this.#strings.animated, { received: progress.received, total: progress.total })
+      : resolveText(this.#strings.animatedUnknown)
     this.#schedule(session)
 
     return null

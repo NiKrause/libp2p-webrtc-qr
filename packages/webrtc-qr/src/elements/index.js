@@ -10,10 +10,15 @@
  */
 import './buffer-shim.js'
 
-export { QrInviteElement } from './qr-invite.js'
-export { QrPeersElement } from './qr-peers.js'
-export { QrScannerElement } from './qr-scanner.js'
-export { QrStatusElement } from './qr-status.js'
+export { QrInviteElement, QR_INVITE_STRINGS } from './qr-invite.js'
+export { QrPeersElement, QR_PEERS_STRINGS } from './qr-peers.js'
+export { QrScannerElement, QR_SCANNER_STRINGS } from './qr-scanner.js'
+export { QrStatusElement, QR_STATUS_STRINGS } from './qr-status.js'
+
+// The seam itself, so a consumer can fold its own table the way an element
+// does - useful when the translations live in a store rather than in one
+// literal at the call site.
+export { mergeStrings, resolveText } from './strings.js'
 export {
   DEFAULT_RTC_CONFIGURATION,
   isGlobalUnicastV6,

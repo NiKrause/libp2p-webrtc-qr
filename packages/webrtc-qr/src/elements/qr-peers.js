@@ -1,3 +1,4 @@
+import { mergeStrings, resolveText } from './strings.js'
 /**
  * `<qr-peers>` - who is connected, and how that connection is doing.
  *
@@ -21,13 +22,19 @@
  * does, once the screen is on again - so it is amber and worded as a wait, not
  * red and worded as an end.
  */
-const HEALTH = {
+/**
+ * Everything this element says, in English. Replace any of it through the
+ * `strings` property; what you leave out keeps these.
+ */
+export const QR_PEERS_STRINGS = {
   connected: 'connected',
   connecting: 'connecting…',
   disconnected: 'reconnecting…',
   failed: 'failed',
   closed: 'closed',
-  new: 'connecting…'
+  new: 'connecting…',
+  disconnect: 'Disconnect',
+  disconnectFrom: ({ peerId }) => `Disconnect from ${peerId}`
 }
 
 const STYLE = `
@@ -96,6 +103,7 @@ function shortPeer (peerId) {
 export class QrPeersElement extends HTMLElement {
   #list
   #peers = []
+  #strings = { ...QR_PEERS_STRINGS }
 
   constructor () {
     super()
@@ -128,6 +136,16 @@ export class QrPeersElement extends HTMLElement {
     return this.#peers.length
   }
 
+  /** The text this element shows. A partial table keeps the rest. */
+  get strings () {
+    return { ...this.#strings }
+  }
+
+  set strings (value) {
+    this.#strings = mergeStrings(QR_PEERS_STRINGS, value)
+    this.#render()
+  }
+
   #render () {
     this.#list.replaceChildren()
 
@@ -147,11 +165,11 @@ export class QrPeersElement extends HTMLElement {
       name.title = peerId
 
       health.className = `health ${state}`
-      health.textContent = HEALTH[state] ?? state
+      health.textContent = resolveText(this.#strings[state]) || state
 
       drop.type = 'button'
-      drop.textContent = 'Disconnect'
-      drop.setAttribute('aria-label', `Disconnect from ${peerId}`)
+      drop.textContent = resolveText(this.#strings.disconnect)
+      drop.setAttribute('aria-label', resolveText(this.#strings.disconnectFrom, { peerId }))
       drop.addEventListener('click', () => {
         this.dispatchEvent(new CustomEvent('disconnect', { detail: { peerId } }))
       })

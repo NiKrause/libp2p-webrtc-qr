@@ -1,3 +1,4 @@
+import { mergeStrings, resolveText } from './strings.js'
 import QRCode from 'qrcode'
 import { MAX_FRAGMENT_BYTES, STATIC_QR_MAX_LENGTH, createFrameSource } from './frames.js'
 
@@ -59,6 +60,20 @@ const STYLE = `
   p[hidden] { display: none; }
 `
 
+/**
+ * Everything this element says, in English. Replace any of it through the
+ * `strings` property; what you leave out keeps these.
+ *
+ * `part` carries numbers, so it is a function rather than a template with
+ * placeholders - word order is not universal, and `{n} of {total}` would fix
+ * ours onto every translation.
+ */
+export const QR_INVITE_STRINGS = {
+  alt: 'Invite code',
+  part: ({ slot, total }) => `Part ${slot} of ${total} — hold the phone still`,
+  recovery: 'Recovery frame — hold the phone still'
+}
+
 export class QrInviteElement extends HTMLElement {
   static observedAttributes = ['value', 'frame-interval']
 
@@ -66,6 +81,7 @@ export class QrInviteElement extends HTMLElement {
   #caption
   #timer = null
   #renderToken = 0
+  #strings = { ...QR_INVITE_STRINGS }
 
   constructor () {
     super()
@@ -75,7 +91,7 @@ export class QrInviteElement extends HTMLElement {
 
     style.textContent = STYLE
     this.#image = document.createElement('img')
-    this.#image.alt = 'Invite code'
+    this.#image.alt = resolveText(this.#strings.alt)
     this.#caption = document.createElement('p')
     this.#caption.hidden = true
     this.#caption.setAttribute('role', 'status')
@@ -195,10 +211,20 @@ export class QrInviteElement extends HTMLElement {
     this.#timer = setInterval(() => { tick() }, this.frameInterval)
   }
 
+  /** The text this element shows. A partial table keeps the rest. */
+  get strings () {
+    return { ...this.#strings }
+  }
+
+  set strings (value) {
+    this.#strings = mergeStrings(QR_INVITE_STRINGS, value)
+    this.#image.alt = resolveText(this.#strings.alt)
+  }
+
   #captionFor (slot, total) {
     return slot < total
-      ? `Part ${slot + 1} of ${total} — hold the phone still`
-      : 'Recovery frame — hold the phone still'
+      ? resolveText(this.#strings.part, { slot: slot + 1, total })
+      : resolveText(this.#strings.recovery)
   }
 
   #toDataUrl (text) {

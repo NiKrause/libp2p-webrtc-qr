@@ -1,3 +1,4 @@
+import { mergeStrings, resolveText } from './strings.js'
 import { DEFAULT_RTC_CONFIGURATION, probeBrowser, probeCamera, probeNetwork } from './network.js'
 
 /**
@@ -20,20 +21,26 @@ import { DEFAULT_RTC_CONFIGURATION, probeBrowser, probeCamera, probeNetwork } fr
  * hiding the controls would block something that works.
  */
 
-const VERDICTS = {
+/**
+ * Everything this element says, in English.
+ *
+ * A consumer replaces any of it through the `strings` property; what it does
+ * not mention keeps these. See ./strings.js for why that is a merge.
+ */
+export const QR_STATUS_STRINGS = {
+  browser: 'Browser',
+  ipv4: 'IPv4',
+  ipv6: 'IPv6',
+  camera: 'Camera',
+  overall: 'Result',
   open: 'usable',
   relay: 'via TURN',
   symmetric: 'local only',
   blocked: 'none'
 }
 
-const LABELS = {
-  browser: 'Browser',
-  ipv4: 'IPv4',
-  ipv6: 'IPv6',
-  camera: 'Camera',
-  overall: 'Result'
-}
+/** Which keys are rows rather than verdicts. Also the `rows` vocabulary. */
+const ROW_KEYS = ['browser', 'ipv4', 'ipv6', 'camera', 'overall']
 
 /**
  * The network rows only, unless a consumer asks for more. Adding rows by
@@ -153,6 +160,7 @@ export class QrStatusElement extends HTMLElement {
   #rows = {}
   #keys = DEFAULT_ROWS
   #result = null
+  #strings = { ...QR_STATUS_STRINGS }
   #dismiss = null
 
   /** Override to probe through a different set of STUN servers. */
@@ -187,7 +195,7 @@ export class QrStatusElement extends HTMLElement {
       line.className = 'line'
       chip.type = 'button'
       chip.setAttribute('aria-expanded', 'false')
-      name.textContent = LABELS[key] ?? key
+      name.textContent = resolveText(this.#strings[key]) || key
       verdict.className = 'verdict'
       tip.className = 'tip'
       tip.setAttribute('role', 'tooltip')
@@ -201,11 +209,50 @@ export class QrStatusElement extends HTMLElement {
     }
   }
 
+  /**
+   * The text this element shows. Assigning a partial table keeps the rest, so
+   * translating one row never blanks the others.
+   */
+  get strings () {
+    return { ...this.#strings }
+  }
+
+  set strings (value) {
+    this.#strings = mergeStrings(QR_STATUS_STRINGS, value)
+    // Rebuilt rather than patched: the row labels were written into the DOM
+    // when the element was built, and a setter that only takes effect on the
+    // next probe is the kind of half-applied that costs an afternoon.
+    this.#build()
+    if (this.#result != null) this.#paint(this.#result)
+  }
+
+  /**
+   * Write a result into the rows.
+   *
+   * Split out of `probe` so a table assigned after a probe repaints at once.
+   *
+   * @param {Record<string, { state: string, text: string }>} result
+   */
+  #paint (result) {
+    for (const key of this.#keys) {
+      const row = this.#rows[key]
+
+      if (row == null || result[key] == null) {
+        continue
+      }
+
+      row.line.className = `line ${result[key].state}`
+      row.verdict.textContent = resolveText(this.#strings[result[key].state])
+      row.tip.textContent = result[key].text
+      row.chip.setAttribute('aria-label', `${key}: ${result[key].text}`)
+    }
+  }
+
   attributeChangedCallback () {
     const requested = (this.getAttribute('rows') ?? '').trim()
 
     this.#keys = requested.length > 0
-      ? requested.split(/\s+/).filter(key => key in LABELS)
+      ? requested.split(/\s+/).filter(key => ROW_KEYS.includes(key))
       : DEFAULT_ROWS
     this.#build()
   }
@@ -279,19 +326,7 @@ export class QrStatusElement extends HTMLElement {
     }
 
     this.#result = result
-
-    for (const key of this.#keys) {
-      const row = this.#rows[key]
-
-      if (row == null || result[key] == null) {
-        continue
-      }
-
-      row.line.className = `line ${result[key].state}`
-      row.verdict.textContent = VERDICTS[result[key].state] ?? ''
-      row.tip.textContent = result[key].text
-      row.chip.setAttribute('aria-label', `${key}: ${result[key].text}`)
-    }
+    this.#paint(result)
 
     this.dispatchEvent(new CustomEvent('probe', { detail: result }))
 
