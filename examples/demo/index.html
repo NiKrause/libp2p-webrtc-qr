@@ -98,7 +98,13 @@
 
       <div class="steps">
         <section class="card" id="step-start">
-          <h2 class="step-heading" tabindex="0" role="button" aria-expanded="true"><span class="step-no">1</span> Start browser peer</h2>
+          <h2 class="step-heading" tabindex="0" role="button" aria-expanded="true"><span class="step-no">1</span> Start browser peer<!--
+            Inside the heading on purpose: a collapsed card hides every child but
+            the h2, and this is the one fact worth keeping on screen after the
+            step is done. Which peer you are is what the other side checks your
+            signature against, and hunting for it behind two disclosures is the
+            wrong amount of work for something that identifies you.
+          --><code id="peer-id-brief" class="peer-brief" hidden></code></h2>
           <p class="hint">Creates a libp2p node with a fresh key pair. Its Peer ID signs every payload you show.</p>
 
           <details class="peer" id="stun-disclosure">
@@ -169,10 +175,21 @@
                reconstructed SDP goes silent under load often enough that a
                smaller code is not worth it. Reading is never affected - this
                browser accepts both formats whatever the box says - so turning
-               it on only changes what this device hands out. -->
+               it on only changes what this device hands out.
+
+               The link names the idea rather than hiding it behind "short": the
+               packing is QWBP's, so someone who wants to know what that means
+               can go and read it. What travels here is *not* wire-compatible
+               with QWBP - it carries a signature over the packed bytes, which
+               QWBP has no equivalent of - and the small print says so rather
+               than leaving the link to imply interop. -->
           <label class="option">
             <input id="compact-payload" type="checkbox">
-            <span>Short code <small>(experimental; one code instead of an animation)</small></span>
+            <span>Short code (<a
+              href="https://magarcia.github.io/qwbp/spec.html"
+              target="_blank"
+              rel="noreferrer">QWBP</a>-style)
+              <small>experimental, and signed rather than bare</small></span>
           </label>
 
           <!-- The way in for someone whose link did not open the page by itself.

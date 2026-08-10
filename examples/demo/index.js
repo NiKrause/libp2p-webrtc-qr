@@ -69,6 +69,25 @@ const RTC_CONFIGURATION = {
 
 const statusEl = document.getElementById('status')
 const peerIdEl = document.getElementById('peer-id')
+const peerIdBriefEl = document.getElementById('peer-id-brief')
+
+/**
+ * The peer id, short enough to sit in a heading.
+ *
+ * Head and tail rather than a prefix: peer ids share their leading characters -
+ * every Ed25519 one here starts `12D3KooW` - so the first eight distinguish
+ * nothing. The tail is what differs, and keeping both ends is what lets someone
+ * match this against the id shown on the other device.
+ *
+ * @param {string} peerId
+ */
+function showBriefPeerId (peerId) {
+  peerIdBriefEl.hidden = peerId.length === 0
+  peerIdBriefEl.textContent = peerId.length > 20
+    ? `${peerId.slice(0, 8)}…${peerId.slice(-6)}`
+    : peerId
+  peerIdBriefEl.title = peerId
+}
 const identityOriginEl = document.getElementById('identity-origin')
 const reconnectPromptEl = document.getElementById('reconnect-prompt')
 const reconnectTextEl = document.getElementById('reconnect-text')
@@ -312,6 +331,7 @@ async function createNode () {
   preloadAnimatedQr()
 
   peerIdEl.textContent = node.peerId.toString()
+  showBriefPeerId(node.peerId.toString())
   identityOriginEl.textContent = identity.restored
     ? 'Restored for this tab - the same peer you were before.'
     : 'Freshly generated and kept for this tab.'
