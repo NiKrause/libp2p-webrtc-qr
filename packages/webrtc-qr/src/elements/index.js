@@ -18,7 +18,7 @@ export { QrStatusElement, QR_STATUS_STRINGS } from './qr-status.js'
 // The seam itself, so a consumer can fold its own table the way an element
 // does - useful when the translations live in a store rather than in one
 // literal at the call site.
-export { mergeStrings, text } from './strings.js'
+export { mergeStrings, resolveText } from './strings.js'
 export {
   DEFAULT_RTC_CONFIGURATION,
   isGlobalUnicastV6,

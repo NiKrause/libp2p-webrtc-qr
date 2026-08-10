@@ -1,4 +1,4 @@
-import { mergeStrings, text } from './strings.js'
+import { mergeStrings, resolveText } from './strings.js'
 import QRCode from 'qrcode'
 import { MAX_FRAGMENT_BYTES, STATIC_QR_MAX_LENGTH, createFrameSource } from './frames.js'
 
@@ -91,7 +91,7 @@ export class QrInviteElement extends HTMLElement {
 
     style.textContent = STYLE
     this.#image = document.createElement('img')
-    this.#image.alt = text(this.#strings.alt)
+    this.#image.alt = resolveText(this.#strings.alt)
     this.#caption = document.createElement('p')
     this.#caption.hidden = true
     this.#caption.setAttribute('role', 'status')
@@ -218,13 +218,13 @@ export class QrInviteElement extends HTMLElement {
 
   set strings (value) {
     this.#strings = mergeStrings(QR_INVITE_STRINGS, value)
-    this.#image.alt = text(this.#strings.alt)
+    this.#image.alt = resolveText(this.#strings.alt)
   }
 
   #captionFor (slot, total) {
     return slot < total
-      ? text(this.#strings.part, { slot: slot + 1, total })
-      : text(this.#strings.recovery)
+      ? resolveText(this.#strings.part, { slot: slot + 1, total })
+      : resolveText(this.#strings.recovery)
   }
 
   #toDataUrl (text) {

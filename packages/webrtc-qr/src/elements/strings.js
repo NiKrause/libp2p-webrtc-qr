@@ -47,6 +47,13 @@ export function mergeStrings (defaults, override) {
 /**
  * Read one entry, calling it when it is a function.
  *
+ * Named `resolveText` rather than `text` on purpose: `qr-scanner` already has
+ * `let text = await this.#read()` inside its scan loop, and an import called
+ * `text` was shadowed by it — putting the call three lines above the
+ * declaration into the temporal dead zone. That threw inside the loop and
+ * killed the scan, and the only visible symptom was a status line that stopped
+ * updating.
+ *
  * A consumer that supplies a plain string where a function was expected gets
  * that string verbatim. That is deliberate: a fixed caption is a choice rather
  * than a failure, and throwing here would take a screen down over a caption.
@@ -55,7 +62,7 @@ export function mergeStrings (defaults, override) {
  * @param {Record<string, unknown>} [params]
  * @returns {string}
  */
-export function text (value, params = {}) {
+export function resolveText (value, params = {}) {
   if (typeof value === 'function') return String(value(params))
   return value == null ? '' : String(value)
 }

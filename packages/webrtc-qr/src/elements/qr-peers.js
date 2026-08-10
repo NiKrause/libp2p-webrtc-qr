@@ -1,4 +1,4 @@
-import { mergeStrings, text } from './strings.js'
+import { mergeStrings, resolveText } from './strings.js'
 /**
  * `<qr-peers>` - who is connected, and how that connection is doing.
  *
@@ -165,11 +165,11 @@ export class QrPeersElement extends HTMLElement {
       name.title = peerId
 
       health.className = `health ${state}`
-      health.textContent = text(this.#strings[state]) || state
+      health.textContent = resolveText(this.#strings[state]) || state
 
       drop.type = 'button'
-      drop.textContent = text(this.#strings.disconnect)
-      drop.setAttribute('aria-label', text(this.#strings.disconnectFrom, { peerId }))
+      drop.textContent = resolveText(this.#strings.disconnect)
+      drop.setAttribute('aria-label', resolveText(this.#strings.disconnectFrom, { peerId }))
       drop.addEventListener('click', () => {
         this.dispatchEvent(new CustomEvent('disconnect', { detail: { peerId } }))
       })

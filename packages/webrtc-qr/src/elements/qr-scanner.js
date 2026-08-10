@@ -1,4 +1,4 @@
-import { mergeStrings, text } from './strings.js'
+import { mergeStrings, resolveText } from './strings.js'
 import jsQR from 'jsqr'
 import { createPartAccumulator, looksLikeUrPart } from './frames.js'
 
@@ -175,7 +175,7 @@ export class QrScannerElement extends HTMLElement {
     close.className = 'close'
     close.type = 'button'
     close.textContent = '×'
-    close.setAttribute('aria-label', text(this.#strings.close))
+    close.setAttribute('aria-label', resolveText(this.#strings.close))
     close.addEventListener('click', () => this.close())
 
     header.append(this.#title, close)
@@ -206,7 +206,7 @@ export class QrScannerElement extends HTMLElement {
   }
 
   get label () {
-    return this.getAttribute('label') ?? text(this.#strings.label)
+    return this.getAttribute('label') ?? resolveText(this.#strings.label)
   }
 
   set label (next) {
@@ -235,7 +235,7 @@ export class QrScannerElement extends HTMLElement {
 
   async open () {
     if (navigator.mediaDevices?.getUserMedia == null) {
-      throw new Error(text(this.#strings.unsupported))
+      throw new Error(resolveText(this.#strings.unsupported))
     }
 
     if (!this.#dialog.open) {
@@ -248,7 +248,7 @@ export class QrScannerElement extends HTMLElement {
     this.#lastScan = 0
     this.#receiving = false
     this.#detector = null
-    this.#status.textContent = text(this.#strings.starting)
+    this.#status.textContent = resolveText(this.#strings.starting)
 
     if ('BarcodeDetector' in window) {
       try {
@@ -276,7 +276,7 @@ export class QrScannerElement extends HTMLElement {
       this.#stream = stream
       this.#video.srcObject = stream
       await this.#video.play()
-      this.#status.textContent = text(this.#strings.looking)
+      this.#status.textContent = resolveText(this.#strings.looking)
       this.#schedule(session)
     } catch (error) {
       this.close()
@@ -333,7 +333,7 @@ export class QrScannerElement extends HTMLElement {
     // design, and "move closer" is the wrong advice for a scan that is going
     // fine - it also stamps over the part counter the user is watching.
     if (this.#attempts % 8 === 0 && !this.#receiving) {
-      this.#status.textContent = text(this.#strings.stillLooking, { attempts: this.#attempts })
+      this.#status.textContent = resolveText(this.#strings.stillLooking, { attempts: this.#attempts })
     }
 
     let text = await this.#read()
@@ -362,7 +362,7 @@ export class QrScannerElement extends HTMLElement {
     }
 
     if (verdict.ok === false) {
-      this.#status.textContent = verdict.reason ?? text(this.#strings.rejected)
+      this.#status.textContent = verdict.reason ?? resolveText(this.#strings.rejected)
       this.#schedule(session)
       return
     }
@@ -387,8 +387,8 @@ export class QrScannerElement extends HTMLElement {
 
     this.#receiving = true
     this.#status.textContent = progress.total > 0
-      ? text(this.#strings.animated, { received: progress.received, total: progress.total })
-      : text(this.#strings.animatedUnknown)
+      ? resolveText(this.#strings.animated, { received: progress.received, total: progress.total })
+      : resolveText(this.#strings.animatedUnknown)
     this.#schedule(session)
 
     return null

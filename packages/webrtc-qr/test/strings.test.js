@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { mergeStrings, text } from '../src/elements/strings.js'
+import { mergeStrings, resolveText } from '../src/elements/strings.js'
 
 /** Stands in for a real table; frozen so the assertions are about the merge. */
 const DEFAULTS = Object.freeze({
@@ -61,16 +61,16 @@ test('the merge does not write into the defaults', () => {
 test('an entry that carries numbers is called with them', () => {
   const value = ({ received, total }) => `${received}/${total}`
 
-  assert.equal(text(value, { received: 3, total: 6 }), '3/6')
+  assert.equal(resolveText(value, { received: 3, total: 6 }), '3/6')
 })
 
 test('a plain string where a function was expected is used verbatim', () => {
   // A fixed caption is a choice, not a failure. Throwing here would take a
   // screen down over a caption.
-  assert.equal(text('Halte still', { received: 3 }), 'Halte still')
+  assert.equal(resolveText('Halte still', { received: 3 }), 'Halte still')
 })
 
 test('a missing entry is empty rather than the word "undefined"', () => {
-  assert.equal(text(undefined), '')
-  assert.equal(text(null), '')
+  assert.equal(resolveText(undefined), '')
+  assert.equal(resolveText(null), '')
 })

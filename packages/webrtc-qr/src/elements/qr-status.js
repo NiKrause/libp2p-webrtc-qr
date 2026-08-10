@@ -1,4 +1,4 @@
-import { mergeStrings, text } from './strings.js'
+import { mergeStrings, resolveText } from './strings.js'
 import { DEFAULT_RTC_CONFIGURATION, probeBrowser, probeCamera, probeNetwork } from './network.js'
 
 /**
@@ -195,7 +195,7 @@ export class QrStatusElement extends HTMLElement {
       line.className = 'line'
       chip.type = 'button'
       chip.setAttribute('aria-expanded', 'false')
-      name.textContent = text(this.#strings[key]) || key
+      name.textContent = resolveText(this.#strings[key]) || key
       verdict.className = 'verdict'
       tip.className = 'tip'
       tip.setAttribute('role', 'tooltip')
@@ -242,7 +242,7 @@ export class QrStatusElement extends HTMLElement {
       }
 
       row.line.className = `line ${result[key].state}`
-      row.verdict.textContent = text(this.#strings[result[key].state])
+      row.verdict.textContent = resolveText(this.#strings[result[key].state])
       row.tip.textContent = result[key].text
       row.chip.setAttribute('aria-label', `${key}: ${result[key].text}`)
     }
