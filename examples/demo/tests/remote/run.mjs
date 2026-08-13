@@ -1,7 +1,11 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 
+// `@playwright/test`, not `playwright`: that is what this package depends on.
+// The bare `playwright` import resolved locally off a hoisted transitive copy
+// and vanished on a clean install, which is a failure that only ever happens in
+// CI - the least useful place to find it.
 import { connectAlephChromium, PLAYWRIGHT_RUNNER_VERSION } from '@le-space/playwright'
-import { chromium } from 'playwright'
+import { chromium } from '@playwright/test'
 
 import { runBothFormats } from './link-handover.mjs'
 
