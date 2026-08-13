@@ -77,24 +77,79 @@ const DEFAULTS = {
  * signalling is almost always about candidate types, and those are invisible in
  * the error otherwise.
  */
-export function describeIce (peerConnection) {
-  const counts = { local: {}, remote: {} }
+/**
+ * Whether a side's reflexive candidates look like symmetric NAT.
+ *
+ * Same rule the readiness panel uses before anyone connects: more than one
+ * public port *within one address family* means the NAT picks a new mapping per
+ * destination, and hole punching towards an arbitrary peer will not work. Two
+ * srflx candidates are perfectly healthy when they are one IPv4 and one IPv6 -
+ * which is why the count alone, as this function used to report, cannot tell the
+ * two apart.
+ *
+ * Returns null when there is nothing to judge: no reflexive candidate at all, or
+ * only one per family.
+ */
+function symmetricFamilies (candidates) {
+  const ports = { v4: new Set(), v6: new Set() }
 
-  for (const [side, key] of [['local', 'localDescription'], ['remote', 'remoteDescription']]) {
-    for (const line of peerConnection[key]?.sdp?.split('\r\n') ?? []) {
-      const type = line.match(/^a=candidate:.* typ (host|srflx|prflx|relay)/)?.[1]
+  for (const { type, address, port } of candidates) {
+    if (type !== 'srflx') continue
+    ports[address.includes(':') ? 'v6' : 'v4'].add(port)
+  }
 
-      if (type != null) {
-        counts[side][type] = (counts[side][type] ?? 0) + 1
-      }
+  return [
+    ports.v4.size > 1 ? 'IPv4' : null,
+    ports.v6.size > 1 ? 'IPv6' : null
+  ].filter(Boolean)
+}
+
+function readCandidates (sdp) {
+  const found = []
+
+  for (const line of sdp?.split('\r\n') ?? []) {
+    const match = line.match(/^a=candidate:\S+ \d+ \S+ \d+ (\S+) (\d+) typ (host|srflx|prflx|relay)/)
+
+    if (match != null) {
+      found.push({ address: match[1], port: match[2], type: match[3] })
     }
   }
 
-  const render = side => Object.entries(counts[side])
-    .map(([type, count]) => `${count} ${type}`)
-    .join(', ') || 'none'
+  return found
+}
+
+export function describeIce (peerConnection) {
+  const sides = {
+    local: readCandidates(peerConnection.localDescription?.sdp),
+    remote: readCandidates(peerConnection.remoteDescription?.sdp)
+  }
+
+  const render = side => {
+    const counts = {}
+
+    for (const { type } of sides[side]) {
+      counts[type] = (counts[type] ?? 0) + 1
+    }
+
+    const listed = Object.entries(counts).map(([type, count]) => `${count} ${type}`).join(', ') || 'none'
+    const symmetric = symmetricFamilies(sides[side])
+
+    return symmetric.length > 0 ? `${listed}, symmetric ${symmetric.join('+')}` : listed
+  }
 
   return `local: ${render('local')}; remote: ${render('remote')}; ice: ${peerConnection.iceConnectionState}`
+}
+
+/**
+ * Both sides behind a symmetric NAT is a different failure from a stale invite,
+ * and telling a user to hurry up when the network was never going to work is
+ * worse than saying nothing.
+ */
+export function bothSidesSymmetric (peerConnection) {
+  const local = symmetricFamilies(readCandidates(peerConnection.localDescription?.sdp))
+  const remote = symmetricFamilies(readCandidates(peerConnection.remoteDescription?.sdp))
+
+  return local.length > 0 && remote.length > 0
 }
 
 class SessionError extends Error {
@@ -361,12 +416,25 @@ export class QRSession extends EventTarget {
     try {
       await waitForConnected(session.peerConnection, this.options.connectionTimeout)
     } catch (error) {
+      // Two failures look identical from here and need opposite advice.
+      //
       // A NAT keeps a UDP binding open only while packets flow through it, often
-      // well under two minutes. Candidates in an invite that sat in a chat can
-      // point at bindings that no longer exist, and it then fails with
-      // signalling that went through perfectly.
+      // well under two minutes, so candidates in an invite that sat in a chat can
+      // point at bindings that no longer exist - a fresh invite fixes that.
+      //
+      // But if both sides are behind a symmetric NAT, no invite of any age would
+      // have connected, and telling someone to hurry up sends them to try the
+      // same thing faster. Mobile carriers are the common case, and the reflexive
+      // candidates say so: more than one public port in one family.
+      if (bothSidesSymmetric(session.peerConnection)) {
+        throw new SessionError(
+          'WebRTC could not connect: both networks use a symmetric NAT, which hole punching cannot cross. IPv6 on both sides, the same network, or a relay would work',
+          session.peerConnection
+        )
+      }
+
       throw ageSeconds > 90
-        ? new SessionError(`WebRTC connection failed after the invite sat for ${ageSeconds}s - it was probably too old`, session.peerConnection)
+        ? new SessionError(`WebRTC connection failed after the invite sat for ${ageSeconds}s - the network path it described has closed since. Create a fresh invite`, session.peerConnection)
         : error
     }
 
