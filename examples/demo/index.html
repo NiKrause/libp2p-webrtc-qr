@@ -87,6 +87,17 @@
            below the fold on a phone. -->
       <div id="handoff-banner" class="handoff-banner" role="status" aria-live="assertive" hidden></div>
 
+      <!--
+        Opening someone's link does three things before there is anything to
+        look at: start a peer, verify the invite, gather ICE for the answer.
+        On a phone that is several seconds of nothing, which reads as a page
+        that failed to load - so it says which of the three it is doing.
+      -->
+      <div id="open-progress" class="open-progress" role="status" aria-live="polite" hidden>
+        <progress id="open-progress-bar" max="3" value="0"></progress>
+        <p id="open-progress-step" class="open-progress-step"></p>
+      </div>
+
       <div class="intro">
         <h1>libp2p WebRTC over QR</h1>
         <p>

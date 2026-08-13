@@ -685,6 +685,37 @@ button.is-busy::before {
   display: none;
 }
 
+/* ---------- opening someone's link ---------- */
+
+.open-progress[hidden] {
+  display: none;
+}
+
+.open-progress {
+  scroll-margin-top: 88px;
+  padding: 18px 20px;
+  margin-bottom: 28px;
+  border: 1px solid var(--ls-bg-3);
+  border-left: 3px solid var(--ls-accent);
+  border-radius: var(--ls-radius-sm);
+  background: var(--ls-bg-2);
+}
+
+.open-progress progress {
+  width: 100%;
+  height: 6px;
+  /* Firefox and WebKit disagree about which of these does the work. */
+  accent-color: var(--ls-accent);
+  border: none;
+  border-radius: 3px;
+}
+
+.open-progress-step {
+  margin: 10px 0 0;
+  font-size: 0.9rem;
+  color: var(--ls-text-dim);
+}
+
 .handoff-banner {
   /* The nav is sticky, so scrolling this to the top would tuck it underneath. */
   scroll-margin-top: 88px;

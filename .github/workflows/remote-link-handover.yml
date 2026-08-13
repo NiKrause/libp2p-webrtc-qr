@@ -1,0 +1,123 @@
+name: Remote link handover
+
+# The one configuration the ordinary suite cannot be.
+#
+# Every test in examples/demo runs both peers in one process on one machine, so
+# they share a NAT and the reflexive candidates they trade are two views of the
+# same box. That cannot fail the way a real handover fails - it has no second
+# network to cross. This puts the answering browser on an Aleph VM and runs the
+# same scenario, in both payload formats, against a deployed build.
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_url:
+        description: Deployment to test
+        required: true
+        default: https://webrtc-qr.le-space.de
+        type: string
+      rootfs_item_hash:
+        description: Processed Aleph STORE hash for the playwright-runner RootFS
+        required: false
+        default: b41c7fe9fe687a22f37f52b52d008a9a924280faec04591ecf47976038f065be
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: webrtc-qr-remote-link-handover
+  cancel-in-progress: false
+
+jobs:
+  handover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      INSTANCE_NAME: webrtc-qr-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.x'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Only the inviting side runs here; the answering side is the VM's.
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: examples/demo
+
+      - name: Create one-run SSH identity and bearer secret
+        shell: bash
+        run: |
+          secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$secret"
+          echo "PLAYWRIGHT_RUNNER_SECRET=$secret" >> "$GITHUB_ENV"
+          ssh-keygen -q -t ed25519 -N '' -f "$RUNNER_TEMP/playwright-runner-id"
+          echo "PLAYWRIGHT_RUNNER_SSH_KEY=$RUNNER_TEMP/playwright-runner-id" >> "$GITHUB_ENV"
+          echo "PLAYWRIGHT_RUNNER_SSH_PUBLIC_KEY=$(cat "$RUNNER_TEMP/playwright-runner-id.pub")" >> "$GITHUB_ENV"
+
+      # Deploy, port resolution, TLS and secret injection, and the authenticated
+      # version check all live in this action - which is why this workflow is
+      # short. Do not reimplement any of it here.
+      - name: Deploy and configure authenticated runner
+        id: runner
+        uses: NiKrause/relay-button/.github/actions/aleph-playwright-runner@main
+        with:
+          aleph_private_key: ${{ secrets.ALEPH_PLAYWRIGHT_PRIVATE_KEY }}
+          rootfs_item_hash: ${{ inputs.rootfs_item_hash }}
+          name: ${{ env.INSTANCE_NAME }}
+          ssh_public_key: ${{ env.PLAYWRIGHT_RUNNER_SSH_PUBLIC_KEY }}
+          ssh_private_key_path: ${{ env.PLAYWRIGHT_RUNNER_SSH_KEY }}
+          secret: ${{ env.PLAYWRIGHT_RUNNER_SECRET }}
+
+      - name: Hand a link across two networks
+        working-directory: examples/demo
+        env:
+          NODE_EXTRA_CA_CERTS: ${{ steps.runner.outputs.ca_cert_path }}
+          REMOTE_APP_URL: ${{ inputs.app_url }}
+          REMOTE_PROVIDER: aleph
+          ALEPH_PLAYWRIGHT_WS_ENDPOINT: ${{ steps.runner.outputs.ws_endpoint }}
+          ALEPH_PLAYWRIGHT_VERSION_URL: ${{ steps.runner.outputs.version_url }}
+          ALEPH_PLAYWRIGHT_SECRET: ${{ env.PLAYWRIGHT_RUNNER_SECRET }}
+        run: pnpm test:remote
+
+      - name: Record what was actually crossed
+        if: always()
+        shell: bash
+        working-directory: examples/demo
+        run: |
+          summary=test-results/remote-link-handover/summary.json
+          if [ -f "$summary" ]; then
+            {
+              echo '### Remote link handover'
+              echo
+              echo "CRN: ${{ steps.runner.outputs.crn_name || 'unknown' }}"
+              echo
+              echo '```json'
+              cat "$summary"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: remote-link-handover
+          path: examples/demo/test-results/remote-link-handover
+          if-no-files-found: warn
+
+      # An ephemeral runner that outlives its run is a VM nobody is watching and
+      # everybody is paying for.
+      - name: Remove the runner
+        if: always() && steps.runner.outputs.instance_item_hash != ''
+        uses: NiKrause/relay-button/.github/actions/aleph-playwright-runner-cleanup@main
+        with:
+          aleph_private_key: ${{ secrets.ALEPH_PLAYWRIGHT_PRIVATE_KEY }}
+          instance_item_hash: ${{ steps.runner.outputs.instance_item_hash }}
