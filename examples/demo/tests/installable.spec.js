@@ -169,3 +169,51 @@ test.describe('installable', () => {
     expect(await page.locator('script[src*="sw"], link[rel="serviceworker"]').count()).toBe(0)
   })
 })
+
+test.describe('the peer id', () => {
+  test('is readable whether the explanation is folded or not', async ({ page }) => {
+    await page.goto('/?ice=host')
+    await page.locator('#start-client').click()
+    await page.waitForFunction(() => document.getElementById('peer-id').textContent !== 'not started')
+
+    // Folded is the default, and the one that used to hide it. A <details>
+    // hides everything but its summary, and this is the line someone reads off
+    // the screen to check against the other device.
+    await expect(page.locator('details:has(#reset-identity)')).not.toHaveAttribute('open', '')
+    await expect(page.locator('#peer-id')).toBeVisible()
+    await expect(page.locator('#peer-id')).toHaveText(/^12D3KooW/)
+
+    await page.locator('details:has(#reset-identity) > summary').click()
+    await expect(page.locator('#peer-id')).toBeVisible()
+  })
+
+  test('says where the key is kept, and is right about it', async ({ context }) => {
+    const tab = await context.newPage()
+
+    await tab.goto('/?ice=host')
+    await tab.locator('#start-client').click()
+    await tab.waitForFunction(() => document.getElementById('peer-id').textContent !== 'not started')
+
+    await expect(tab.locator('#identity-origin')).toContainText('this tab')
+
+    const installed = await context.newPage()
+
+    await installed.addInitScript(() => {
+      const real = window.matchMedia.bind(window)
+
+      window.matchMedia = query => query.includes('display-mode: standalone')
+        ? { matches: true, media: query, addEventListener () {}, removeEventListener () {} }
+        : real(query)
+    })
+    await installed.goto('/?ice=host')
+    await installed.locator('#start-client').click()
+    await installed.waitForFunction(() => document.getElementById('peer-id').textContent !== 'not started')
+
+    // The line said "this tab" in both cases until the app became installable,
+    // and was false in one of them afterwards.
+    await expect(installed.locator('#identity-origin')).toContainText('this installed app')
+
+    await tab.close()
+    await installed.close()
+  })
+})

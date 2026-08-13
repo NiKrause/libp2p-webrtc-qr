@@ -165,21 +165,35 @@
           </div>
 
           <qr-status id="network-state" rows="browser ipv4 ipv6 camera overall" hidden></qr-status>
+
+          <!--
+            The identifier itself, outside the disclosure below it. A <details>
+            hides everything but its summary, and this is the one line someone
+            actually reads off the screen - to check it against the other device,
+            or to say it out loud. The paragraphs explaining what it is are what
+            should fold away once they have been read.
+          -->
+          <p class="peer-identity">
+            <span class="peer-label">Your Peer ID</span>
+            <span id="peer-id">not started</span>
+          </p>
+          <p id="identity-origin" class="peer-note"></p>
+
           <details class="peer">
-            <summary>Your peer identity</summary>
+            <summary>What your peer identity is, and where its key lives</summary>
             <p class="peer-note">
               Your Peer ID. It travels inside every invite you create — the other side needs it to
               check your signature, because the public key is embedded in it. The private key it was
-              derived from is what actually signs, and it never leaves this tab.
+              derived from is what actually signs, and it never leaves this device.
             </p>
             <p class="peer-note">
-              That key is kept for <strong>this tab</strong>, so reloading - or a phone waking from
-              standby - comes back as the same peer instead of a stranger, while another tab stays
-              a different peer you can still connect to. It does not outlive the tab, and the same
-              identifier appears in every invite from here until you reset it.
+              In a browser tab the key is kept for <strong>that tab</strong>, so reloading - or a
+              phone waking from standby - comes back as the same peer instead of a stranger, while
+              another tab stays a different peer you can still connect to. Installed to a home
+              screen there is no second tab, so the key is kept for the app instead and survives
+              between launches. Either way the same identifier appears in every invite from here
+              until you reset it, and resetting clears both.
             </p>
-            <span id="peer-id">not started</span>
-            <p id="identity-origin" class="peer-note"></p>
             <div class="actions">
               <button id="reset-identity" type="button">Start over as a new peer</button>
             </div>
