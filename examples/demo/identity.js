@@ -27,6 +27,38 @@ import { fromString, toString } from 'uint8arrays'
  */
 const STORAGE_KEY = 'libp2p-webrtc-qr:identity:v1'
 
+/**
+ * Installed, the key outlives the launch. In a tab it does not.
+ *
+ * The reason for session storage above is "two tabs must be two peers", and an
+ * installed app does not have two tabs - it has a window you opened on purpose,
+ * the same one, again. Keeping a fresh key there would mean a new Peer ID every
+ * launch, so nothing could recognise you between sessions and the reconnect
+ * prompt would never have anyone to offer.
+ *
+ * The trade, stated rather than hidden: two *installed* windows on the same
+ * desktop would now share one identity and refuse to dial each other. That is a
+ * testing shape, not a using shape, and the demo already says so plainly when a
+ * peer is handed its own invite. Two tabs, which is the shape people actually
+ * use to try this, are unaffected.
+ *
+ * `navigator.standalone` is the iOS spelling; it predates the media query and
+ * is still the only one Safari answers for a home-screen launch.
+ */
+function launchedStandalone () {
+  try {
+    return window.matchMedia?.('(display-mode: standalone)').matches === true ||
+      window.matchMedia?.('(display-mode: fullscreen)').matches === true ||
+      window.navigator.standalone === true
+  } catch {
+    return false
+  }
+}
+
+function store () {
+  return launchedStandalone() ? window.localStorage : window.sessionStorage
+}
+
 export async function loadOrCreateIdentity () {
   const stored = read()
 
@@ -47,10 +79,15 @@ export async function loadOrCreateIdentity () {
 }
 
 export function forgetIdentity () {
-  try {
-    sessionStorage.removeItem(STORAGE_KEY)
-  } catch {
-    // Storage denied - there was nothing to forget.
+  // Both, always. A reset that left a copy in the other store would hand the
+  // same Peer ID straight back the next time the app was launched the other
+  // way, which is the one thing a reset must not do.
+  for (const area of ['sessionStorage', 'localStorage']) {
+    try {
+      window[area].removeItem(STORAGE_KEY)
+    } catch {
+      // Storage denied - there was nothing to forget.
+    }
   }
 }
 
@@ -60,7 +97,7 @@ export function identityIsPersisted () {
 
 function read () {
   try {
-    const stored = sessionStorage.getItem(STORAGE_KEY)
+    const stored = store().getItem(STORAGE_KEY)
 
     return stored == null ? null : fromString(stored, 'base64')
   } catch {
@@ -72,7 +109,7 @@ function read () {
 
 function write (bytes) {
   try {
-    sessionStorage.setItem(STORAGE_KEY, toString(bytes, 'base64'))
+    store().setItem(STORAGE_KEY, toString(bytes, 'base64'))
   } catch {
     // As above: a peer that cannot persist still works, it just will not be
     // recognised after a reload.
