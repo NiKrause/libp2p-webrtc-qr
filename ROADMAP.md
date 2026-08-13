@@ -20,13 +20,19 @@ than one case below, doing the work changed the reasoning that led to it.
 
 **Tracked in [#69](https://github.com/NiKrause/libp2p-webrtc-qr/issues/69).**
 
-**The idea:** a profile photo is uploaded **once** per side. After that,
-pressing *Create link* produces a picture instead of a QR code - the same photo,
-with the offer hidden inside - offered for download, clipboard and share sheet.
-Alice forwards it through the chat she was going to use anyway. Bob feeds it to
-his copy, which decodes it and produces a picture of *his* profile photo
-carrying the answer. He sends that back, and they are connected. The chat
-contains two profile pictures.
+**The idea:** a third way of handing an invite over, alongside the code and the
+link rather than instead of either. A profile photo is uploaded **once** per
+side. After that, the invite dialog shows the code as it does today and the
+picture as a second view of the same invite - her profile photo with the offer
+hidden inside - offered for download, clipboard and share sheet. Alice forwards
+it through the chat she was going to use anyway. Bob feeds it to his copy, which
+decodes it and produces a picture of *his* profile photo carrying the answer. He
+sends that back, and they are connected. The chat contains two profile pictures.
+
+The payload does not change: the same signed bytes, in whichever format the box
+is set to, travelling inside a picture instead of inside a code or a URL.
+Carrier, not format. That is also what makes the risk below survivable - when a
+picture does not come through, the code and the link are still there.
 
 The technique is [J-UNIWARD](https://systemslibrarian.github.io/crypto-lab-j-uniward/):
 JPEG steganography that modifies DCT coefficients, guided by a Daubechies-8
