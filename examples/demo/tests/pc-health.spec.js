@@ -18,6 +18,20 @@ import { expect, test } from '@playwright/test'
 
 const GATHER_TIMEOUT = 60000
 
+/**
+ * Host candidates only, as the rest of the suite does.
+ *
+ * These tests are about the connection's lifecycle, not about which addresses
+ * it found - and gathering against real STUN servers costs seconds each time.
+ * Paying that here is what pushed the Firefox run past sixty seconds on a
+ * two-core runner: not one slow test, a suite full of them.
+ *
+ * The invite link drops the query on purpose (`url.search = ''`), so it has to
+ * be put back for the side that arrives by opening one.
+ */
+const APP = '/?ice=host'
+const asHostIce = link => link.replace('#', '?ice=host#')
+
 const health = page => page.locator('#invite-box .pc-health')
 
 const setVisibility = (page, value) => page.evaluate(state => {
@@ -39,7 +53,7 @@ const createInvite = async page => {
 
 test.describe('the connection readout', () => {
   test('shows the inviting side holding an offer open', async ({ page }) => {
-    await page.goto('/')
+    await page.goto(APP)
     await createInvite(page)
 
     await expect(health(page)).toContainText(/invite \w+: (new|connecting|checking)/)
@@ -50,12 +64,12 @@ test.describe('the connection readout', () => {
     const offerer = await browser.newPage()
     const answerer = await browser.newPage()
 
-    await offerer.goto('/')
+    await offerer.goto(APP)
     const invite = await createInvite(offerer)
 
     // The answering side is the one the report was missing: it builds a
     // connection from the invite and then leaves to send the reply back.
-    await answerer.goto(invite)
+    await answerer.goto(asHostIce(invite))
     await expect(answerer.locator('#invite-link')).toHaveValue(/#r=/, { timeout: GATHER_TIMEOUT })
 
     await expect(health(answerer)).toContainText(/reply #1:/)
@@ -65,7 +79,7 @@ test.describe('the connection readout', () => {
   })
 
   test('records what happened while the page was away', async ({ page }) => {
-    await page.goto('/')
+    await page.goto(APP)
     await createInvite(page)
 
     await setVisibility(page, 'hidden')
@@ -78,7 +92,7 @@ test.describe('the connection readout', () => {
   })
 
   test('turns red and says so when the browser closed it', async ({ page }) => {
-    await page.goto('/')
+    await page.goto(APP)
     await createInvite(page)
 
     await setVisibility(page, 'hidden')
