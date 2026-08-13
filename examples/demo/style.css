@@ -685,6 +685,23 @@ button.is-busy::before {
   display: none;
 }
 
+/* ---------- come straight back (phones only) ---------- */
+
+.hurry-back[hidden] {
+  display: none;
+}
+
+.hurry-back {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border: 1px solid var(--ls-amber);
+  border-radius: var(--ls-radius-sm);
+  background: rgba(255, 194, 75, 0.08);
+  color: var(--ls-text);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
 /* ---------- is the half-finished connection still alive ---------- */
 
 .pc-health[hidden] {

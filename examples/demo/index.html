@@ -329,6 +329,14 @@
         <button id="scan-reply">Scan their reply</button>
         <button id="paste-reply">They sent a link</button>
       </div>
+      <!--
+        Shown only where leaving actually costs something. A phone suspends this
+        page the moment the messenger comes up, and the connection goes with it
+        within seconds; a desktop keeps the tab running and none of this applies.
+        Filled in from JS rather than hidden with CSS, so a desktop never has the
+        sentence in its DOM to be read out by a screen reader.
+      -->
+      <p id="hurry-back" class="hurry-back" role="note" hidden></p>
       <p id="invite-freshness" class="freshness"></p>
       <!--
         Whether the half-finished connection behind this invite is still alive.

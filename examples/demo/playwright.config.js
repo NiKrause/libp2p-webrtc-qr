@@ -9,6 +9,20 @@ export default defineConfig({
   // parallel on a two-core runner starves them and shows up as timeouts that
   // do not reproduce anywhere else.
   workers: process.env.CI ? 1 : undefined,
+  /**
+   * Two retries on CI, and this is not sweeping anything under a rug.
+   *
+   * Playwright reports a test that needed one as **flaky**, not as passed, so
+   * the instability stays on the summary where it can be seen accumulating.
+   * What changes is that one starved handshake on a shared two-core runner
+   * stops failing a whole run - which is what has been happening: the same
+   * bitswap test, only in Firefox, only on CI, never twice with the same
+   * symptom, passing on its own every time.
+   *
+   * A test that starts needing its retries regularly is a bug report, not a
+   * reason to raise this number.
+   */
+  retries: process.env.CI ? 2 : 0,
   timeout: 120000,
   expect: {
     timeout: 15000
