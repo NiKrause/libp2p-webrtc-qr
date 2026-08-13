@@ -13,11 +13,24 @@ import { expect, test } from '@playwright/test'
  * the difference between a failure a person can act on and one they cannot.
  */
 
+/**
+ * Sixty seconds, not thirty.
+ *
+ * Making an invite means gathering ICE against real STUN servers, and the
+ * config already runs CI single-worker because a two-core runner starves them.
+ * Thirty seconds is a bet on that machine being unloaded: it held here and lost
+ * in Firefox on CI, where the dialog was still closed after 62 polls. The poll
+ * that follows needs the same allowance - the field is emptied while gathering.
+ */
+const GATHER_TIMEOUT = 60000
+
 const createInvite = async page => {
   await page.locator('#start-client').click()
   await page.locator('#create-offer').click()
-  await expect(page.locator('#invite-box')).toBeVisible({ timeout: 30000 })
-  await expect.poll(() => page.locator('#invite-link').inputValue()).toMatch(/#i=/)
+  await expect(page.locator('#invite-box')).toBeVisible({ timeout: GATHER_TIMEOUT })
+  await expect
+    .poll(() => page.locator('#invite-link').inputValue(), { timeout: GATHER_TIMEOUT })
+    .toMatch(/#i=/)
 
   return page.locator('#invite-link').inputValue()
 }
@@ -123,7 +136,8 @@ test.describe('opening a link', () => {
     await recordSteps(answerer)
     // Straight to the link, as a person arrives from a chat - no visit first.
     await answerer.goto(invite)
-    await expect(answerer.locator('#invite-link')).toHaveValue(/#r=/, { timeout: 30000 })
+    // The answering side gathers too, so it gets the same allowance.
+    await expect(answerer.locator('#invite-link')).toHaveValue(/#r=/, { timeout: GATHER_TIMEOUT })
 
     const steps = await stepsOf(answerer)
     const text = steps.join(' ~ ')
@@ -211,12 +225,12 @@ test.describe('leaving while an invite waits', () => {
     // otherwise every later invite inherits a warning it did not earn.
     await page.locator('#paste-reply').click().catch(() => {})
     await page.locator('#create-offer, #invite-another').first().click()
-    await expect(page.locator('#invite-box')).toBeVisible({ timeout: 30000 })
-    // 30s, not the 5s default: the field is emptied while the next invite
+    await expect(page.locator('#invite-box')).toBeVisible({ timeout: GATHER_TIMEOUT })
+    // Not the five-second default: the field is emptied while the next invite
     // gathers, and gathering against real STUN on a loaded runner outruns five
     // seconds - which is exactly how this passed here and failed in CI.
     await expect
-      .poll(() => page.locator('#invite-link').inputValue(), { timeout: 30000 })
+      .poll(() => page.locator('#invite-link').inputValue(), { timeout: GATHER_TIMEOUT })
       .toMatch(/#i=/)
 
     // Hidden by the test, so what follows is about the *new* invite only. The
