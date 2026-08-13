@@ -1,6 +1,6 @@
 {
   "name": "@le-space/libp2p-webrtc-qr",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Relay-free libp2p WebRTC transport that exchanges signed SDP signaling out-of-band as QR codes",
   "type": "module",
   "license": "Apache-2.0 OR MIT",
