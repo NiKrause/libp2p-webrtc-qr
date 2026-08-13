@@ -17,7 +17,7 @@ import {
   needsAnimation,
   preload as preloadAnimatedQr
 } from '@le-space/libp2p-webrtc-qr/elements'
-import { forgetIdentity, loadOrCreateIdentity } from './identity.js'
+import { forgetIdentity, launchedStandalone, loadOrCreateIdentity } from './identity.js'
 import { state as wakeLockState, sync as syncWakeLock } from './wakelock.js'
 import { fromString, toString } from 'uint8arrays'
 import {
@@ -333,9 +333,14 @@ async function createNode () {
 
   peerIdEl.textContent = node.peerId.toString()
   showBriefPeerId(node.peerId.toString())
+  // Where the key is kept stopped being a fixed fact when the app became
+  // installable: to a home screen it outlives the launch, in a tab it does not.
+  // "This tab" was true in both cases until #67 and false in one of them after.
+  const kept = launchedStandalone() ? 'this installed app' : 'this tab'
+
   identityOriginEl.textContent = identity.restored
-    ? 'Restored for this tab - the same peer you were before.'
-    : 'Freshly generated and kept for this tab.'
+    ? `Restored for ${kept} - the same peer you were before.`
+    : `Freshly generated and kept for ${kept}.`
   setStatus('Peer started. Create an invite, or scan the code they are showing you.')
   appendLog(`Started libp2p peer ${node.peerId}${identity.restored ? ' (restored)' : ''}`)
   updateControls()

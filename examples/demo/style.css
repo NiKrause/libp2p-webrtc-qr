@@ -332,11 +332,30 @@ input[type='text']:focus {
   color: var(--ls-text-faint);
 }
 
+/* Above the disclosure, so it is readable whether that is folded or not. */
+.peer-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 16px 0 6px;
+}
+
+.peer-label {
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ls-text-faint);
+}
+
 #peer-id {
   font-family: var(--ls-font-mono);
   font-size: 0.78rem;
   color: var(--ls-green);
   overflow-wrap: anywhere;
+  /* Long, and worth selecting in one gesture to compare against the other
+     device rather than dragging across it character by character. */
+  user-select: all;
 }
 
 .status {

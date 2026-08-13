@@ -45,7 +45,7 @@ const STORAGE_KEY = 'libp2p-webrtc-qr:identity:v1'
  * `navigator.standalone` is the iOS spelling; it predates the media query and
  * is still the only one Safari answers for a home-screen launch.
  */
-function launchedStandalone () {
+export function launchedStandalone () {
   try {
     return window.matchMedia?.('(display-mode: standalone)').matches === true ||
       window.matchMedia?.('(display-mode: fullscreen)').matches === true ||
