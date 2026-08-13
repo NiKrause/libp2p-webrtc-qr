@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "test": "playwright test",
     "test:e2e": "playwright test",
-    "og-image": "node scripts/build-og-image.mjs"
+    "og-image": "node scripts/build-og-image.mjs",
+    "test:remote": "node ./tests/remote/run.mjs"
   },
   "dependencies": {
     "@helia/bitswap": "^4.0.6",
@@ -34,6 +35,7 @@
   "devDependencies": {
     "@playwright/test": "1.61.1",
     "buffer": "^6.0.3",
-    "vite": "^6.2.5"
+    "vite": "^6.2.5",
+    "@le-space/playwright": "^0.7.0"
   }
 }

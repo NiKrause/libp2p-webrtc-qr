@@ -351,6 +351,9 @@ async function createOfferPayload () {
   // invites, and the person changing it means the *next* one.
   const offer = await session.createOffer({ compact: compactPayloadEl?.checked ?? false })
 
+  // A fresh invite carries fresh candidates, so whatever the old one lived
+  // through stops counting against this one.
+  resetInviteHidden()
   updateControls()
 
   return offer
@@ -387,6 +390,16 @@ async function acceptAnswerPayload (text) {
   // itself - this app has a protocol of its own and does not need the connection
   // dialled twice.
   const { peerId, address, ageSeconds } = await session.acceptAnswer(text, { dial: false })
+    .catch(error => {
+      // The library reports the age of the invite. This adds the part only the
+      // page knows: whether it spent that time in the background, which is the
+      // difference between "the network refused" and "we left and it went cold".
+      if (inviteHiddenMs >= 20_000) {
+        throw new Error(`${error.message} — this tab was in the background for ${Math.round(inviteHiddenMs / 1000)}s while the invite waited, so the path it described had almost certainly closed. Make a new invite and send that one.`)
+      }
+
+      throw error
+    })
 
   appendLog(`Reply arrived ${ageSeconds}s after the invite was created.`)
 
@@ -1017,6 +1030,40 @@ function showBanner (text, state) {
   handoffBannerEl.scrollIntoView({ block: 'start', behavior: 'smooth' })
 }
 
+const openProgressEl = document.getElementById('open-progress')
+const openProgressBarEl = document.getElementById('open-progress-bar')
+const openProgressStepEl = document.getElementById('open-progress-step')
+
+/**
+ * Say what opening someone's link is doing.
+ *
+ * Three things happen before there is anything to look at - the peer starts,
+ * the invite is verified, ICE gathers for the answer - and on a phone that is
+ * several seconds of a page that looks like it failed to load. Reported as
+ * numbered steps rather than a spinner, because *which* step is slow is the
+ * useful part: gathering is the one that takes seconds, and the one that fails.
+ *
+ * @param {number} step 1-3, or 0 to finish and hide
+ * @param {string} [text]
+ */
+function openProgress (step, text) {
+  if (step === 0) {
+    openProgressEl.hidden = true
+
+    return
+  }
+
+  openProgressBarEl.value = step
+  openProgressStepEl.textContent = `Step ${step} of 3 — ${text}`
+  openProgressEl.hidden = false
+
+  // Awaited by the caller, and it has to be. Starting the node generates keys
+  // on the main thread, which blocks the renderer for long enough that step 1
+  // is replaced by step 2 before either is ever painted - so the panel appears
+  // already half-finished, having shown nobody the part it was added for.
+  return new Promise(resolve => requestAnimationFrame(() => resolve()))
+}
+
 function linkFor (param, payload) {
   const url = new URL(window.location.href)
   url.hash = `${param}=${encodeURIComponent(payload)}`
@@ -1186,6 +1233,12 @@ async function handleReceivedPayload (input, expectedType) {
   const type = expectedType ?? parsed.type
 
   if (type === QR_TYPE_OFFER) {
+    // Only meaningful while opening a link; a no-op otherwise, since the panel
+    // is hidden and this leaves it hidden.
+    if (!openProgressEl.hidden) {
+      await openProgress(3, 'building your reply — finding a network path…')
+    }
+
     const answerPayload = await acceptOfferPayload(text)
     await renderOutbound(answerPayload, QR_TYPE_ANSWER)
     setStatus('Verified. Send the reply link back and keep this tab open.')
@@ -1460,6 +1513,57 @@ fileInput.addEventListener('change', () => {
 })
 
 /**
+ * How long this page spent in the background while an invite was waiting.
+ *
+ * Sharing a link through a messenger means leaving: the app goes away, the
+ * other app comes up, and the invite sits there. The candidates in it are a
+ * snapshot of NAT mappings that were open when it was made, and those close
+ * after tens of seconds of silence - so an invite that has been through a
+ * round trip in a chat is describing a path that no longer exists.
+ *
+ * Measured rather than assumed, because the same failure has two very
+ * different-looking causes: a symmetric NAT no invite would cross, and a
+ * perfectly good invite that simply went cold. Only one is worth retrying.
+ */
+let inviteHiddenSince = null
+let inviteHiddenMs = 0
+
+function noteInviteHidden () {
+  if (session != null && session.offers.size > 0 && inviteHiddenSince == null) {
+    inviteHiddenSince = Date.now()
+  }
+}
+
+function noteInviteVisible () {
+  if (inviteHiddenSince == null) {
+    return
+  }
+
+  inviteHiddenMs += Date.now() - inviteHiddenSince
+  inviteHiddenSince = null
+
+  // Under this, a mapping is very unlikely to have lapsed, and saying anything
+  // would be crying wolf on the flow that works - hand it over and come back.
+  if (session.offers.size === 0 || inviteHiddenMs < 20_000) {
+    return
+  }
+
+  const seconds = Math.round(inviteHiddenMs / 1000)
+
+  appendLog(`This tab was in the background for ${seconds}s with an invite waiting.`)
+  showBanner(
+    `You were away for ${seconds}s while your invite waited. If their reply does not connect, that is why - make a new invite and send that one instead.`,
+    'waiting'
+  )
+}
+
+/** Forget the tally once no invite is riding on it. */
+function resetInviteHidden () {
+  inviteHiddenSince = null
+  inviteHiddenMs = 0
+}
+
+/**
  * Coming back from the background is the moment to say what happened. Phones
  * suspend timers and let radios sleep, so a connection can be mid-recovery, or
  * already gone, and the page would otherwise sit there looking fine.
@@ -1470,9 +1574,12 @@ document.addEventListener('visibilitychange', () => {
   syncWakeLock(document.visibilityState === 'visible' && chatStreams.size > 0)
 
   if (document.visibilityState !== 'visible') {
+    noteInviteHidden()
+
     return
   }
 
+  noteInviteVisible()
   renderPeers()
 
   const lost = [...chatStreams.keys()].filter(peerId => {
@@ -1690,9 +1797,17 @@ async function consumeLink () {
   startButton.disabled = true
 
   try {
+    await openProgress(1, 'starting your peer…')
     await createNode()
+
+    await openProgress(2, 'checking their invite…')
+    // Step 3 is announced from inside handleReceivedPayload, which is where the
+    // slow part actually starts - gathering candidates for the answer. Naming
+    // it here would move the label seconds ahead of the work.
     await useIncoming(incoming)
+    openProgress(0)
   } catch (error) {
+    openProgress(0)
     setStatus(explain(error))
     appendLog(`Opening the link failed: ${error.message}`)
   }
