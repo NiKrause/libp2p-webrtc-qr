@@ -24,6 +24,20 @@ import { expect, test } from '@playwright/test'
  */
 const GATHER_TIMEOUT = 60000
 
+/**
+ * Host candidates only, as the rest of the suite does.
+ *
+ * These tests are about the connection's lifecycle, not about which addresses
+ * it found - and gathering against real STUN servers costs seconds each time.
+ * Paying that here is what pushed the Firefox run past sixty seconds on a
+ * two-core runner: not one slow test, a suite full of them.
+ *
+ * The invite link drops the query on purpose (`url.search = ''`), so it has to
+ * be put back for the side that arrives by opening one.
+ */
+const APP = '/?ice=host'
+const asHostIce = link => link.replace('#', '?ice=host#')
+
 const createInvite = async page => {
   await page.locator('#start-client').click()
   await page.locator('#create-offer').click()
@@ -130,12 +144,12 @@ test.describe('opening a link', () => {
     const offerer = await browser.newPage()
     const answerer = await browser.newPage()
 
-    await offerer.goto('/')
+    await offerer.goto(APP)
     const invite = await createInvite(offerer)
 
     await recordSteps(answerer)
     // Straight to the link, as a person arrives from a chat - no visit first.
-    await answerer.goto(invite)
+    await answerer.goto(asHostIce(invite))
     // The answering side gathers too, so it gets the same allowance.
     await expect(answerer.locator('#invite-link')).toHaveValue(/#r=/, { timeout: GATHER_TIMEOUT })
 
@@ -161,7 +175,7 @@ test.describe('opening a link', () => {
   })
 
   test('says nothing when no link was opened', async ({ page }) => {
-    await page.goto('/')
+    await page.goto(APP)
     await page.locator('#start-client').click()
 
     // The panel belongs to the arrive-from-a-chat flow. Someone who pressed
@@ -175,7 +189,7 @@ test.describe('leaving while an invite waits', () => {
     const page = await browser.newPage()
 
     await withClock(page)
-    await page.goto('/')
+    await page.goto(APP)
     await createInvite(page)
 
     // Twenty seconds is the threshold; this is the messenger round trip.
@@ -195,7 +209,7 @@ test.describe('leaving while an invite waits', () => {
     const page = await browser.newPage()
 
     await withClock(page)
-    await page.goto('/')
+    await page.goto(APP)
     await createInvite(page)
 
     // Copying a link and coming straight back is the flow that works. Warning
@@ -213,7 +227,7 @@ test.describe('leaving while an invite waits', () => {
     const page = await browser.newPage()
 
     await withClock(page)
-    await page.goto('/')
+    await page.goto(APP)
     await createInvite(page)
 
     await hide(page)
