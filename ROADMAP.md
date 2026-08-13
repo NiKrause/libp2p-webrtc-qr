@@ -20,31 +20,33 @@ than one case below, doing the work changed the reasoning that led to it.
 
 **Tracked in [#69](https://github.com/NiKrause/libp2p-webrtc-qr/issues/69).**
 
-**The idea:** instead of pressing *Create invite link*, you hand the app a
-photo. It gives one back that looks the same, with the offer hidden in it, and
-you send that through the chat you were going to use anyway. The other person
-feeds it to their copy, gets a photo back carrying the answer, and sends that.
-Then you are connected, and the chat contains two holiday snaps.
+**The idea:** a profile photo is uploaded **once** per side. After that,
+pressing *Create link* produces a picture instead of a QR code - the same photo,
+with the offer hidden inside - offered for download, clipboard and share sheet.
+Alice forwards it through the chat she was going to use anyway. Bob feeds it to
+his copy, which decodes it and produces a picture of *his* profile photo
+carrying the answer. He sends that back, and they are connected. The chat
+contains two profile pictures.
 
 The technique is [J-UNIWARD](https://systemslibrarian.github.io/crypto-lab-j-uniward/):
 JPEG steganography that modifies DCT coefficients, guided by a Daubechies-8
 wavelet cost function so the changes land in textured regions where they are
 hardest to detect, encoded with syndrome-trellis codes. Both sides need a
-**shared key**; the cover image is not needed to extract.
+**shared key**; the cover image is needed to embed, not to extract.
 
 ### Why it is worth writing down even before it is worth building
 
 Everything else in this roadmap makes the handshake smaller, faster or more
 legible. This changes what the handshake *looks like* to whoever is carrying it.
-A QR code and a `#i=…` link both announce themselves as machinery. A photograph
-does not, and there are networks where that is the difference between a
+A QR code and a `#i=…` link both announce themselves as machinery. A profile
+picture does not, and there are networks where that is the difference between a
 handshake and no handshake.
 
 It also fits the shape this project already has. The payload is small - the
-compact format measures **276 characters**, and at the lab's default 0.10
-bits per non-zero AC coefficient an ordinary phone photo carries several
-kilobytes - and the signature that authenticates it is unchanged, because the
-steganography is a transport, not a security layer.
+compact format measures **276 characters**, and at the lab's default 0.10 bits
+per non-zero AC coefficient an ordinary phone photo carries several kilobytes -
+and the signature that authenticates it is unchanged, because the steganography
+is a transport, not a security layer.
 
 ### What has to be true
 
@@ -55,10 +57,17 @@ steganography is a transport, not a security layer.
 - **The key has to come from somewhere.** Alice and Bob have no shared secret -
   that is what the handshake is for. A password spoken aloud is a second channel
   the rest of this project does not require.
-- **It is slower than a link, and #65 says the connection has seconds.** An
-  upload, a download and a re-upload through a messenger is not a two-second
-  round trip on a phone. This may only be usable at all from an installed app,
-  or with a signalling relay behind it.
+- **A picture has no deep link.** This is the real cost, and it is not speed:
+  with a stored profile photo, creating and forwarding one is the same two
+  gestures as a link. But tapping a link *opens the app with the payload in
+  hand*, and a picture cannot - so the receiving side gains a few actions on
+  each hop. That matters only because #65 measured a phone closing the pending
+  connection within seconds of losing the foreground, and the whole round trip
+  has to fit inside that. Accepting a **pasted** image rather than only an
+  uploaded file closes most of the gap; an installed app surviving in the
+  background - the open question in
+  [#65](https://github.com/NiKrause/libp2p-webrtc-qr/issues/65) - closes the
+  rest.
 
 See the issue for what would need measuring first.
 
