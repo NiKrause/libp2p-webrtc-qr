@@ -50,43 +50,6 @@ const createInvite = async page => {
 }
 
 /**
- * Drive the page's own notion of visibility.
- *
- * Stated plainly: this is not a phone going to the background. It cannot be -
- * a headless browser has no home button, and the CDP override is not in every
- * build. What it does exercise is the code that runs on the transition, which
- * is the part that was written. Whether a real NAT mapping lapses in the
- * meantime is the question the two-phone test answers, not this one.
- */
-const setVisibility = async (page, value) => {
-  await page.evaluate(state => {
-    Object.defineProperty(document, 'visibilityState', { value: state, configurable: true })
-    Object.defineProperty(document, 'hidden', { value: state === 'hidden', configurable: true })
-    document.dispatchEvent(new Event('visibilitychange'))
-  }, value)
-}
-
-const hide = page => setVisibility(page, 'hidden')
-const show = page => setVisibility(page, 'visible')
-
-/**
- * A clock the test can move.
- *
- * The threshold being tested is twenty seconds, and three tests waiting that
- * long in real time cost a minute of the suite - and, measured, pushed two
- * unrelated tests in other engines over their own timeouts. Nothing here
- * depends on time actually passing, only on what the page computes from it.
- */
-const withClock = page => page.addInitScript(() => {
-  window.__skew = 0
-  const real = Date.now
-
-  Date.now = () => real() + window.__skew
-})
-
-const advance = (page, ms) => page.evaluate(amount => { window.__skew += amount }, ms)
-
-/**
  * Record the steps from inside the page.
  *
  * Polling them from the test does not work: a locator call every 120ms races
@@ -184,80 +147,8 @@ test.describe('opening a link', () => {
   })
 })
 
-test.describe('leaving while an invite waits', () => {
-  test('says so on the way back, before anything has failed', async ({ browser }) => {
-    const page = await browser.newPage()
-
-    await withClock(page)
-    await page.goto(APP)
-    await createInvite(page)
-
-    // Twenty seconds is the threshold; this is the messenger round trip.
-    await hide(page)
-    await advance(page, 21000)
-    await show(page)
-
-    // Said while there is still something to do about it - the reply has not
-    // even arrived yet. Warning only at failure time is a post-mortem.
-    await expect(page.locator('#handoff-banner')).toContainText(/You were away for 2\d s|You were away for \d+s/)
-    await expect(page.locator('#handoff-banner')).toContainText(/make a new invite/i)
-
-    await page.close()
-  })
-
-  test('a short handover says nothing', async ({ browser }) => {
-    const page = await browser.newPage()
-
-    await withClock(page)
-    await page.goto(APP)
-    await createInvite(page)
-
-    // Copying a link and coming straight back is the flow that works. Warning
-    // here would train people to ignore the warning that matters.
-    await hide(page)
-    await advance(page, 1500)
-    await show(page)
-
-    await expect(page.locator('#handoff-banner')).toBeHidden()
-
-    await page.close()
-  })
-
-  test('a fresh invite clears what the old one lived through', async ({ browser }) => {
-    const page = await browser.newPage()
-
-    await withClock(page)
-    await page.goto(APP)
-    await createInvite(page)
-
-    await hide(page)
-    await advance(page, 21000)
-    await show(page)
-    await expect(page.locator('#handoff-banner')).toBeVisible()
-
-    // The new invite carries new candidates, so the tally has to start over -
-    // otherwise every later invite inherits a warning it did not earn.
-    await page.locator('#paste-reply').click().catch(() => {})
-    await page.locator('#create-offer, #invite-another').first().click()
-    await expect(page.locator('#invite-box')).toBeVisible({ timeout: GATHER_TIMEOUT })
-    // Not the five-second default: the field is emptied while the next invite
-    // gathers, and gathering against real STUN on a loaded runner outruns five
-    // seconds - which is exactly how this passed here and failed in CI.
-    await expect
-      .poll(() => page.locator('#invite-link').inputValue(), { timeout: GATHER_TIMEOUT })
-      .toMatch(/#i=/)
-
-    // Hidden by the test, so what follows is about the *new* invite only. The
-    // banner left over from the old one would otherwise satisfy any assertion
-    // made after it, which is what made the first version of this test mush.
-    await page.evaluate(() => { document.getElementById('handoff-banner').hidden = true })
-
-    await hide(page)
-    await advance(page, 1500)
-    await show(page)
-
-    await expect(page.locator('#handoff-banner')).toBeHidden()
-
-    await page.close()
-  })
-})
+// The behaviour around *leaving* - the urgency hint, and the warning on the
+// way back - lives in hurry-back.spec.js. It stopped being about elapsed time
+// when two Android phones showed the connection gone after a couple of seconds,
+// so it is now asserted against the connection's own state, next to the rest of
+// that story rather than split across two files.

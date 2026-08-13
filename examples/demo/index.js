@@ -114,6 +114,7 @@ const pasteReplyButton = document.getElementById('paste-reply')
 const pasteFallbackEl = document.querySelector('.paste-fallback')
 const inviteLinkEl = document.getElementById('invite-link')
 const inviteFreshnessEl = document.getElementById('invite-freshness')
+const hurryBackEl = document.getElementById('hurry-back')
 const createOfferAgainButton = document.getElementById('create-offer-again')
 const handoffBannerEl = document.getElementById('handoff-banner')
 const peerListEl = document.getElementById('peer-list')
@@ -394,8 +395,14 @@ async function acceptAnswerPayload (text) {
       // The library reports the age of the invite. This adds the part only the
       // page knows: whether it spent that time in the background, which is the
       // difference between "the network refused" and "we left and it went cold".
-      if (inviteHiddenMs >= 20_000) {
-        throw new Error(`${error.message} — this tab was in the background for ${Math.round(inviteHiddenMs / 1000)}s while the invite waited, so the path it described had almost certainly closed. Make a new invite and send that one.`)
+      // Not "were you away long enough" but "did it survive". The connection
+      // answers that itself, and after a couple of seconds on a phone the
+      // answer is often no - far sooner than any duration rule would have
+      // guessed, and sometimes no after an absence a rule would have excused.
+      if (inviteHiddenMs > 0) {
+        const seconds = Math.round(inviteHiddenMs / 1000)
+
+        throw new Error(`${error.message} — this tab was in the background for ${seconds}s while the invite waited, and phones suspend a page they are not showing, which closes the connection behind it. Make a new invite and send that one.`)
       }
 
       throw error
@@ -1030,6 +1037,45 @@ function showBanner (text, state) {
   handoffBannerEl.scrollIntoView({ block: 'start', behavior: 'smooth' })
 }
 
+/**
+ * Does leaving this app suspend it?
+ *
+ * Named for what matters rather than for "is this a phone" - the phone is only
+ * a proxy. A desktop browser keeps a background tab running and the handover
+ * through a chat window is unhurried there. A phone suspends whatever is not in
+ * front, and the field report from two Android devices is that you have **a
+ * couple of seconds** before the connection is gone. Hurrying a desktop user
+ * would be false, and false urgency is how people learn to ignore a warning.
+ *
+ * `hover: none and pointer: coarse` is true on phones and tablets and false on
+ * desktops, including the touchscreen laptops that a bare touch check misreads.
+ */
+function leavingSuspendsUs () {
+  try {
+    return navigator.userAgentData?.mobile === true ||
+      window.matchMedia('(hover: none) and (pointer: coarse)').matches
+  } catch {
+    return false
+  }
+}
+
+/**
+ * The one sentence that can still be acted on.
+ *
+ * Two Android phones, Chrome and DuckDuckGo: the handover works, provided you
+ * come back within a couple of seconds. That is not a rule anyone can guess, so
+ * it is put next to the button that sends them away - and only there, because a
+ * warning that arrives on the way back is a post-mortem.
+ */
+function showHurryBack () {
+  if (!leavingSuspendsUs()) {
+    return
+  }
+
+  hurryBackEl.textContent = 'Come straight back. While you are in another app this phone suspends the page, and the invite stops working within seconds.'
+  hurryBackEl.hidden = false
+}
+
 const pcHealthEls = [...document.querySelectorAll('.pc-health')]
 
 /**
@@ -1538,10 +1584,17 @@ payloadDisplay.addEventListener('paste', event => {
 })
 
 copyPayloadButton.addEventListener('click', async () => {
+  // Said *before* the messenger takes the screen. Once it has, this page is
+  // suspended and anything written here is unreadable until it is too late to
+  // act on - which is what made the old on-return warning a post-mortem.
+  showHurryBack()
+
   const result = await shareOrCopy(inviteLinkEl.value, 'invite link')
 
   if (result === 'copied') {
-    setStatus('Link copied. Paste it into your chat with the other person.')
+    setStatus(leavingSuspendsUs()
+      ? 'Link copied. Paste it and come straight back - this invite stops working seconds after you leave.'
+      : 'Link copied. Paste it into your chat with the other person.')
   }
 })
 
@@ -1652,19 +1705,27 @@ function noteInviteVisible () {
   inviteHiddenMs += Date.now() - inviteHiddenSince
   inviteHiddenSince = null
 
-  // Under this, a mapping is very unlikely to have lapsed, and saying anything
-  // would be crying wolf on the flow that works - hand it over and come back.
-  if (session.offers.size === 0 || inviteHiddenMs < 20_000) {
+  if (session.offers.size === 0) {
     return
   }
 
   const seconds = Math.round(inviteHiddenMs / 1000)
 
+  // Asked of the connection rather than of the clock. A twenty-second rule was
+  // wrong in both directions: two Android phones showed the connection gone
+  // after *a couple* of seconds, so the rule stayed silent through the absence
+  // that actually killed it - and it cried wolf after a long one that happened
+  // to survive. `signalingState` knows which of those just happened.
+  const died = pendingConnections().some(item => stateOf(item.peerConnection) === 'closed')
+
   appendLog(`This tab was in the background for ${seconds}s with an invite waiting.`)
-  showBanner(
-    `You were away for ${seconds}s while your invite waited. If their reply does not connect, that is why - make a new invite and send that one instead.`,
-    'waiting'
-  )
+
+  if (died) {
+    showBanner(
+      `Your invite did not survive the ${seconds}s you were away - this phone suspended the page and closed the connection behind it. Make a new invite and send that one.`,
+      'error'
+    )
+  }
 }
 
 /** Forget the tally once no invite is riding on it. */

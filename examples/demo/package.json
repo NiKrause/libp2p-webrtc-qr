@@ -13,7 +13,8 @@
     "test": "playwright test",
     "test:e2e": "playwright test",
     "og-image": "node scripts/build-og-image.mjs",
-    "test:remote": "node ./tests/remote/run.mjs"
+    "test:remote": "node ./tests/remote/run.mjs",
+    "icons": "node scripts/build-icons.mjs"
   },
   "dependencies": {
     "@helia/bitswap": "^4.0.6",
