@@ -16,9 +16,65 @@ than one case below, doing the work changed the reasoning that led to it.
 
 ---
 
+## 0. Carry the handshake inside a photograph
+
+**Tracked in [#69](https://github.com/NiKrause/libp2p-webrtc-qr/issues/69).**
+
+**The idea:** instead of pressing *Create invite link*, you hand the app a
+photo. It gives one back that looks the same, with the offer hidden in it, and
+you send that through the chat you were going to use anyway. The other person
+feeds it to their copy, gets a photo back carrying the answer, and sends that.
+Then you are connected, and the chat contains two holiday snaps.
+
+The technique is [J-UNIWARD](https://systemslibrarian.github.io/crypto-lab-j-uniward/):
+JPEG steganography that modifies DCT coefficients, guided by a Daubechies-8
+wavelet cost function so the changes land in textured regions where they are
+hardest to detect, encoded with syndrome-trellis codes. Both sides need a
+**shared key**; the cover image is not needed to extract.
+
+### Why it is worth writing down even before it is worth building
+
+Everything else in this roadmap makes the handshake smaller, faster or more
+legible. This changes what the handshake *looks like* to whoever is carrying it.
+A QR code and a `#i=…` link both announce themselves as machinery. A photograph
+does not, and there are networks where that is the difference between a
+handshake and no handshake.
+
+It also fits the shape this project already has. The payload is small - the
+compact format measures **276 characters**, and at the lab's default 0.10
+bits per non-zero AC coefficient an ordinary phone photo carries several
+kilobytes - and the signature that authenticates it is unchanged, because the
+steganography is a transport, not a security layer.
+
+### What has to be true
+
+- **The channel must not recompress.** Sent as a *photo*, Telegram re-encodes
+  the JPEG and every DCT coefficient with it; sent as a *file*, the bytes
+  survive. That single distinction decides whether this works at all, and it is
+  a thing a person has to get right in another app.
+- **The key has to come from somewhere.** Alice and Bob have no shared secret -
+  that is what the handshake is for. A password spoken aloud is a second channel
+  the rest of this project does not require.
+- **It is slower than a link, and #65 says the connection has seconds.** An
+  upload, a download and a re-upload through a messenger is not a two-second
+  round trip on a phone. This may only be usable at all from an installed app,
+  or with a signalling relay behind it.
+
+See the issue for what would need measuring first.
+
+---
+
 ## 1. Adopt QWBP-style compact payloads
 
 **Tracked in [#6](https://github.com/NiKrause/libp2p-webrtc-qr/issues/6).**
+
+**Done**, as the combination this section argued for rather than as adoption.
+A v3 codec packs the fingerprint and candidates binary, derives the ICE
+credentials from the fingerprint with HKDF instead of sending them, and rebuilds
+the SDP locally - while keeping the signature that makes `skipEncryption: true`
+sound. Measured against a live deployment: **276 characters compact against 1011
+full**. The format is a per-invite choice, and an answer follows the format of
+the offer it replies to, because a peer that sent v2 cannot read a v3 answer.
 
 **Today:** the signed offer is around **1057 characters** with STUN candidates
 (933 host-only), against a 2200 budget. The whole SDP is transported, deflated
@@ -144,6 +200,10 @@ upstream version.
 
 **Tracked in [#8](https://github.com/NiKrause/libp2p-webrtc-qr/issues/8).**
 
+**Done.** `QRSession` owns the state machine, and the demo is a consumer of it
+like any other application. Item 13 below is what forced the issue: the same
+orchestration had been written a third time, in a different repository.
+
 The package currently ships the transport and the signaling codec. The state
 machine that drives them - create offer, gather ICE, wait for `connected`,
 upgrade in the right direction, retry the dial while the peer attaches its muxer
@@ -241,6 +301,14 @@ a browser-coverage gap.
 ## 7. TURN, and being honest about NAT
 
 **Tracked in [#11](https://github.com/NiKrause/libp2p-webrtc-qr/issues/11).**
+
+**Done**, and the honesty half turned out to matter more than the TURN half. A
+TURN server can be supplied per session, and a failure now says *which* failure
+it was: both sides behind a symmetric NAT is a different sentence from an invite
+that went stale, and telling someone to hurry when no invite of any age would
+have crossed their network is worse than saying nothing. Symmetry is decided per
+address family - more than one public port within one family - because a peer
+with IPv4 and IPv6 has two ports for ordinary reasons.
 
 There is no TURN server, so two peers behind restrictive or symmetric NATs can
 still fail to connect after a perfectly good scan - which is a confusing
@@ -471,6 +539,12 @@ and unfold if it drops.
 
 **Tracked in [#38](https://github.com/NiKrause/libp2p-webrtc-qr/issues/38).**
 
+**Done.** The connect flow ships as custom elements - the scanner owns the
+camera and its release, the invite owns the code and its animation, the status
+panel owns the readiness rows - with a seam for translating every label, because
+the first consumer outside this repository needed the strings in another
+language before it needed anything else.
+
 Item 4 says the session orchestration is implemented twice and that the
 duplication is the signal. It is worse than that now, and the evidence arrived
 from outside this repository.
@@ -550,6 +624,12 @@ confirms the seams; a second consumer discovered early moves them.
 ## 14. Scan a real code through the real camera path
 
 **Tracked in [#41](https://github.com/NiKrause/libp2p-webrtc-qr/issues/41).**
+
+**Done.** The suite renders the app's own animated invite to a video file and
+hands it to Chromium as the capture device, so `getUserMedia`, the scan loop,
+`jsQR` and BC-UR reassembly all run for real. Chromium only: Firefox's fake
+stream is a generated pattern with no way to supply a file, and WebKit has no
+fake device at all.
 
 Every field failure in this project has been in the camera path, and no test has
 ever gone through it:
