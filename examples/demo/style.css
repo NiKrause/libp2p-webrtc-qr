@@ -685,6 +685,45 @@ button.is-busy::before {
   display: none;
 }
 
+/* ---------- is the half-finished connection still alive ---------- */
+
+.pc-health[hidden] {
+  display: none;
+}
+
+.pc-health {
+  --dot: var(--ls-text-faint);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 10px 0 0;
+  font-family: var(--ls-font-mono);
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--ls-text-dim);
+  overflow-wrap: anywhere;
+}
+
+.pc-health::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--dot);
+  box-shadow: 0 0 10px var(--dot);
+}
+
+.pc-health.is-alive {
+  --dot: var(--ls-green);
+}
+
+/* The one that matters: the browser closed it while nobody was looking. */
+.pc-health.is-dead {
+  --dot: var(--ls-red);
+  color: var(--ls-red-bright);
+}
+
 /* ---------- opening someone's link ---------- */
 
 .open-progress[hidden] {
