@@ -208,20 +208,27 @@ test.describe('leaving while an invite waits', () => {
     await expect(page.locator('#handoff-banner')).toBeVisible()
 
     // The new invite carries new candidates, so the tally has to start over -
-    // otherwise every later invite inherits a warning it does not deserve.
+    // otherwise every later invite inherits a warning it did not earn.
     await page.locator('#paste-reply').click().catch(() => {})
     await page.locator('#create-offer, #invite-another').first().click()
-    await expect.poll(() => page.locator('#invite-link').inputValue()).toMatch(/#i=/)
+    await expect(page.locator('#invite-box')).toBeVisible({ timeout: 30000 })
+    // 30s, not the 5s default: the field is emptied while the next invite
+    // gathers, and gathering against real STUN on a loaded runner outruns five
+    // seconds - which is exactly how this passed here and failed in CI.
+    await expect
+      .poll(() => page.locator('#invite-link').inputValue(), { timeout: 30000 })
+      .toMatch(/#i=/)
 
-    const hidden = await page.evaluate(() => document.getElementById('handoff-banner').hidden)
+    // Hidden by the test, so what follows is about the *new* invite only. The
+    // banner left over from the old one would otherwise satisfy any assertion
+    // made after it, which is what made the first version of this test mush.
+    await page.evaluate(() => { document.getElementById('handoff-banner').hidden = true })
 
     await hide(page)
     await advance(page, 1500)
     await show(page)
 
-    // Either it was cleared outright, or it stays as history but no *new*
-    // warning is raised for a 1.5s absence.
-    expect(hidden || await page.locator('#handoff-banner').textContent()).toBeTruthy()
+    await expect(page.locator('#handoff-banner')).toBeHidden()
 
     await page.close()
   })
