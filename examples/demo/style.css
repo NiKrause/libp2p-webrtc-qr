@@ -481,6 +481,17 @@ input[type='text']:focus {
   margin: 0;
 }
 
+/* Quieter than the line above it: this is provenance, not navigation. */
+.page-footer .build-stamp {
+  margin-top: 6px;
+  opacity: 0.7;
+  font-size: 0.78rem;
+}
+
+.page-footer .build-stamp code {
+  font-size: inherit;
+}
+
 /* ---------- pending buttons ---------- */
 
 button.is-busy {
