@@ -177,6 +177,11 @@
             <button id="reconnect" type="button" class="primary">Reconnect</button>
           </div>
 
+          <!-- The same readout as in the invite dialog. It belongs in both: the
+               inviting side waits with the dialog open, the answering side has
+               usually closed it by the time it leaves for the messenger. -->
+          <p class="pc-health" role="status" aria-live="polite"></p>
+
           <div class="actions">
             <button id="create-offer" class="primary" disabled>Create invite link</button>
             <button id="scan-offer" disabled>Scan their code</button>
@@ -304,6 +309,15 @@
         <button id="paste-reply">They sent a link</button>
       </div>
       <p id="invite-freshness" class="freshness"></p>
+      <!--
+        Whether the half-finished connection behind this invite is still alive.
+        Browsers close an RTCPeerConnection when they suspend the page, and in
+        some versions without firing any event (w3c/webrtc-pc#2489), so there is
+        nothing to listen for - only something to look at afterwards. It records
+        what the state was on the way out and on the way back, because nobody
+        can watch a screen that is in the background.
+      -->
+      <p class="pc-health" role="status" aria-live="polite"></p>
       <details class="invite-link-fallback">
         <summary>Copy the link instead</summary>
         <label for="invite-link">Send this link to the other person</label>

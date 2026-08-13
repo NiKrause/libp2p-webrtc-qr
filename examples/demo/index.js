@@ -1030,6 +1030,116 @@ function showBanner (text, state) {
   handoffBannerEl.scrollIntoView({ block: 'start', behavior: 'smooth' })
 }
 
+const pcHealthEls = [...document.querySelectorAll('.pc-health')]
+
+/**
+ * Every half-finished connection the session is holding, on either side.
+ *
+ * Both roles leave one behind while the person walks off to a messenger: the
+ * inviting side keeps an offer waiting for a reply, the answering side keeps
+ * the connection it built from that offer. Whichever device goes away, this is
+ * the object that goes with it.
+ */
+function pendingConnections () {
+  if (session == null) {
+    return []
+  }
+
+  const out = []
+
+  for (const [sessionId, offer] of session.offers) {
+    out.push({ role: 'invite', label: sessionId.slice(0, 6), peerConnection: offer.peerConnection })
+  }
+
+  let n = 0
+
+  for (const peerConnection of session.inbound) {
+    n += 1
+    out.push({ role: 'reply', label: `#${n}`, peerConnection })
+  }
+
+  return out
+}
+
+/**
+ * `signalingState` is the honest one. A connection the browser closed while the
+ * page was suspended reports `closed` here, and browsers have shipped versions
+ * that closed it without firing any event (w3c/webrtc-pc#2489) - so this is
+ * read, never awaited.
+ */
+function stateOf (peerConnection) {
+  return peerConnection.signalingState === 'closed'
+    ? 'closed'
+    : peerConnection.connectionState ?? peerConnection.iceConnectionState ?? 'new'
+}
+
+// What the states were on the way out, and the sentence describing what came
+// back. Kept as text because it has to survive on screen: nobody can watch a
+// display that is in the background, so the readout is only ever read later.
+let healthOnHide = null
+let healthReport = ''
+
+function noteHealthHidden () {
+  const pending = pendingConnections()
+
+  if (pending.length === 0) {
+    return
+  }
+
+  healthOnHide = {
+    at: Date.now(),
+    states: new Map(pending.map(item => [`${item.role} ${item.label}`, stateOf(item.peerConnection)]))
+  }
+}
+
+function noteHealthVisible () {
+  if (healthOnHide == null) {
+    return
+  }
+
+  const away = Math.round((Date.now() - healthOnHide.at) / 1000)
+  const now = new Map(pendingConnections().map(item => [`${item.role} ${item.label}`, stateOf(item.peerConnection)]))
+  const lines = []
+
+  for (const [key, before] of healthOnHide.states) {
+    // Gone from the set entirely is its own answer, and a different one from
+    // "still here but closed".
+    const after = now.get(key) ?? 'gone'
+
+    lines.push(before === after ? `${key} survived (${after})` : `${key} ${before} → ${after}`)
+  }
+
+  healthReport = `after ${away}s away: ${lines.join('; ')}`
+  healthOnHide = null
+  appendLog(healthReport)
+  renderPeerHealth()
+}
+
+function renderPeerHealth () {
+  const pending = pendingConnections()
+  const live = pending.map(item => `${item.role} ${item.label}: ${stateOf(item.peerConnection)}`)
+  const dead = pending.some(item => stateOf(item.peerConnection) === 'closed')
+  const parts = [
+    live.length > 0 ? live.join(' · ') : 'no half-finished connection',
+    healthReport
+  ].filter(part => part.length > 0)
+
+  for (const el of pcHealthEls) {
+    el.textContent = parts.join(' — ')
+    el.className = `pc-health is-${pending.length === 0 ? 'idle' : dead ? 'dead' : 'alive'}`
+    el.hidden = parts.length === 0
+  }
+}
+
+// Polled rather than evented, because the event does not exist: a connection
+// closed by page suspension announces nothing. Two seconds is often enough to
+// catch the transition on the way back without being a busy loop.
+setInterval(() => {
+  if (session != null) {
+    renderPeerHealth()
+  }
+}, 2000)
+
 const openProgressEl = document.getElementById('open-progress')
 const openProgressBarEl = document.getElementById('open-progress-bar')
 const openProgressStepEl = document.getElementById('open-progress-step')
@@ -1575,11 +1685,13 @@ document.addEventListener('visibilitychange', () => {
 
   if (document.visibilityState !== 'visible') {
     noteInviteHidden()
+    noteHealthHidden()
 
     return
   }
 
   noteInviteVisible()
+  noteHealthVisible()
   renderPeers()
 
   const lost = [...chatStreams.keys()].filter(peerId => {
@@ -1630,6 +1742,27 @@ window.__libp2pQrTest = {
   },
   needsAnimation,
   looksLikeUrPart,
+  /**
+   * Do to the pending connections what a suspending browser does: close them
+   * from underneath the page, firing nothing. The real thing cannot be provoked
+   * from a test - a headless browser has no home button - and what is worth
+   * covering is what the page shows *afterwards*, which this reaches honestly.
+   */
+  simulateSuspension: () => {
+    const closed = []
+
+    for (const [sessionId, offer] of session?.offers ?? []) {
+      offer.peerConnection.close()
+      closed.push(`invite ${sessionId.slice(0, 6)}`)
+    }
+
+    for (const peerConnection of session?.inbound ?? []) {
+      peerConnection.close()
+      closed.push('reply')
+    }
+
+    return closed
+  },
   wakeLockState,
   // Whether the scanner modal is on screen. Deliberately *not* named after the
   // camera: it reports the dialog, and a dialog that has closed says nothing
