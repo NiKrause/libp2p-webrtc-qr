@@ -18,7 +18,7 @@ async function openPeer (page, errors) {
   await page.goto('/?ice=host')
   await page.waitForFunction(() => typeof window.__libp2pQrTest?.createOfferPayload === 'function')
   await page.locator('#start-client').click()
-  await expect(page.locator('#status')).toContainText('Browser client started')
+  await expect(page.locator('#status')).toContainText('Peer started')
 }
 
 async function createInvite (page) {

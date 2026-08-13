@@ -116,7 +116,7 @@ test.describe('the camera path', () => {
       await shown.goto('/?ice=host')
       await shown.waitForFunction(() => typeof window.__libp2pQrTest?.createOfferPayload === 'function')
       await shown.locator('#start-client').click()
-      await expect(shown.locator('#status')).toContainText('Browser client started')
+      await expect(shown.locator('#status')).toContainText('Peer started')
       // The animated path is what this test exists for, and a compact payload
       // fits one static code - so ask for the long format on purpose.
       await shown.locator('#compact-payload').uncheck()
@@ -171,7 +171,7 @@ test.describe('the camera path', () => {
       await scanner.goto('/?ice=host')
       await scanner.waitForFunction(() => typeof window.__libp2pQrTest?.createOfferPayload === 'function')
       await scanner.locator('#start-client').click()
-      await expect(scanner.locator('#status')).toContainText('Browser client started')
+      await expect(scanner.locator('#status')).toContainText('Peer started')
 
       await scanner.locator('#scan-offer').click()
       await expect(scanner.locator('qr-scanner dialog')).toBeVisible()
@@ -242,7 +242,7 @@ test.describe('the camera path', () => {
       await scanner.goto('/?ice=host')
       await scanner.waitForFunction(() => typeof window.__libp2pQrTest?.createOfferPayload === 'function')
       await scanner.locator('#start-client').click()
-      await expect(scanner.locator('#status')).toContainText('Browser client started')
+      await expect(scanner.locator('#status')).toContainText('Peer started')
 
       await scanner.locator('#scan-offer').click()
       await expect(scanner.locator('qr-scanner dialog')).toBeVisible()

@@ -335,7 +335,7 @@ async function createNode () {
   identityOriginEl.textContent = identity.restored
     ? 'Restored for this tab - the same peer you were before.'
     : 'Freshly generated and kept for this tab.'
-  setStatus('Browser client started. Create or scan an offer.')
+  setStatus('Peer started. Create an invite, or scan the code they are showing you.')
   appendLog(`Started libp2p peer ${node.peerId}${identity.restored ? ' (restored)' : ''}`)
   updateControls()
 
