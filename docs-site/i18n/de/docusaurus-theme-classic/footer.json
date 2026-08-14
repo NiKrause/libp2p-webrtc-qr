@@ -1,0 +1,30 @@
+{
+  "link.title.Package": {
+    "message": "Paket",
+    "description": "The title of the footer links column with title=Package in the footer"
+  },
+  "link.title.Engineering record": {
+    "message": "Technische Aktenlage",
+    "description": "The title of the footer links column with title=Engineering record in the footer"
+  },
+  "link.item.label.npm": {
+    "message": "npm",
+    "description": "The label of footer link with label=npm linking to https://www.npmjs.com/package/@le-space/libp2p-webrtc-qr"
+  },
+  "link.item.label.Live demo": {
+    "message": "Live-Demo",
+    "description": "The label of footer link with label=Live demo linking to https://webrtc-qr.le-space.de"
+  },
+  "link.item.label.Roadmap": {
+    "message": "Roadmap",
+    "description": "The label of footer link with label=Roadmap linking to https://github.com/NiKrause/libp2p-webrtc-qr/blob/main/ROADMAP.md"
+  },
+  "link.item.label.Notes for agents": {
+    "message": "Hinweise für KI-Agenten",
+    "description": "The label of footer link with label=Notes for agents linking to https://github.com/NiKrause/libp2p-webrtc-qr/blob/main/AGENTS.md"
+  },
+  "link.item.label.Connection security": {
+    "message": "Verbindungssicherheit",
+    "description": "The label of footer link with label=Connection security linking to https://github.com/NiKrause/libp2p-webrtc-qr/blob/main/docs/connection-security.md"
+  }
+}

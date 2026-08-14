@@ -1,0 +1,18 @@
+{
+  "title": {
+    "message": "libp2p WebRTC over QR",
+    "description": "The title in the navbar"
+  },
+  "item.label.Docs": {
+    "message": "Doku",
+    "description": "Navbar item with label Docs"
+  },
+  "item.label.Demo": {
+    "message": "Demo",
+    "description": "Navbar item with label Demo"
+  },
+  "item.label.GitHub": {
+    "message": "GitHub",
+    "description": "Navbar item with label GitHub"
+  }
+}

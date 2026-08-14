@@ -7,3 +7,6 @@ playwright-report
 *.log
 .env
 .env.local
+
+# Docusaurus build cache ("build" itself is already covered above)
+.docusaurus

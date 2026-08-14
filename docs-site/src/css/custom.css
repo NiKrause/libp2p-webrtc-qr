@@ -1,0 +1,17 @@
+/* Le-Space palette, matched to the demo so the two do not read as two projects. */
+:root {
+  --ifm-color-primary: #1f8fbe;
+  --ifm-code-font-size: 92%;
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #58c7f3;
+  --ifm-background-color: #0b0e15;
+  --ifm-background-surface-color: #141926;
+}
+
+/* A table of names is the most common shape here, and the default cell padding
+   makes a four-row API table look like a page of prose. */
+table td, table th {
+  padding: 0.5rem 0.75rem;
+}
