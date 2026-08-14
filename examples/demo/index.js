@@ -493,10 +493,30 @@ function attachChatStream (stream, peerId, message) {
  * arrives labelled with its sender - with three people in a room, an unlabelled
  * line tells you nothing.
  */
+/**
+ * When the screen must stay awake.
+ *
+ * A live connection is the obvious case, but it is not the first. The moment the
+ * screen most needs to stay lit is *before* there is any connection: two phones
+ * held up to scan each other, and the phone showing the code sitting untouched
+ * while the other person lines up the shot. A screen that sleeps there drops the
+ * code mid-scan, and there is nothing yet to keep alive. So the lock follows the
+ * whole connect-critical window - scanning, an invite on display, or a live
+ * connection - not only its last stage.
+ *
+ * `sync` re-checks page visibility itself, so this is only about intent.
+ */
+function wantWakeLock () {
+  return scanModalEl.isOpen || inviteBoxEl.open || chatStreams.size > 0
+}
+
+function refreshWakeLock () {
+  syncWakeLock(wantWakeLock())
+}
+
 function renderPeers () {
-  // Every path that gains or loses a peer ends up here, which makes it the one
-  // place the wake lock has to be kept in step with.
-  syncWakeLock(chatStreams.size > 0)
+  // One of the places the wake lock is kept in step - see refreshWakeLock.
+  refreshWakeLock()
 
   peerListEl.peers = [...chatStreams.keys()].map(peerId => ({
     peerId,
@@ -954,12 +974,18 @@ function openModal (dialog) {
   if (!dialog.open) {
     dialog.showModal()
   }
+
+  // Showing the invite is showing a QR code, and that is a keep-the-screen-on
+  // moment in its own right - long before any connection exists.
+  refreshWakeLock()
 }
 
 function closeModal (dialog) {
   if (dialog.open) {
     dialog.close()
   }
+
+  refreshWakeLock()
 }
 
 inviteBoxEl.addEventListener('click', event => {
@@ -969,10 +995,15 @@ inviteBoxEl.addEventListener('click', event => {
 })
 
 // The element releases the camera itself; this only clears what this app was
-// waiting for.
+// waiting for, and lets the screen sleep again if nothing else needs it lit.
 scanModalEl.addEventListener('close', () => {
   scanMode = null
+  refreshWakeLock()
 })
+
+// Escape or the backdrop closes a <dialog> natively, without going through
+// closeModal, so the native event is where "invite no longer shown" is caught.
+inviteBoxEl.addEventListener('close', refreshWakeLock)
 
 function setStepsCollapsed (collapsed) {
   for (const card of setupCards) {
@@ -1442,7 +1473,16 @@ function beginScan (expectedType) {
 
   scanModalEl.open().catch(error => {
     setStatus(`Camera failed: ${error.message}`)
+    // The dialog may have opened before the camera failed; drop the lock if it
+    // closed behind the error.
+    refreshWakeLock()
   })
+
+  // `open()` runs `showModal()` synchronously before its first await, so the
+  // dialog is already open here - which is the case this whole change is for:
+  // hold the screen the instant the scanner is on screen, not once a connection
+  // that scanning is trying to create finally exists.
+  refreshWakeLock()
 }
 
 scanModalEl.addEventListener('scan', async event => {
@@ -1747,7 +1787,8 @@ function resetInviteHidden () {
 document.addEventListener('visibilitychange', () => {
   // The browser drops the wake lock whenever the page stops being visible, so
   // coming back has to ask for it again - and going away has to stop wanting it.
-  syncWakeLock(document.visibilityState === 'visible' && chatStreams.size > 0)
+  // `sync` applies the visibility gate; this only has to re-state the intent.
+  refreshWakeLock()
 
   if (document.visibilityState !== 'visible') {
     noteInviteHidden()
