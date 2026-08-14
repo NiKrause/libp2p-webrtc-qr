@@ -78,6 +78,25 @@ export function summariseNetwork (ipv4, ipv6) {
 }
 
 /**
+ * Is this network unable to reach a peer anywhere else?
+ *
+ * True only for the `blocked` verdict - no reflexive candidate on either family,
+ * as on a mobile network with STUN blocked and no IPv6. That is the case worth
+ * an alarm: an invite made here cannot connect to anyone off this network, so a
+ * consumer should say so loudly, or gate its own connect control on it.
+ *
+ * Symmetric NAT is deliberately *not* alarming. A reflexive candidate exists,
+ * it just maps per destination - it still reaches same-network peers, and
+ * sometimes punches through to a non-symmetric peer - so it stays the weaker
+ * amber warning rather than a red alarm.
+ *
+ * @param {{ overall?: { state?: string } } | null | undefined} result
+ */
+export function offNetworkBlocked (result) {
+  return result?.overall?.state === 'blocked'
+}
+
+/**
  * Ask the network what it will allow, before anyone tries to connect.
  *
  * A throwaway peer connection gathers candidates against both STUN servers, and

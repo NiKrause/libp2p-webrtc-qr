@@ -1,5 +1,5 @@
 import { mergeStrings, resolveText } from './strings.js'
-import { DEFAULT_RTC_CONFIGURATION, probeBrowser, probeCamera, probeNetwork } from './network.js'
+import { DEFAULT_RTC_CONFIGURATION, offNetworkBlocked, probeBrowser, probeCamera, probeNetwork } from './network.js'
 
 /**
  * `<qr-status>` - what this network will let you do, before anyone tries.
@@ -36,7 +36,13 @@ export const QR_STATUS_STRINGS = {
   open: 'usable',
   relay: 'via TURN',
   symmetric: 'local only',
-  blocked: 'none'
+  blocked: 'none',
+  // Shown while the probe runs. The network check waits on STUN round trips, so
+  // a still panel reads as a frozen one without this.
+  measuring: 'Checking what this network allows…',
+  // Shown when neither family can reach off this network - see offNetworkBlocked.
+  // An invite made here cannot connect to anyone elsewhere, so this is loud.
+  alarm: 'This network cannot reach a peer on another network. An invite made here will not connect until you move to Wi-Fi, enable IPv6, or use a relay.'
 }
 
 /** Which keys are rows rather than verdicts. Also the `rows` vocabulary. */
@@ -73,6 +79,73 @@ const STYLE = `
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+  }
+
+  /* Progress while measuring. Kept out of .rows so it cannot shift the chips'
+     nth-child order, which the demo's tests select on. */
+  .probe { margin-bottom: 8px; }
+  .probe[hidden] { display: none; }
+
+  .probe-bar {
+    position: relative;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--qr-status-chip-border);
+    overflow: hidden;
+  }
+
+  .probe-fill {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 40%;
+    border-radius: 2px;
+    background: var(--qr-status-focus);
+    animation: qr-status-probe 1.1s ease-in-out infinite;
+  }
+
+  @keyframes qr-status-probe {
+    from { left: -40%; }
+    to { left: 100%; }
+  }
+
+  .probe-caption {
+    margin-top: 5px;
+    font-size: 0.78rem;
+    color: var(--qr-status-chip-color);
+  }
+
+  /* Motion is decoration here; the caption carries the meaning. */
+  @media (prefers-reduced-motion: reduce) {
+    .probe-fill { animation: none; left: 0; width: 100%; opacity: 0.5; }
+  }
+
+  /* Alarm: no path off this network. Louder than a chip, because an invite made
+     here cannot connect to anyone elsewhere. */
+  .alarm { margin-bottom: 8px; }
+  .alarm[hidden] { display: none; }
+
+  .alarm-inner {
+    display: flex;
+    gap: 8px;
+    padding: 9px 12px;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: var(--qr-status-tip-color);
+    background: color-mix(in srgb, var(--qr-status-blocked) 14%, var(--qr-status-chip-background));
+    border: 1px solid var(--qr-status-blocked);
+    border-radius: var(--qr-status-radius);
+  }
+
+  .alarm-inner::before {
+    content: '';
+    width: 9px;
+    height: 9px;
+    margin-top: 5px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--qr-status-blocked);
+    box-shadow: 0 0 10px var(--qr-status-blocked);
   }
 
   .line {
@@ -177,7 +250,40 @@ export class QrStatusElement extends HTMLElement {
     list.className = 'rows'
     list.setAttribute('role', 'status')
     this.__list = list
-    root.append(style, list)
+
+    // A progress region and an alarm region, both siblings of the row list so
+    // they never disturb its nth-child order. Above the chips, because both are
+    // about the chips as a whole rather than any one of them.
+    const probe = document.createElement('div')
+    const bar = document.createElement('div')
+    const fill = document.createElement('div')
+    const caption = document.createElement('div')
+
+    probe.className = 'probe'
+    probe.hidden = true
+    bar.className = 'probe-bar'
+    fill.className = 'probe-fill'
+    caption.className = 'probe-caption'
+    caption.setAttribute('aria-live', 'polite')
+    bar.append(fill)
+    probe.append(bar, caption)
+    this.__probe = probe
+    this.__probeCaption = caption
+
+    const alarm = document.createElement('div')
+    const alarmInner = document.createElement('div')
+
+    alarm.className = 'alarm'
+    alarm.hidden = true
+    alarmInner.className = 'alarm-inner'
+    // Assertive: the user is about to make an invite that cannot connect, and
+    // needs to hear it now rather than after it fails.
+    alarmInner.setAttribute('role', 'alert')
+    alarm.append(alarmInner)
+    this.__alarm = alarm
+    this.__alarmText = alarmInner
+
+    root.append(style, probe, alarm, list)
     this.#build()
   }
 
@@ -246,6 +352,27 @@ export class QrStatusElement extends HTMLElement {
       row.tip.textContent = result[key].text
       row.chip.setAttribute('aria-label', `${key}: ${result[key].text}`)
     }
+
+    this.#renderAlarm(result)
+  }
+
+  /** The measuring bar and caption, on or off. */
+  #setProbing (on) {
+    this.__probeCaption.textContent = on ? resolveText(this.#strings.measuring) : ''
+    this.__probe.hidden = !on
+  }
+
+  /**
+   * The alarm, when there is no path off this network. Reflected as a `blocked`
+   * attribute too, so a consumer can gate its own controls with a CSS selector
+   * or a mutation observer instead of listening for the probe event.
+   */
+  #renderAlarm (result) {
+    const blocked = offNetworkBlocked(result)
+
+    this.__alarmText.textContent = blocked ? resolveText(this.#strings.alarm) : ''
+    this.__alarm.hidden = !blocked
+    this.toggleAttribute('blocked', blocked)
   }
 
   attributeChangedCallback () {
@@ -316,21 +443,29 @@ export class QrStatusElement extends HTMLElement {
    * log it, or decide something on the strength of it.
    */
   async probe () {
-    const network = await probeNetwork(this.rtcConfiguration)
-    const result = {
-      ...network,
-      // Asked for only when displayed. The camera query is passive but still a
-      // question, and the browser check builds a peer connection.
-      ...(this.#keys.includes('browser') ? { browser: probeBrowser() } : {}),
-      ...(this.#keys.includes('camera') ? { camera: await probeCamera() } : {})
+    // Shown before the first await, so the bar is up the instant probing starts
+    // rather than after the network round trips it is meant to cover.
+    this.#setProbing(true)
+
+    try {
+      const network = await probeNetwork(this.rtcConfiguration)
+      const result = {
+        ...network,
+        // Asked for only when displayed. The camera query is passive but still a
+        // question, and the browser check builds a peer connection.
+        ...(this.#keys.includes('browser') ? { browser: probeBrowser() } : {}),
+        ...(this.#keys.includes('camera') ? { camera: await probeCamera() } : {})
+      }
+
+      this.#result = result
+      this.#paint(result)
+
+      this.dispatchEvent(new CustomEvent('probe', { detail: result }))
+
+      return result
+    } finally {
+      this.#setProbing(false)
     }
-
-    this.#result = result
-    this.#paint(result)
-
-    this.dispatchEvent(new CustomEvent('probe', { detail: result }))
-
-    return result
   }
 }
 

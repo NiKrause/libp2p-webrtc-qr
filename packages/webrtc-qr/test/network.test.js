@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { isGlobalUnicastV6, probeBrowser, probeCamera, summariseNetwork } from '../src/elements/network.js'
+import { isGlobalUnicastV6, offNetworkBlocked, probeBrowser, probeCamera, summariseNetwork } from '../src/elements/network.js'
 
 /**
  * The two pure parts of the network check.
@@ -35,6 +35,26 @@ test('either family being usable is enough for the summary', () => {
 test('only same-network peers are promised when nothing is usable', () => {
   assert.equal(summariseNetwork({ state: 'symmetric' }, { state: 'blocked' }).state, 'symmetric')
   assert.equal(summariseNetwork({ state: 'blocked' }, { state: 'blocked' }).state, 'blocked')
+})
+
+test('the alarm fires only when there is no path off this network', () => {
+  const overall = (ipv4, ipv6) => ({ overall: summariseNetwork({ state: ipv4 }, { state: ipv6 }) })
+
+  // Neither family reachable: an invite made here connects to no one elsewhere.
+  assert.equal(offNetworkBlocked(overall('blocked', 'blocked')), true)
+
+  // A symmetric NAT still has a reflexive candidate and sometimes punches
+  // through - a weaker amber warning, not the red alarm.
+  assert.equal(offNetworkBlocked(overall('symmetric', 'blocked')), false)
+
+  // Any usable family clears it, which is the Firefox-on-5G case: IPv4 symmetric
+  // but IPv6 usable still reaches a peer elsewhere.
+  assert.equal(offNetworkBlocked(overall('symmetric', 'open')), false)
+  assert.equal(offNetworkBlocked(overall('open', 'blocked')), false)
+
+  // Defensive: no result, or a half-built one, is not an alarm.
+  assert.equal(offNetworkBlocked(null), false)
+  assert.equal(offNetworkBlocked({}), false)
 })
 
 test('the summary names both families when both work', () => {
