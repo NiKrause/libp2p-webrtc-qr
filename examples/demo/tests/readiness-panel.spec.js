@@ -23,20 +23,24 @@ test.describe('the readiness panel', () => {
     await page.waitForFunction(() => customElements.get('qr-status') != null)
     await makeStatus(page)
 
-    const el = page.locator('#probe-under-test')
+    // Read the bar the instant probing starts, synchronously - `#setProbing(true)`
+    // runs before the first await, so this is race-free where polling a locator
+    // is not: on a fast engine the probe settled and the bar was gone before the
+    // first poll (Firefox in CI). Then wait it out and check it cleared.
+    const during = await page.evaluate(() => {
+      const el = document.getElementById('probe-under-test')
+      const done = el.probe()
+      const bar = el.shadowRoot.querySelector('.probe')
+      const caption = el.shadowRoot.querySelector('.probe-caption')
+      const snapshot = { shown: bar != null && !bar.hidden, caption: caption?.textContent ?? '' }
 
-    // Start the probe but keep hold of the promise - the bar has to be up
-    // *during* it, and asserting after it resolves would only see it gone.
-    await page.evaluate(() => {
-      window.__probe = document.getElementById('probe-under-test').probe()
+      return done.catch(() => {}).then(() => snapshot)
     })
 
-    await expect(el.locator('.probe')).toBeVisible()
-    await expect(el.locator('.probe-caption')).toContainText(/checking/i)
+    expect(during.shown).toBe(true)
+    expect(during.caption).toMatch(/checking/i)
 
-    await page.evaluate(() => window.__probe)
-
-    await expect(el.locator('.probe')).toBeHidden()
+    await expect(page.locator('#probe-under-test').locator('.probe')).toBeHidden()
   })
 
   test('raises an alarm when no path off this network exists', async ({ page }) => {
