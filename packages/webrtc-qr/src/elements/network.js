@@ -150,9 +150,14 @@ export async function probeNetwork (rtcConfiguration = DEFAULT_RTC_CONFIGURATION
   // routable address. There is no port translation to defeat here; the firewall
   // in front of it is stateful, so the outbound half of ICE opens it just as it
   // would a NAT binding.
+  // "blocked" is an observation about this browser, not a verdict on the
+  // network. Whether an IPv6 reflexive candidate appears depends on the browser
+  // build and its WebRTC IP-handling policy as much as on the route: the same
+  // phone on the same Wi-Fi can gather one in one browser and not in another.
+  // So the text does not claim the network is IPv4-only - it says what was seen.
   const ipv6 = ports.v6.size > 0
     ? { state: 'open', text: 'Global IPv6 confirmed by STUN - no NAT in the way on this family.' }
-    : { state: 'blocked', text: 'No global IPv6 address - this network offers IPv4 only.' }
+    : { state: 'blocked', text: 'No IPv6 reflexive candidate from this browser - it may have no IPv6 route here, or its WebRTC settings suppressed one. Another browser on the same network can differ.' }
 
   return { ipv4, ipv6, overall: summariseNetwork(ipv4, ipv6) }
 }
