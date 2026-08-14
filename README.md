@@ -4,7 +4,7 @@ Two browsers connect directly as libp2p peers with **no relay and no signaling
 server**. The WebRTC offer and answer are exchanged out-of-band as signed,
 compressed QR codes that one phone scans off another screen.
 
-**Live demo: <https://webrtc-qr.le-space.de>** · **[Roadmap](ROADMAP.md)**
+**Live demo: <https://webrtc-qr.le-space.de>** · **[Roadmap](ROADMAP.md)** · **[Notes for agents](AGENTS.md)**
 
 | Package | Description |
 | --- | --- |
