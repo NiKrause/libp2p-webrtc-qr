@@ -6,11 +6,19 @@
  * wrong one back from the background is a real, repeated waste. A distinct
  * pastel background per browser turns "which one was this?" into a glance.
  *
- * Detection is best-effort by design. User agents lie, Chromium forks all carry
- * "Chrome", and on Android DuckDuckGo often presents the plain system-WebView
- * string - so it can fall through to `chrome`. Getting it wrong tints two
- * windows the same; it breaks nothing. The one reliable signal is Brave's, which
- * exposes `navigator.brave.isBrave()`, so it is asked first.
+ * Detection is best-effort by design: user agents lie, and every Chromium fork
+ * carries "Chrome". Getting it wrong tints two windows the same, which breaks
+ * nothing. The one signal that is not a string at all is Brave's
+ * `navigator.brave.isBrave()`, so it is asked first.
+ *
+ * DuckDuckGo does name itself, on both platforms - checked against real strings
+ * rather than assumed:
+ *
+ *   Android  … Version/4.0 Chrome/130.0.6723.106 Mobile DuckDuckGo/5 Safari/537.36
+ *   iOS      … Version/18.6 Mobile/15E148 DuckDuckGo/7 Safari/605.1.15
+ *
+ * Both contain "Chrome" or "Safari" as well, which is exactly why the order
+ * below matters.
  */
 
 /**

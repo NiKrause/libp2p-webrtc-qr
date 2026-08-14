@@ -18,7 +18,11 @@ const APP = '/?ice=host'
 const PHONE_UA = {
   chrome: 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
   firefox: 'Mozilla/5.0 (Android 13; Mobile; rv:120.0) Gecko/120.0 Firefox/120.0',
-  ddg: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Ddg/17.0 Mobile/15E148 DuckDuckGo/7 Safari/605.1.15',
+  ddg: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 DuckDuckGo/7 Safari/605.1.15',
+  // The Android string carries "Chrome", so if detection ever regressed to
+  // matching that first, a DuckDuckGo user would be told their browser drops
+  // invites when it is one of the two that does not. Hence a real string here.
+  ddgAndroid: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/130.0.6723.106 Mobile DuckDuckGo/5 Safari/537.36',
   safari: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
 }
 
@@ -79,7 +83,7 @@ test.describe('the browser warning at invite time', () => {
     await context.close()
   })
 
-  for (const name of ['ddg', 'safari']) {
+  for (const name of ['ddg', 'ddgAndroid', 'safari']) {
     test(`stays quiet in ${name}, where the flow is workable`, async ({ browser }) => {
       const { context, page } = await openOn(browser, { userAgent: PHONE_UA[name] })
 
