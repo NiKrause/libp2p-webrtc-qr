@@ -17,8 +17,14 @@ import {
   needsAnimation,
   preload as preloadAnimatedQr
 } from '@le-space/libp2p-webrtc-qr/elements'
+import { applyBrowserTheme } from './browser-theme.js'
 import { forgetIdentity, launchedStandalone, loadOrCreateIdentity } from './identity.js'
 import { state as wakeLockState, sync as syncWakeLock } from './wakelock.js'
+
+// Cosmetic and independent of everything else, so it runs the moment the module
+// loads rather than waiting on a node. The tint is up before the first paint
+// settles, which is the point - you should know which window this is at a glance.
+applyBrowserTheme().catch(() => {})
 import { fromString, toString } from 'uint8arrays'
 import {
   QRSession,

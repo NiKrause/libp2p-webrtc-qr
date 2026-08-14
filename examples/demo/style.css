@@ -35,6 +35,57 @@
 
   --ls-glow-red: 0 0 24px rgba(255, 107, 91, 0.35);
   --ls-glow-accent: 0 0 20px rgba(88, 199, 243, 0.3);
+
+  /*
+   * Per-browser identity. One hue drives the whole ambient background so a
+   * window is recognisable at a glance in a crowded app switcher - see
+   * browser-theme.js for how [data-browser] is set. This is the fallback, a
+   * violet for anything unrecognised.
+   */
+  --tint-h: 265;
+  /* The whole page carries the hue, faintly, not just its corners - a window is
+     told apart by its overall cast at a glance, before you read any glow. */
+  --ambient-base: hsl(var(--tint-h) 34% 7%);
+  --nav-bg: hsl(var(--tint-h) 34% 7% / 0.82);
+  color-scheme: dark light;
+}
+
+:root[data-browser='firefox'] { --tint-h: 28; }   /* amber */
+:root[data-browser='chrome']  { --tint-h: 145; }  /* green */
+:root[data-browser='safari']  { --tint-h: 205; }  /* sky */
+:root[data-browser='brave']   { --tint-h: 12; }   /* coral */
+:root[data-browser='opera']   { --tint-h: 330; }  /* magenta */
+:root[data-browser='ddg']     { --tint-h: 175; }  /* teal */
+:root[data-browser='edge']    { --tint-h: 190; }  /* cyan */
+
+/*
+ * A light palette for a phone in light mode. The app is dark by design and its
+ * cards are translucent white over the base, so a light base alone would erase
+ * them - the tokens have to flip together. The tint survives the flip because it
+ * is one hue, paled rather than replaced, so each browser keeps its identity in
+ * either scheme.
+ */
+@media (prefers-color-scheme: light) {
+  :root {
+    --ls-bg-1: #ffffff;
+    --ls-bg-2: #ffffff;
+    --ls-bg-3: #d7deec;
+
+    --ls-text: #16203a;
+    --ls-text-dim: #47536e;
+    --ls-text-faint: #7683a0;
+
+    --ls-card: rgba(22, 32, 58, 0.04);
+    --ls-card-border: rgba(22, 32, 58, 0.14);
+    --ls-card-hover: rgba(22, 32, 58, 0.07);
+
+    /* 89% keeps dark text readable; 70% saturation keeps the hue itself legible,
+       so amber and magenta are not both "nearly white" - which was the first
+       attempt's mistake, and telling them apart is the whole point. */
+    --ls-bg-0: hsl(var(--tint-h) 70% 89%);
+    --ambient-base: hsl(var(--tint-h) 70% 89%);
+    --nav-bg: hsl(var(--tint-h) 70% 89% / 0.82);
+  }
 }
 
 * {
@@ -44,10 +95,17 @@
 body {
   margin: 0;
   min-height: 100vh;
+  /*
+   * Two pastel glows a hue apart, from the one browser tint, over the base. The
+   * offsets are small on purpose - a wide swing turned amber greenish and made
+   * Firefox look like Chrome; kept near the core hue, each identity stays pure.
+   */
   background:
-    radial-gradient(ellipse 70% 50% at 12% -5%, rgba(255, 107, 91, 0.13), transparent 60%),
-    radial-gradient(ellipse 60% 45% at 92% 8%, rgba(88, 199, 243, 0.11), transparent 62%),
-    var(--ls-bg-0);
+    radial-gradient(ellipse 78% 54% at 12% -6%, hsl(var(--tint-h) 85% 68% / 0.22), transparent 60%),
+    radial-gradient(ellipse 64% 48% at 92% 6%, hsl(calc(var(--tint-h) + 16) 82% 70% / 0.18), transparent 62%),
+    radial-gradient(ellipse 90% 70% at 50% 108%, hsl(calc(var(--tint-h) - 12) 80% 66% / 0.12), transparent 70%),
+    var(--ambient-base);
+  background-attachment: fixed;
   color: var(--ls-text);
   font-family: var(--ls-font);
   line-height: 1.6;
@@ -80,7 +138,7 @@ code {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: rgba(11, 14, 21, 0.82);
+  background: var(--nav-bg);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--ls-card-border);
 }
