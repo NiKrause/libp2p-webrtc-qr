@@ -37,8 +37,9 @@ picture does not come through, the code and the link are still there.
 The technique is [J-UNIWARD](https://systemslibrarian.github.io/crypto-lab-j-uniward/):
 JPEG steganography that modifies DCT coefficients, guided by a Daubechies-8
 wavelet cost function so the changes land in textured regions where they are
-hardest to detect, encoded with syndrome-trellis codes. Both sides need a
-**shared key**; the cover image is needed to embed, not to extract.
+hardest to detect, encoded with syndrome-trellis codes. Both sides compute the same key to embed
+and extract - where it comes from is the design question below, not always a
+pre-shared secret; the cover image is needed only to embed, not to decode.
 
 ### Why it is worth writing down even before it is worth building
 
