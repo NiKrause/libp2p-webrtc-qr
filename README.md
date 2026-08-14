@@ -1,10 +1,12 @@
 # libp2p WebRTC over QR
 
+**[Deutsch](README.de.md)** · English
+
 Two browsers connect directly as libp2p peers with **no relay and no signaling
 server**. The WebRTC offer and answer are exchanged out-of-band as signed,
 compressed QR codes that one phone scans off another screen.
 
-**Live demo: <https://webrtc-qr.le-space.de>** · **[Roadmap](ROADMAP.md)** · **[Notes for agents](AGENTS.md)**
+**Live demo: <https://webrtc-qr.le-space.de>** · **[Documentation](https://nikrause.github.io/libp2p-webrtc-qr/)** · **[Roadmap](ROADMAP.md)** · **[Notes for agents](AGENTS.md)**
 
 | Package | Description |
 | --- | --- |
@@ -47,6 +49,13 @@ Browser A                             Browser B
 pnpm install
 pnpm start   # demo on http://localhost:5173
 pnpm test    # unit + both e2e suites, on Chromium, Firefox and WebKit
+```
+
+The documentation site is deliberately outside the pnpm workspace - nobody
+working on the transport should have to install Docusaurus to run the tests:
+
+```bash
+cd docs-site && pnpm install && pnpm start
 ```
 
 ## Status and known limits
