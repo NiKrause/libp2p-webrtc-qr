@@ -60,9 +60,14 @@ is a transport, not a security layer.
   the JPEG and every DCT coefficient with it; sent as a *file*, the bytes
   survive. That single distinction decides whether this works at all, and it is
   a thing a person has to get right in another app.
-- **The key has to come from somewhere.** Alice and Bob have no shared secret -
-  that is what the handshake is for. A password spoken aloud is a second channel
-  the rest of this project does not require.
+- **On a monitored channel, a password must be agreed out of band first.** The
+  embedding always needs a key. Between peers who already share identities - a
+  past connection, or a scan in person - it is derived from those by
+  Diffie–Hellman with nothing typed; but to trade pictures with a new contact
+  over a public forum or an unencrypted messenger, both sides must agree a
+  password beforehand on another channel, or anyone who knows the tool can read
+  the picture. See the issue for why exchanging public keys in-band does not
+  substitute.
 - **A picture has no deep link.** This is the real cost, and it is not speed:
   with a stored profile photo, creating and forwarding one is the same two
   gestures as a link. But tapping a link *opens the app with the payload in
