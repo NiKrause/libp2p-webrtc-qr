@@ -97,6 +97,35 @@ export function offNetworkBlocked (result) {
 }
 
 /**
+ * How badly this network is placed to reach a peer somewhere else.
+ *
+ * `offNetworkBlocked` alone turned out to be too narrow in practice. A phone on
+ * 5G typically reports IPv4 `symmetric` (carrier NAT) and IPv6 `blocked`, which
+ * summarises as `symmetric` - so no alarm fired, while the honest answer is that
+ * an invite made there will almost certainly not connect to anyone elsewhere.
+ * Reaching a peer from a symmetric NAT needs the *other* side to be open, and
+ * hoping for that is not something to leave unsaid.
+ *
+ * Two levels rather than one, because they are not the same failure and should
+ * not read as one:
+ *
+ * - `blocked`   - no reflexive candidate at all. Nothing off this network.
+ * - `unreliable` - a reflexive candidate exists but maps per destination. Same
+ *                  network fine, elsewhere only if the other side is open.
+ *
+ * @param {{ overall?: { state?: string } } | null | undefined} result
+ * @returns {'blocked' | 'unreliable' | null}
+ */
+export function offNetworkRisk (result) {
+  const state = result?.overall?.state
+
+  if (state === 'blocked') return 'blocked'
+  if (state === 'symmetric') return 'unreliable'
+
+  return null
+}
+
+/**
  * Ask the network what it will allow, before anyone tries to connect.
  *
  * A throwaway peer connection gathers candidates against both STUN servers, and
