@@ -44,8 +44,10 @@ jobs:
           cache: pnpm
           cache-dependency-path: docs-site/pnpm-lock.yaml
 
-      # docs-site is deliberately outside the pnpm workspace - see its .npmrc,
-      # which is what makes a plain install here resolve its own lockfile.
+      # docs-site carries its own pnpm-workspace.yaml, which is what stops pnpm
+      # walking up and installing the four transport projects instead. Without
+      # it this step reports "Scope: all 4 workspace projects", succeeds, and
+      # leaves the next one without Docusaurus.
       - run: pnpm install --frozen-lockfile
         working-directory: docs-site
 
