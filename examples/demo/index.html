@@ -222,6 +222,13 @@
             <button id="scan-offer" disabled>Scan their code</button>
           </div>
 
+          <!--
+            What this browser does to a waiting invite, said before the invite
+            exists. Filled from JS rather than hidden with CSS, so a desktop -
+            where none of it applies - never carries the sentence at all.
+          -->
+          <p id="browser-warning" class="browser-warning" role="note" hidden></p>
+
           <!-- Off by default while issue #6 is open: a connection built from a
                reconstructed SDP goes silent under load often enough that a
                smaller code is not worth it. Reading is never affected - this
