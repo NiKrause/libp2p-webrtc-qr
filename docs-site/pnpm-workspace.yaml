@@ -1,0 +1,6 @@
+# Present so pnpm stops walking up and finds the repository workspace instead.
+# Without it, a plain `pnpm install` here installs the four transport projects
+# and leaves docs-site without Docusaurus - which is what broke the first Pages
+# run. docs-site is kept out of that workspace on purpose: nobody working on the
+# transport should have to install Docusaurus and React to run the tests.
+packages: []
