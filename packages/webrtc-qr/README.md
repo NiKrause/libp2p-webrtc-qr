@@ -1,243 +1,305 @@
 # @le-space/libp2p-webrtc-qr
 
 A libp2p transport that takes a WebRTC session whose SDP was exchanged
-out-of-band - typically as a scanned QR code - and upgrades it into a libp2p
+out-of-band — typically as a scanned QR code — and upgrades it into a libp2p
 connection. No circuit relay, no signaling server.
 
 ```bash
 pnpm add @le-space/libp2p-webrtc-qr libp2p @multiformats/multiaddr
 ```
 
+Two entry points:
+
+| import | contains |
+| --- | --- |
+| `@le-space/libp2p-webrtc-qr` | transport, session, payload codecs |
+| `@le-space/libp2p-webrtc-qr/elements` | custom elements, network probe, QR framing |
+
+Deep imports are not supported — if something is not re-exported from one of
+these, it is not public API.
+
+---
+
 ## Session
 
-Start here. `QRSession` owns the handshake, and what it handles is exactly what
-every consumer gets wrong once - this state machine had been written three times
-independently before it lived in the package.
+`QRSession` owns the handshake state machine.
 
 ```js
 import { QRSession } from '@le-space/libp2p-webrtc-qr'
 
 const session = new QRSession(node, { rtcConfiguration })
 
-// one side
-const offer = await session.createOffer()               // show this
-const { peerId, connection } = await session.acceptAnswer(reply)
+// offering side
+const offer = await session.createOffer()
+const { peerId, connection, address, ageSeconds } = await session.acceptAnswer(reply)
 
-// only if you have a protocol of your own - pass { dial: false } above so the
-// connection is not dialled twice
-const stream = await session.dialProtocol(peerId, '/my/protocol/1.0.0')
-
-// the other side
-const answer = await session.acceptOffer(offer)         // show this back
-session.addEventListener('connect', event => { /* event.detail.peerId */ })
+// answering side
+const answer = await session.acceptOffer(offer)
+session.addEventListener('connect', e => e.detail.peerId)
 ```
 
-`acceptOffer` returns as soon as the answer is signed, because the offering peer
-cannot finish until it reads that answer. The connection completes afterwards and
+`acceptOffer` returns as soon as the answer is signed — the offering peer cannot
+finish until it reads that answer. The connection completes afterwards and
 reports itself through `connect`, or `error` if it never does.
 
-### What it handles that the transport API does not tell you
+### Options
 
-- **The init data channel is negotiated.** WebRTC gathers no candidates without a
-  channel, but a normal one fires `datachannel` on the remote and the libp2p
-  muxer adopts that unframed channel as an incoming stream - after which no real
-  protocol stream ever arrives.
-- **The upgrade waits for `connected`, in the right direction.** The offering peer
-  attaches its muxer only when it reads the answer, so upgrading earlier writes
-  an identify stream into a connection with nothing behind it. A wrong
-  `direction` leaves the answering side blind to incoming streams.
-- **The first dial is retried.** Both peers reach `connected` at the same moment,
-  but the answering peer still has to attach its muxer, and anything opened into
-  that gap negotiates and is immediately reset.
+| option | default | meaning |
+| --- | --- | --- |
+| `rtcConfiguration` | — | passed to `RTCPeerConnection` |
+| `compact` | `false` | produce v3 short codes (see below) |
+| `iceGatheringTimeout` | 5000 | stop waiting for candidates |
+| `connectionTimeout` | 30000 | give up on `connected` |
+| `answerWaitTimeout` | — | how long the answering side holds its side open |
+| `dialAttempts`, `dialRetryDelay`, `dialSettleDelay` | — | retry shape while the peer attaches its muxer |
 
-**`acceptAnswer` dials.** Until something dials there is no libp2p connection -
-only a WebRTC one with an upgrade context beside it. An app with a protocol of
-its own never notices, because dialling that protocol does it; an app that uses
-whatever connection exists, like a replicating database or a pubsub topic, sees
-the handshake succeed and no peer. That cost a second consumer an afternoon, so
-the session now does it and `{ dial: false }` opts out.
+Per call: `createOffer({ compact })`, `acceptAnswer(text, { dial })`.
+Pass `dial: false` when you open your own protocol stream — otherwise the
+connection is dialled twice.
 
-`session.forget(peerId)` drops the libp2p connection *and* the offer session for
-a peer. Both have to go: a stale session hands the transport a closed peer
-connection, and the next dial then fails with `Remote closed connection during
-opening`, which points nowhere near the cause.
+### Methods and events
 
-Errors carry an ICE summary - `local: 6 host, 1 srflx; remote: …; ice: failed` -
-because a failure after clean signalling is almost always about candidate types.
+| | |
+| --- | --- |
+| `createOffer`, `acceptOffer`, `acceptAnswer` | the handshake |
+| `dial`, `dialProtocol` | after it |
+| `session.offers` | pending offers, keyed by session id |
+| `session.inbound` | connections built from an accepted offer |
+| events | `connect`, `error` |
 
-## Signaling codec
+`describeIce(peerConnection)` returns a one-line summary of both candidate sets
+and the ICE state — what a failure message should carry.
 
-Used by the session, and exposed for callers that want to sign or verify a
-payload themselves. The codec signs with the local libp2p private key and
-verifies a scanned payload against the public key embedded in the Peer ID it
-claims.
+---
+
+## Payload formats
+
+Two wire formats. **Reading both is unconditional; producing v3 is a choice.**
+
+| | v2 (default) | v3 compact |
+| --- | --- | --- |
+| prefix | deflate + base64url | `q3:` |
+| carries | the whole SDP | fingerprint + packed candidates |
+| ICE credentials | transmitted | derived from the fingerprint (HKDF) |
+| size, measured | ~1011 chars | ~276 chars |
+| signature | yes | yes |
+
+v3 is off by default: a connection built from a reconstructed SDP has gone silent
+under load often enough that it is opt-in. Turn it on per offer with
+`{ compact: true }`.
+
+An **answer follows the format of the offer it replies to**, never the answering
+peer's preference — a peer that sent v2 cannot read a v3 answer.
 
 ```js
-import { encodeSignedPayload, decodeSignedPayload, QR_TYPE_OFFER, PAYLOAD_VERSION } from '@le-space/libp2p-webrtc-qr'
+import { parsePayload, decodePayload, isCompactPayload } from '@le-space/libp2p-webrtc-qr'
 
-const text = await encodeSignedPayload(node.components.privateKey, {
-  version: PAYLOAD_VERSION,
-  type: QR_TYPE_OFFER,
-  sessionId: crypto.randomUUID(),
-  peerId: node.peerId.toString(),
-  sdp: peerConnection.localDescription.sdp
-})
-
-// throws if the signature does not match the claimed peer id
-const payload = await decodeSignedPayload(text, QR_TYPE_OFFER)
+parsePayload(text)                 // route only — verifies nothing
+decodePayload(text, expectedType)  // verifies, both formats
+isCompactPayload(text)             // is this q3:
 ```
 
-`encodeSignedPayload` deflate-compresses the result so it stays inside a
-scannable QR size. Fields outside the canonical set are dropped, so a verified
-payload never carries data the signature did not cover.
+Payloads carry a signed `notBefore`/`notAfter` window, ten minutes by default
+(`DEFAULT_LIFETIME_MS`), with `CLOCK_SKEW_MS` of slack.
 
-Use `parsePayload` only to decide how to route a scanned code - it does **not**
-verify anything.
+### Codec functions
+
+| | |
+| --- | --- |
+| `encodeSignedPayload`, `decodeSignedPayload` | v2, signed and verified |
+| `encodeCompactPayload`, `decodeCompactPayload` | v3, signed and verified |
+| `compress`, `decompress` | the deflate layer v2 uses |
+| `QR_TYPE_OFFER`, `QR_TYPE_ANSWER` | payload kinds |
+| `PAYLOAD_VERSION`, `COMPACT_VERSION`, `COMPACT_PREFIX` | format identifiers |
+
+Detail: [`docs/compact-payload.md`](../../docs/compact-payload.md).
+
+---
 
 ## Transport
 
 ```js
-import { createLibp2p } from 'libp2p'
-import { webRTCQR, createWebRTCUpgradeContext } from '@le-space/libp2p-webrtc-qr'
+import { webRTCQR } from '@le-space/libp2p-webrtc-qr'
 
-const node = await createLibp2p({
-  transports: [
-    webRTCQR({
-      // return the upgrade context for a peer whose answer you already verified
-      getOutboundSession: remotePeerId => sessions.get(remotePeerId)
-    })
-  ]
+createLibp2p({
+  transports: [webRTCQR({ getOutboundSession: peerId => sessions.get(peerId) })]
 })
 ```
 
-The transport handles `/webrtc/p2p/<peer-id>` addresses and never listens - a QR
-session is always established by the application before a dial happens. Once
-the `RTCPeerConnection` is connected, build the upgrade context and dial:
+`createWebRTCUpgradeContext(components, peerConnection, address, { direction })`
+builds the context for a connection you negotiated yourself.
 
-```js
-const context = createWebRTCUpgradeContext(node.components, peerConnection, addr)
-const stream = await node.dialProtocol(addr, '/my/protocol/1.0.0')
-```
+### Why encryption is skipped
 
-The answering side upgrades inbound instead:
+The payload is signed with the peer's libp2p key, and the SDP inside it carries
+the DTLS fingerprint — so a valid signature binds the WebRTC session to the Peer
+ID, the same idea as `certhash` in WebRTC-Direct. DTLS still encrypts. Noise is
+skipped because it would only *authenticate*, and the signature already did.
 
-```js
-await node.components.upgrader.upgradeInbound(context.connection, {
-  skipEncryption: true,
-  skipProtection: true,
-  muxerFactory: context.muxerFactory
-})
-```
+When that stops holding: [`docs/connection-security.md`](../../docs/connection-security.md).
 
-## Why encryption is skipped
-
-[`docs/connection-security.md`](../../docs/connection-security.md) is the long
-version: where encryption comes from, where authentication comes from, and when
-this is *not* safe.
-
-`skipEncryption` is safe here **only because the SDP was signed**. The SDP
-carries the DTLS fingerprint, so a valid signature binds the DTLS session to the
-Peer ID - the same binding `certhash` provides in WebRTC-Direct. If you accept
-unsigned SDP, this guarantee is gone and you must run a normal encryption
-handshake instead.
-
-Payloads expire. `encodeSignedPayload` stamps a `notBefore`/`notAfter` pair -
-ten minutes by default, `lifetimeMs` to change it - and `decodeSignedPayload`
-rejects anything outside that window, allowing two minutes of clock skew.
-
-Both fields are part of the signed canonical form, so rewriting them
-invalidates the signature instead of extending the payload. Pass `now` to
-either function to test the behaviour without waiting.
+---
 
 ## Elements
-
-The connect step, as custom elements, from a separate entry point:
 
 ```js
 import '@le-space/libp2p-webrtc-qr/elements'
 ```
 
-```html
-<qr-invite value="https://example/#i=…"></qr-invite>
-<qr-scanner id="scan" label="Scan their code"></qr-scanner>
-<qr-status auto></qr-status>
-<qr-peers id="peers"></qr-peers>
-```
+Registers four custom elements. All are theme-able through CSS custom properties
+and translatable through `strings`.
+
+The classes — `QrInviteElement`, `QrScannerElement`, `QrStatusElement`,
+`QrPeersElement` — are exported for framework wrappers and for registering under
+a different tag name; importing the module is enough for normal use.
+
+### `<qr-invite>` — shows a payload as a code
 
 | | |
 | --- | --- |
-| `qr-invite` | renders a payload, splits it into an animated BC-UR sequence when one code would be too dense to read |
-| `qr-scanner` | the camera, the scan loop, multi-frame reassembly, and the modal around them |
-| `qr-status` | what this network will allow, before anyone tries |
-| `qr-peers` | who is connected, and how each connection is doing |
+| attributes | `value`, `frame-interval` |
+| properties | `value`, `frameInterval`, `strings` |
+| event | `render` → `{ frames, modules, characters }` |
+| strings | `alt`, `part`, `recovery` |
 
-The scanner asks the host what a payload means, and keeps looking if the answer
-is no:
+Above `STATIC_QR_MAX_LENGTH` the payload is split into animated BC-UR frames;
+`frames > 1` on the `render` event says it happened. `modules` and `characters`
+are what to log when a code will not scan.
+
+### `<qr-scanner>` — camera, scan loop, reassembly
+
+| | |
+| --- | --- |
+| attribute | `label` |
+| properties | `label`, `strings`, `validate`, `isOpen` |
+| methods | `open()`, `close()` |
+| events | `scan` → `{ text }`, `close`, `error` → `{ error }` |
+| strings | `label`, `close`, `unsupported`, `starting`, `looking`, `stillLooking({ attempts })`, `rejected`, `animated({ received, total })`, `animatedUnknown` |
+
+`validate` decides whether a scanned code is the one this screen wants —
+returning `{ ok: false, reason }` keeps the camera running with the reason shown.
+The element releases the camera on every way out, including removal from the DOM.
+
+### `<qr-status>` — what this network will allow
+
+| | |
+| --- | --- |
+| attribute | `rows` — any of `browser ipv4 ipv6 camera overall`, default `ipv4 ipv6 overall` |
+| properties | `strings`, `rtcConfiguration`, `result` |
+| methods | `probe()`, `renderResult(result)` |
+| event | `probe` → the result |
+| reflected | `blocked`, `off-network-risk="blocked\|unreliable"` |
+| strings | `browser`, `ipv4`, `ipv6`, `camera`, `overall`, `open`, `relay`, `symmetric`, `blocked`, `measuring`, `alarm`, `alarmUnreliable` |
+
+Shows a progress bar while measuring, and raises an alarm when the network
+cannot reach a peer elsewhere. `renderResult` displays a verdict you measured
+yourself.
+
+**A verdict is an observation about this browser, not about the network.** The
+same phone on the same Wi-Fi can report IPv6 as usable in one browser and absent
+in another.
+
+### `<qr-peers>` — who is connected
+
+| | |
+| --- | --- |
+| property | `peers` — `[{ peerId, state }]`, `count`, `strings` |
+| event | `disconnect` → `{ peerId }` |
+| strings | `connected`, `connecting`, `disconnected`, `failed`, `closed`, `new`, `disconnect`, `disconnectFrom` |
+
+Asking to disconnect is the host's to carry out; the list changes when the host
+says it did.
+
+---
+
+## Translating everything visible
+
+Every element takes a `strings` object that is **merged** over its defaults, so
+replacing three labels does not lose the rest.
 
 ```js
-scan.validate = async text => ({ ok: text.includes('#i='), reason: 'That is a reply, not an invite' })
-scan.addEventListener('scan', event => use(event.detail.text))
-await scan.open()
+import { QR_STATUS_STRINGS } from '@le-space/libp2p-webrtc-qr/elements'
+
+status.strings = { ipv4: 'IPv4', blocked: 'keins', measuring: 'Prüfe Netzwerk…' }
 ```
 
-`qr-status` picks its own rows. The default is the two address families and a
-summary; `rows` takes any subset of `browser ipv4 ipv6 camera overall` in any
-order:
+Values are strings, or functions where a count is involved
+(`stillLooking({ attempts })`, `animated({ received, total })`) — the package
+does not fix its word order onto a consumer. `mergeStrings` and `resolveText` are
+exported for anyone building on top.
 
-```html
-<qr-status auto rows="browser ipv4 ipv6 camera overall"></qr-status>
-```
+Defaults: `QR_INVITE_STRINGS`, `QR_SCANNER_STRINGS`, `QR_STATUS_STRINGS`,
+`QR_PEERS_STRINGS`.
 
-`browser` and `camera` are cheap - one throwaway `RTCPeerConnection` and a
-Permissions API query - and neither touches the camera itself, so adding them
-does not raise a permission prompt on load.
+---
 
-`qr-peers` is told rather than asking - who is connected lives in the
-application's own bookkeeping - and its `disconnect` event is a request, not an
-announcement:
+## Network judgements
+
+Usable without any DOM.
 
 ```js
-peers.peers = [{ peerId, state: 'connected' }]
-peers.addEventListener('disconnect', event => drop(event.detail.peerId))
+import { probeNetwork, summariseNetwork, offNetworkRisk } from '@le-space/libp2p-webrtc-qr/elements'
 ```
 
-### Theming
+| | returns |
+| --- | --- |
+| `probeNetwork(rtcConfiguration)` | `{ ipv4, ipv6, overall }`, each `{ state, text }` |
+| `summariseNetwork(ipv4, ipv6)` | the combined verdict |
+| `offNetworkRisk(result)` | `'blocked'` \| `'unreliable'` \| `null` |
+| `offNetworkBlocked(result)` | narrow: `blocked` only |
+| `isGlobalUnicastV6(address)` | is this address routable |
 
-Custom properties, because they are the only thing that crosses a shadow
-boundary. Each element documents its own; the shadow root is what stops a host
-stylesheet from reaching in and breaking a code that has to stay scannable.
+States: `open`, `relay`, `symmetric`, `blocked`.
+`offNetworkRisk` is the one to gate a connect control on — `unreliable` is the
+carrier-NAT-without-IPv6 case a phone on mobile data shows, which `blocked`
+misses.
+
+`DEFAULT_RTC_CONFIGURATION` asks four STUN servers, two of them over IPv6
+literals: a reflexive candidate exists only for a family a STUN transaction
+actually used.
+
+---
+
+## QR framing
+
+For building your own invite view.
+
+| | |
+| --- | --- |
+| `needsAnimation(text)` | is this over `STATIC_QR_MAX_LENGTH` |
+| `createFrameSource(text, options)` | `{ total, next() }` — BC-UR frames |
+| `createPartAccumulator()` | `receive(part)` → progress or the whole payload |
+| `looksLikeUrPart(text)` | is this one frame of a multi-frame code |
+| `preload()` | warm the encoder before the first frame |
+| constants | `FRAME_INTERVAL_MS`, `MAX_FRAGMENT_BYTES`, `STATIC_QR_MAX_LENGTH` |
+
+---
+
+## Theming
+
+Set CSS custom properties on the element or an ancestor.
 
 ```css
-qr-invite {
-  --qr-invite-max-width: 320px;
-  --qr-invite-caption-color: #4b5563;
+qr-status {
+  --qr-status-open: #3edc97;
+  --qr-status-degraded: #ffc24b;
+  --qr-status-blocked: #ff6b5b;
+  --qr-status-chip-background: transparent;
+  --qr-status-chip-color: inherit;
 }
 ```
 
-### Two things worth knowing
+Each element documents its own variables at the top of its source. Shadow DOM
+means nothing else leaks in or out.
 
-**It ships as a bundle, and the root does not.** Importing the package root gives
-the transport, the codec and the session as plain source, which you bundle and
-tree-shake like any dependency. The elements are a single pre-bundled browser
-file with nothing left to resolve, because they pull in a QR encoder and a CBOR
-stack that are CommonJS and reach for `Buffer` and `process` - and an
-application that already polyfills those otherwise resolves the same specifier
-two ways and fails its build talking about externals.
-
-**They do not render on a server.** `customElements` does not exist there, so
-under SSR import them where the browser runs:
-
-```js
-onMount(async () => {
-  await import('@le-space/libp2p-webrtc-qr/elements')
-})
-```
+---
 
 ## Vendored upstream code
 
-`src/vendor` copies the `@libp2p/webrtc` internals that upstream does not put in
-its `exports` map. See [`src/vendor/README.md`](src/vendor/README.md).
+`src/vendor/` holds a trimmed copy of `@libp2p/webrtc` internals that are not
+exported upstream. See its README for what was changed and why; removing it is
+tracked in issue #7.
 
 ## License
 
-Apache 2.0 OR MIT.
+Apache-2.0 OR MIT
