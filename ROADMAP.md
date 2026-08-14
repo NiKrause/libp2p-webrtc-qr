@@ -47,7 +47,10 @@ Everything else in this roadmap makes the handshake smaller, faster or more
 legible. This changes what the handshake *looks like* to whoever is carrying it.
 A QR code and a `#i=…` link both announce themselves as machinery. A profile
 picture does not, and there are networks where that is the difference between a
-handshake and no handshake.
+handshake and no handshake. Deniability, not invisibility: even keyed, the
+*shape* stays visible - two people trade two pictures and then talk - so a
+watcher who cannot confirm what the pictures are can still find them worth a
+second look.
 
 It also fits the shape this project already has. The payload is small - the
 compact format measures **276 characters**, and at the lab's default 0.10 bits
