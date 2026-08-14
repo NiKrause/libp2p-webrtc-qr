@@ -768,7 +768,8 @@ button.is-busy::before {
   display: none;
 }
 
-.hurry-back {
+.hurry-back,
+.browser-warning {
   margin: 12px 0 0;
   padding: 10px 14px;
   border: 1px solid var(--ls-amber);
@@ -777,6 +778,10 @@ button.is-busy::before {
   color: var(--ls-text);
   font-size: 0.86rem;
   line-height: 1.45;
+}
+
+.browser-warning[hidden] {
+  display: none;
 }
 
 /* ---------- is the half-finished connection still alive ---------- */

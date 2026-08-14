@@ -121,6 +121,7 @@ const pasteFallbackEl = document.querySelector('.paste-fallback')
 const inviteLinkEl = document.getElementById('invite-link')
 const inviteFreshnessEl = document.getElementById('invite-freshness')
 const hurryBackEl = document.getElementById('hurry-back')
+const browserWarningEl = document.getElementById('browser-warning')
 const createOfferAgainButton = document.getElementById('create-offer-again')
 const handoffBannerEl = document.getElementById('handoff-banner')
 const peerListEl = document.getElementById('peer-list')
@@ -1109,13 +1110,58 @@ function leavingSuspendsUs () {
  * it is put next to the button that sends them away - and only there, because a
  * warning that arrives on the way back is a post-mortem.
  */
+/**
+ * Browsers observed to hold a waiting invite long enough to be worth trying.
+ *
+ * Measured by hand across phones, not derived from anything - a record of what
+ * was seen, not something the platform promises. Roughly ten seconds in these,
+ * and seconds in the rest. If that changes, this list is the only thing to
+ * change.
+ */
+const BROWSERS_THAT_HOLD = ['ddg', 'safari']
+
 function showHurryBack () {
   if (!leavingSuspendsUs()) {
     return
   }
 
-  hurryBackEl.textContent = 'Come straight back. While you are in another app this phone suspends the page, and the invite stops working within seconds.'
+  // The invite dialog covers step 2 the moment it opens, so the fuller heads-up
+  // shown there has usually left the screen by now. This is the sentence that
+  // has to be true at the instant they leave, so the browser-specific half is
+  // repeated rather than assumed to have been read.
+  const holds = BROWSERS_THAT_HOLD.includes(document.documentElement.dataset.browser)
+
+  hurryBackEl.textContent = holds
+    ? 'Come straight back. While you are in another app this phone suspends the page, and the invite stops working within seconds.'
+    : 'Come straight back - within seconds. This browser does not hold a waiting invite; only DuckDuckGo and Safari have been seen to keep one alive for about ten seconds.'
   hurryBackEl.hidden = false
+}
+
+/**
+ * Say what this browser will do to the invite, before the invite exists.
+ *
+ * The moment to warn is the press of *Create invite link*: that is the last
+ * point at which switching browsers is still cheap. Afterwards they are holding
+ * an invite whose life is measured in seconds, and saying it then is saying it
+ * too late.
+ *
+ * Only on phones, and only in the browsers that do not hold - on a desktop none
+ * of this applies, and in DuckDuckGo or Safari the flow is workable. A warning
+ * shown everywhere is a warning worth ignoring.
+ */
+function showBrowserWarning () {
+  const browser = document.documentElement.dataset.browser
+
+  if (!leavingSuspendsUs() || BROWSERS_THAT_HOLD.includes(browser)) {
+    return
+  }
+
+  browserWarningEl.textContent =
+    'Heads up: on phones, only DuckDuckGo and Safari have been seen to keep a waiting invite alive for about ten seconds. ' +
+    'In this browser it dies within seconds of you leaving, so paste the link into your messenger and come straight back. ' +
+    'The person you invite has the harder job - they leave twice, once to open your link and once to send their answer - and both trips have to be quick. ' +
+    'There is no way around this yet.'
+  browserWarningEl.hidden = false
 }
 
 const pcHealthEls = [...document.querySelectorAll('.pc-health')]
@@ -1530,6 +1576,10 @@ resetIdentityButton.addEventListener('click', () => {
 })
 
 async function createInvite (button) {
+  // Before anything else, and before the seconds of gathering: this is the last
+  // moment where changing browser is still a cheap decision.
+  showBrowserWarning()
+
   // Clear the previous link first. Gathering ICE takes seconds, and a stale
   // link sitting in the box the whole time is one someone will copy and send.
   inviteLinkEl.value = ''
