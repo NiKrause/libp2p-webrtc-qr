@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { isGlobalUnicastV6, offNetworkBlocked, probeBrowser, probeCamera, summariseNetwork } from '../src/elements/network.js'
+import { isGlobalUnicastV6, offNetworkBlocked, offNetworkRisk, probeBrowser, probeCamera, summariseNetwork } from '../src/elements/network.js'
 
 /**
  * The two pure parts of the network check.
@@ -37,7 +37,27 @@ test('only same-network peers are promised when nothing is usable', () => {
   assert.equal(summariseNetwork({ state: 'blocked' }, { state: 'blocked' }).state, 'blocked')
 })
 
-test('the alarm fires only when there is no path off this network', () => {
+test('the risk level separates "nothing works" from "only sometimes works"', () => {
+  const overall = (ipv4, ipv6) => ({ overall: summariseNetwork({ state: ipv4 }, { state: ipv6 }) })
+
+  // No reflexive candidate at all: nothing off this network, ever.
+  assert.equal(offNetworkRisk(overall('blocked', 'blocked')), 'blocked')
+
+  // The 5G case that started this: carrier NAT on IPv4, no IPv6. A path exists
+  // but maps per destination, so it works only if the other side is open -
+  // which is worth warning about, and was silent before.
+  assert.equal(offNetworkRisk(overall('symmetric', 'blocked')), 'unreliable')
+
+  // Any usable family and there is nothing to warn about.
+  assert.equal(offNetworkRisk(overall('symmetric', 'open')), null)
+  assert.equal(offNetworkRisk(overall('open', 'blocked')), null)
+  assert.equal(offNetworkRisk(overall('relay', 'blocked')), null)
+
+  assert.equal(offNetworkRisk(null), null)
+  assert.equal(offNetworkRisk({}), null)
+})
+
+test('offNetworkBlocked stays narrow - it means blocked, not merely risky', () => {
   const overall = (ipv4, ipv6) => ({ overall: summariseNetwork({ state: ipv4 }, { state: ipv6 }) })
 
   // Neither family reachable: an invite made here connects to no one elsewhere.

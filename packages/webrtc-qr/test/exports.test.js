@@ -1,0 +1,44 @@
+import assert from 'node:assert/strict'
+import test from 'node:test'
+
+// The elements extend HTMLElement and register themselves, neither of which
+// exists in Node - so the barrel cannot simply be imported here. Two stubs are
+// enough to evaluate it, and evaluating it is the whole point: this asserts
+// what a consumer can reach, which is a different question from what the
+// browser tests cover.
+globalThis.HTMLElement ??= class {}
+globalThis.customElements ??= { define () {}, get () { return undefined } }
+
+const elements = await import('../src/elements/index.js')
+const core = await import('../src/index.js')
+
+/**
+ * The barrel is the API. A function that exists in a module but never reaches
+ * `./elements` is not reachable by a consumer at all - the package's exports map
+ * offers only "." and "./elements", so deep imports are not a fallback.
+ *
+ * This was not hypothetical: `offNetworkBlocked` shipped in the element, the
+ * alarm rendered from it, and it was announced as the way for an application to
+ * gate its own connect control - while being absent from this list.
+ */
+test('the judgements a consumer needs are reachable from ./elements', () => {
+  for (const name of ['offNetworkBlocked', 'offNetworkRisk', 'probeNetwork', 'summariseNetwork']) {
+    assert.equal(typeof elements[name], 'function', `${name} must be exported from ./elements`)
+  }
+})
+
+test('the elements themselves and their strings are reachable', () => {
+  for (const name of ['QrStatusElement', 'QrScannerElement', 'QrInviteElement', 'QrPeersElement']) {
+    assert.equal(typeof elements[name], 'function', `${name} must be exported`)
+  }
+
+  for (const name of ['QR_STATUS_STRINGS', 'QR_SCANNER_STRINGS', 'QR_INVITE_STRINGS', 'QR_PEERS_STRINGS']) {
+    assert.equal(typeof elements[name], 'object', `${name} must be exported so a consumer can translate`)
+  }
+})
+
+test('the session and the format-aware parser are reachable from the root', () => {
+  for (const name of ['QRSession', 'webRTCQR', 'parsePayload', 'decodePayload', 'describeIce']) {
+    assert.equal(typeof core[name], 'function', `${name} must be exported`)
+  }
+})

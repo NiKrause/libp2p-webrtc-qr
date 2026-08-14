@@ -67,6 +67,35 @@ test.describe('the readiness panel', () => {
     // Reflected on the host, so a consumer can gate its own controls with a
     // selector instead of subscribing to the probe event.
     await expect(el).toHaveAttribute('blocked', '')
+    await expect(el).toHaveAttribute('off-network-risk', 'blocked')
+  })
+
+  test('warns more quietly when a path exists but only reaches this network', async ({ page }) => {
+    await page.goto('/?ice=host')
+    await page.waitForFunction(() => customElements.get('qr-status') != null)
+    await makeStatus(page)
+
+    // The 5G shape: IPv4 behind a carrier NAT that maps per destination, no
+    // IPv6. Rendered from a supplied verdict rather than provoked, because a
+    // symmetric NAT is not something CI can be placed behind - and this is the
+    // case that was silent before, which is exactly why it needs a test.
+    await page.evaluate(() => {
+      document.getElementById('probe-under-test').renderResult({
+        ipv4: { state: 'symmetric', text: 'carrier NAT, new port per destination' },
+        ipv6: { state: 'blocked', text: 'no IPv6 candidate here' },
+        overall: { state: 'symmetric', text: 'local only' }
+      })
+    })
+
+    const el = page.locator('#probe-under-test')
+
+    await expect(el.locator('.alarm')).toBeVisible()
+    await expect(el.locator('.alarm')).toHaveClass(/is-unreliable/)
+    await expect(el.locator('.alarm-inner')).toContainText(/usually fail to anyone else/i)
+
+    // Amber, not red: the strong hook stays off, the graded one says why.
+    await expect(el).not.toHaveAttribute('blocked', '')
+    await expect(el).toHaveAttribute('off-network-risk', 'unreliable')
   })
 
   test('does not disturb the row order the panel is selected by', async ({ page }) => {

@@ -1,5 +1,5 @@
 import { mergeStrings, resolveText } from './strings.js'
-import { DEFAULT_RTC_CONFIGURATION, offNetworkBlocked, probeBrowser, probeCamera, probeNetwork } from './network.js'
+import { DEFAULT_RTC_CONFIGURATION, offNetworkRisk, probeBrowser, probeCamera, probeNetwork } from './network.js'
 
 /**
  * `<qr-status>` - what this network will let you do, before anyone tries.
@@ -40,9 +40,13 @@ export const QR_STATUS_STRINGS = {
   // Shown while the probe runs. The network check waits on STUN round trips, so
   // a still panel reads as a frozen one without this.
   measuring: 'Checking what this network allows…',
-  // Shown when neither family can reach off this network - see offNetworkBlocked.
+  // Shown when neither family can reach off this network - see offNetworkRisk.
   // An invite made here cannot connect to anyone elsewhere, so this is loud.
-  alarm: 'This network cannot reach a peer on another network. An invite made here will not connect until you move to Wi-Fi, enable IPv6, or use a relay.'
+  alarm: 'This network cannot reach a peer on another network. An invite made here will not connect until you move to Wi-Fi, enable IPv6, or use a relay.',
+  // The 5G case: carrier NAT on IPv4, no IPv6. A path exists but maps per
+  // destination, so it works only if the other side is open - worth saying,
+  // and worth saying more quietly than the outright block above.
+  alarmUnreliable: 'This network maps a new port per destination and has no IPv6, so an invite made here reaches peers on this network but will usually fail to anyone else. Wi-Fi, IPv6, or a relay makes it reliable.'
 }
 
 /** Which keys are rows rather than verdicts. Also the `rows` vocabulary. */
@@ -126,14 +130,15 @@ const STYLE = `
   .alarm[hidden] { display: none; }
 
   .alarm-inner {
+    --alarm-colour: var(--qr-status-blocked);
     display: flex;
     gap: 8px;
     padding: 9px 12px;
     font-size: 0.8rem;
     line-height: 1.45;
     color: var(--qr-status-tip-color);
-    background: color-mix(in srgb, var(--qr-status-blocked) 14%, var(--qr-status-chip-background));
-    border: 1px solid var(--qr-status-blocked);
+    background: color-mix(in srgb, var(--alarm-colour) 14%, var(--qr-status-chip-background));
+    border: 1px solid var(--alarm-colour);
     border-radius: var(--qr-status-radius);
   }
 
@@ -144,9 +149,12 @@ const STYLE = `
     margin-top: 5px;
     flex-shrink: 0;
     border-radius: 50%;
-    background: var(--qr-status-blocked);
-    box-shadow: 0 0 10px var(--qr-status-blocked);
+    background: var(--alarm-colour);
+    box-shadow: 0 0 10px var(--alarm-colour);
   }
+
+  /* Amber, not red: a path exists, it is just unreliable to anyone elsewhere. */
+  .alarm.is-unreliable .alarm-inner { --alarm-colour: var(--qr-status-degraded); }
 
   .line {
     --dot: var(--qr-status-unknown);
@@ -368,11 +376,24 @@ export class QrStatusElement extends HTMLElement {
    * or a mutation observer instead of listening for the probe event.
    */
   #renderAlarm (result) {
-    const blocked = offNetworkBlocked(result)
+    const risk = offNetworkRisk(result)
 
-    this.__alarmText.textContent = blocked ? resolveText(this.#strings.alarm) : ''
-    this.__alarm.hidden = !blocked
-    this.toggleAttribute('blocked', blocked)
+    this.__alarmText.textContent = risk == null
+      ? ''
+      : resolveText(risk === 'blocked' ? this.#strings.alarm : this.#strings.alarmUnreliable)
+    this.__alarm.hidden = risk == null
+    this.__alarm.className = risk == null ? 'alarm' : `alarm is-${risk}`
+
+    // Two hooks, because they answer different questions: `blocked` is "nothing
+    // at all works off this network", `off-network-risk` is "how bad is it".
+    // Consumers gating a connect button want the second.
+    this.toggleAttribute('blocked', risk === 'blocked')
+
+    if (risk == null) {
+      this.removeAttribute('off-network-risk')
+    } else {
+      this.setAttribute('off-network-risk', risk)
+    }
   }
 
   attributeChangedCallback () {
@@ -386,6 +407,23 @@ export class QrStatusElement extends HTMLElement {
 
   get result () {
     return this.#result
+  }
+
+  /**
+   * Render a verdict this element did not measure itself.
+   *
+   * Until now the panel could only show the result of its own `probe()`, which
+   * leaves two real cases out: an application that already ran a check and does
+   * not want to pay for a second one, and restoring a remembered verdict on
+   * load so the panel is not blank while it re-measures.
+   *
+   * @param {{ ipv4?: object, ipv6?: object, overall?: object, browser?: object, camera?: object }} result
+   */
+  renderResult (result) {
+    this.#result = result
+    this.#paint(result)
+
+    return result
   }
 
   connectedCallback () {

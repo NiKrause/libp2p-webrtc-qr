@@ -22,6 +22,11 @@ export { mergeStrings, resolveText } from './strings.js'
 export {
   DEFAULT_RTC_CONFIGURATION,
   isGlobalUnicastV6,
+  // Both, because a consumer gating its own connect control needs the verdict
+  // without a DOM - and without these the judgement was reachable only by
+  // reading an attribute off the element, which is not an API.
+  offNetworkBlocked,
+  offNetworkRisk,
   probeNetwork,
   summariseNetwork
 } from './network.js'
