@@ -722,7 +722,9 @@ test.describe('signed QR WebRTC signaling', () => {
     }
   })
 
-  test('holds a screen wake lock only while a connection is live', async ({ browser, browserName }) => {
+  test('holds a screen wake lock once a connection is live', async ({ browser, browserName }) => {
+    // Scanning and an invite on screen also hold it now - those cases are in
+    // wake-lock.spec.js. This is the connection case, which needs two real peers.
     skipWithoutWebRTC(test, browserName)
 
     const offerer = await browser.newPage()
