@@ -69,6 +69,17 @@ cd docs-site && pnpm install && pnpm start
   IPv4-Problem – haben beide Peers eine globale IPv6-Adresse, verbinden sie sich
   trotzdem, und die Demo meldet je Adressfamilie, welche der beiden vorliegt,
   bevor irgendetwas gescannt wird.
+- **Wi-Fi-Client-Isolation bricht die Verbindung, während jede Prüfung besteht.**
+  Gästenetze in Cafés, Hotels und auf Konferenzen verbieten es Clients
+  routinemäßig, einander zu adressieren. STUN funktioniert weiterhin, beide Peers
+  sammeln also Reflexivkandidaten, die Bereitschaftsanzeige meldet das Netz als
+  offen – und dann kommt kein einziges Kandidatenpaar zustande. Das ist ein
+  anderer Fehlerfall als restriktives oder symmetrisches NAT, und in genau den
+  Umgebungen, für die dieses Projekt wirbt, ist er vermutlich der häufigere. Er
+  ist **nicht** feststellbar, bevor ein Peer am anderen Ende steht: die Prüfung
+  misst, ob dieser Browser *das Internet* erreicht, nicht ob er *einen anderen
+  Client am selben Zugangspunkt* erreicht. Unabhängig berichtet von
+  [vbocan/webrtc-oob-pairing](https://github.com/vbocan/webrtc-oob-pairing).
 - **Nutzlasten verfallen nach zehn Minuten**, zwei Minuten Uhrenversatz werden
   toleriert. Das Fenster gehört zur signierten kanonischen Form: es umzuschreiben
   macht die Signatur ungültig, statt die Nutzlast zu verlängern.
@@ -85,7 +96,7 @@ cd docs-site && pnpm install && pnpm start
   Peers auf einem offenen Stream sitzen, der keine Bytes trug – gegen null von
   acht bei v2. Kein Fehler, kein Verbindungsabbruch, es kam schlicht nichts an.
   Die Ursache ist nicht verstanden
-  ([#6](https://github.com/NiKrause/libp2p-webrtc-qr/issues/6)), und ein Code in
+  ([#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83)), und ein Code in
   Viertelgröße ist keine Verbindung wert, die unter Last in der Hälfte der Fälle
   scheitert. Das Lesen ist davon unberührt: ein Peer nimmt ohnehin beide Formate
   an, die Umstellung ändert also nur, was ein Gerät herausgibt.
@@ -106,6 +117,14 @@ cd docs-site && pnpm install && pnpm start
   `getUserMedia`, `BarcodeDetector` und der `jsQR`-Rückfall werden ausschließlich
   von Hand geprüft. Mehr Browser in der CI haben daran nichts geändert – das ist
   der eine Teil, den ein Headless-Browser nicht ausführen kann.
+- **Dieser Kanal ist beobachtbar, und nichts hier behauptet das Gegenteil.**
+  „Kein Server beteiligt" heißt nicht „im Netz unsichtbar": dieselbe
+  Defensiv-Sicherheitsstudie liefert funktionierende Sigma-Signaturen mit und
+  meldet vollständige Erkennung über alle ihre Testszenarien. Ein vom Bildschirm
+  gescannter QR-Code ist außerhalb des Netzes, aber der WebRTC-Verkehr danach ist
+  gewöhnlicher Verkehr in einem gewöhnlichen Netz. Wessen Bedrohungsmodell einen
+  verdeckten Kanal braucht, sollte ihn nicht aus dem Fehlen eines
+  Signaling-Servers ableiten.
 - `packages/webrtc-qr/src/vendor` ist eine Kopie von `@libp2p/webrtc`-Interna,
   die das Paket flussaufwärts nicht exportiert. Siehe
   [das Vendor-README](packages/webrtc-qr/src/vendor/README.md).

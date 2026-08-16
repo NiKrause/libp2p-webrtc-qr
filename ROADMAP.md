@@ -83,7 +83,13 @@ See the issue for what would need measuring first.
 
 **Tracked in [#6](https://github.com/NiKrause/libp2p-webrtc-qr/issues/6).**
 
-**Done**, as the combination this section argued for rather than as adoption.
+**Done as a format, and switched off as a default.** A connection built from a
+reconstructed SDP goes silent under load - four of eight runs against zero of
+eight on v2 - so producing v3 is opt-in per invite. That defect is
+[#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83), and it is what
+stands between this item and the two below it that depend on a small payload.
+
+Done as the combination this section argued for rather than as adoption.
 A v3 codec packs the fingerprint and candidates binary, derives the ICE
 credentials from the fingerprint with HKDF instead of sending them, and rebuilds
 the SDP locally - while keeping the signature that makes `skipEncryption: true`

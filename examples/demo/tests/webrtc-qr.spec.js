@@ -1491,7 +1491,7 @@ test.describe('signed QR WebRTC signaling', () => {
     try {
       await openPeer(page, pageErrors)
 
-      // Off by default while #6 is open - a connection built from a
+      // Off by default while #83 is open - a connection built from a
       // reconstructed SDP goes silent under load - so the default is the full
       // payload and the box is what opts in.
       await expect(page.locator('#compact-payload')).not.toBeChecked()

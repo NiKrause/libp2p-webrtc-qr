@@ -59,7 +59,7 @@ const DEFAULTS = {
    * built from a reconstructed SDP goes silent under load: measured in isolated
    * worktrees, four of eight runs left both peers holding an open stream that
    * carried no bytes, against zero of eight on v2. The cause is not understood
-   * (NiKrause/libp2p-webrtc-qr#6), and a code a quarter the size is not worth a
+   * (NiKrause/libp2p-webrtc-qr#83), and a code a quarter the size is not worth a
    * connection that fails half the time under load.
    *
    * *Reading* is unconditional and unaffected: a peer accepts either format

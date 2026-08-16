@@ -64,6 +64,16 @@ cd docs-site && pnpm install && pnpm start
   fail to connect over IPv4. Carrier-grade NAT is an IPv4 problem, though - if
   both peers have a global IPv6 address they connect regardless, and the demo
   reports per family which of the two you have before you scan anything.
+- **Wi-Fi client isolation breaks the connection while every check passes.**
+  Guest networks in cafes, hotels and conference venues routinely forbid clients
+  from addressing each other. STUN still works, so both peers gather reflexive
+  candidates and the readiness panel reports the network as open - and then no
+  candidate pair ever succeeds. This is a distinct failure from restrictive or
+  symmetric NAT, and in the settings this project advertises it is arguably the
+  likelier one. It is **not** detectable before a peer is on the other end: the
+  probe measures whether this browser can reach *the internet*, not whether it
+  can reach *another client on the same access point*. Reported independently by
+  [vbocan/webrtc-oob-pairing](https://github.com/vbocan/webrtc-oob-pairing).
 - **Payloads expire after ten minutes**, with two minutes of clock skew
   tolerated. The window is part of the signed canonical form, so rewriting it
   invalidates the signature rather than extending the payload.
@@ -79,7 +89,7 @@ cd docs-site && pnpm install && pnpm start
   load: measured in isolated worktrees, four of eight runs left both peers
   holding an open stream that carried no bytes, against zero of eight on v2. No
   error, no dropped connection - simply nothing arriving. The cause is not
-  understood ([#6](https://github.com/NiKrause/libp2p-webrtc-qr/issues/6)), and
+  understood ([#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83)), and
   a quarter-size code is not worth a connection that fails half the time under
   load. Reading is unaffected: a peer accepts either format regardless, so
   turning it on only changes what a device hands out.
@@ -98,6 +108,13 @@ cd docs-site && pnpm install && pnpm start
   payloads by copy/paste or programmatically. `getUserMedia`, `BarcodeDetector`
   and the `jsQR` fallback are only ever exercised by hand. Adding more browsers
   to CI did not change this - it is the one part a headless browser cannot run.
+- **This channel is observable, and nothing here claims otherwise.** "No server
+  involved" is not "invisible on the network": the same defensive-security study
+  ships working Sigma detection signatures and reports full detection across its
+  test scenarios. A QR code scanned off a screen is out-of-band, but the WebRTC
+  traffic that follows is ordinary traffic on an ordinary network. Anyone whose
+  threat model needs a covert channel should not infer one from the absence of a
+  signaling server.
 - `packages/webrtc-qr/src/vendor` is a copy of `@libp2p/webrtc` internals that
   the upstream package does not export. See
   [the vendor README](packages/webrtc-qr/src/vendor/README.md).
