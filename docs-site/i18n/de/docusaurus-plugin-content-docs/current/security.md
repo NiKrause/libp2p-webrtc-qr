@@ -63,4 +63,22 @@ bauartbedingt außerhalb des Netzes. Ein in einen Messenger eingefügter Link is
 es nicht: wer die Nachricht lesen kann, kann das Angebot lesen. Die Signatur
 verhindert Manipulation, nicht Mitlesen.
 
+## Dieser Kanal ist beobachtbar
+
+„Kein Server beteiligt" heißt nicht „im Netz unsichtbar". Die
+Defensiv-Sicherheitsstudie
+[vbocan/webrtc-oob-pairing](https://github.com/vbocan/webrtc-oob-pairing)
+liefert funktionierende Sigma-Signaturen für genau dieses Muster mit und meldet
+vollständige Erkennung über alle ihre Testszenarien.
+
+Nichts hier gibt vor, verdeckt zu sein, und dabei sollte es bleiben: ein vom
+Bildschirm gescannter QR-Code ist außerhalb des Netzes, aber der WebRTC-Verkehr
+danach ist gewöhnlicher Verkehr in einem gewöhnlichen Netz. Wer sich in einem
+überwachten Netz bewegt, sollte aus dem Fehlen eines Signaling-Servers keinen
+verdeckten Kanal ableiten.
+
+Dieselbe Studie berichtet, dass der Kanal **durch TLS-aufbrechende Proxys und
+bei blockiertem DNS** funktioniert – was die Behauptung „ohne Infrastruktur"
+stützt und dieselbe Beobachtung von der anderen Seite ist.
+
 Vollständige Herleitung: [`docs/connection-security.md`](https://github.com/NiKrause/libp2p-webrtc-qr/blob/main/docs/connection-security.md).

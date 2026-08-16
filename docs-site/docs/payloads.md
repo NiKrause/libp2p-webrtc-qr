@@ -20,7 +20,7 @@ Not because it is unfinished. A connection built from a **reconstructed** SDP
 goes silent under load: measured in isolated worktrees, four of eight runs left
 both peers holding an open stream that carried no bytes, against zero of eight on
 v2. No error, no dropped connection — simply nothing arriving. The cause is not
-understood ([#6](https://github.com/NiKrause/libp2p-webrtc-qr/issues/6)).
+understood ([#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83)).
 
 Reading is unaffected: a peer accepts either format regardless, so turning it on
 only changes what a device hands out.

@@ -79,6 +79,9 @@ const { peerId, connection } = await session.acceptAnswer(answer)
 
 - **No TURN server.** Two peers behind symmetric NATs can fail over IPv4.
   Global IPv6 on both sides connects regardless.
+- **Wi-Fi client isolation** breaks the connection while every check passes -
+  common on guest networks, and invisible to the readiness probe. See
+  [Network readiness](network).
 - **Payloads expire after ten minutes**, two minutes of clock skew tolerated.
   The window is signed, so rewriting it invalidates the payload.
 - **The camera path is not covered by any test.** `getUserMedia`,

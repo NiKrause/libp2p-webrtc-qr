@@ -47,6 +47,34 @@ Der Wortlaut in der Bibliothek wurde genau deswegen korrigiert: er sagte einmal
 schlechtes Urteil hin **nichts sperren**: ein symmetrisches NAT verbindet Peers
 im selben Netz weiterhin.
 
+## Was die Prüfung nicht sehen kann
+
+**Wi-Fi-Client-Isolation.** Gästenetze in Cafés, Hotels und auf Konferenzen
+verbieten es Clients routinemäßig, einander zu adressieren. STUN bleibt davon
+unberührt – es spricht mit dem Internet, und das ist erlaubt –, beide Peers
+sammeln also Reflexivkandidaten, `summariseNetwork` liefert `open`, und dann
+kommt kein einziges Kandidatenpaar zustande.
+
+Das ist keine Lücke, die sich durch bessere Messung schließen ließe. Die Prüfung
+fragt *erreicht dieser Browser das Internet*; bei Client-Isolation geht es darum,
+ob er **einen anderen Client am selben Zugangspunkt** erreicht, und das kann kein
+einzelner Browser für sich beantworten.
+
+Zwei Folgerungen, auf denen sich aufbauen lässt:
+
+- **Ein `open`-Urteil ist kein Versprechen.** Es sagt, dass nichts im Weg
+  gefunden wurde – nicht, dass ein Peer erreichbar sein wird.
+- **Das Erkennungsmerkmal liegt im Fehlschlag, nicht davor.** Haben beide Seiten
+  `srflx`-Kandidaten von *derselben* öffentlichen Adresse gesammelt – stehen also
+  hinter demselben NAT – und ICE kam trotzdem nie über `checking` hinaus, ist
+  Client-Isolation die wahrscheinlichere Ursache als die NAT-Art.
+  `describeIce()` trägt die Kandidatensätze, die eine solche Meldung braucht.
+
+Unabhängig berichtet von
+[vbocan/webrtc-oob-pairing](https://github.com/vbocan/webrtc-oob-pairing), wo
+auch Browser-Richtlinien, die WebRTC ganz abschalten, als zweite Ursache mit
+demselben Symptom genannt werden.
+
 ## STUN-Konfiguration
 
 `DEFAULT_RTC_CONFIGURATION` fragt vier STUN-Server, zwei davon über

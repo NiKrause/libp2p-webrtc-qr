@@ -3,6 +3,10 @@
 > Format specification for `q3:` payloads. The reasoning for wanting them is in
 > [issue #6](https://github.com/NiKrause/libp2p-webrtc-qr/issues/6); this
 > document is what an implementer needs.
+>
+> **Producing this format is opt-in.** A connection built from a reconstructed
+> SDP goes silent under load - [#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83).
+> Reading it is unconditional and unaffected.
 
 ## Why
 

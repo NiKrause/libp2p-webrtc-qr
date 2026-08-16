@@ -22,7 +22,7 @@ verstummt unter Last: in isolierten Worktrees gemessen, blieben in vier von acht
 Läufen beide Peers auf einem offenen Stream sitzen, der keine Bytes trug — gegen
 null von acht bei v2. Kein Fehler, kein Verbindungsabbruch, es kam schlicht
 nichts an. Die Ursache ist nicht verstanden
-([#6](https://github.com/NiKrause/libp2p-webrtc-qr/issues/6)).
+([#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83)).
 
 Das Lesen ist davon unberührt: ein Peer nimmt ohnehin beide Formate an. Die
 Umstellung ändert nur, was ein Gerät herausgibt.

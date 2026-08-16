@@ -46,6 +46,33 @@ network offers IPv4 only", which two screenshots disproved.
 **Do not** present a verdict as a fact about the network, and **do not** disable
 controls on a bad one: a symmetric NAT still connects peers on the same network.
 
+## What the probe cannot see
+
+**Wi-Fi client isolation.** Guest networks in cafes, hotels and conference
+venues routinely forbid clients from addressing each other. STUN is unaffected -
+it talks to the internet, which is allowed - so both peers gather reflexive
+candidates, `summariseNetwork` returns `open`, and then no candidate pair ever
+succeeds.
+
+This is not a gap that better probing closes. The probe asks *can this browser
+reach the internet*; client isolation is about whether it can reach **another
+client on the same access point**, and no single browser can answer that alone.
+
+Two consequences worth building on:
+
+- **An `open` verdict is not a promise.** It says nothing was found in the way,
+  not that a peer will be reachable.
+- **The signature to look for is in the failure, not before it.** If both sides
+  gathered `srflx` candidates from the *same* public address - so they are behind
+  the same NAT - and ICE still never left `checking`, client isolation is the
+  likely cause rather than NAT type. `describeIce()` carries the candidate sets
+  a message would need to say so.
+
+Reported independently by
+[vbocan/webrtc-oob-pairing](https://github.com/vbocan/webrtc-oob-pairing), which
+also names browser policies that disable WebRTC outright as a second cause with
+the same symptom.
+
 ## STUN configuration
 
 `DEFAULT_RTC_CONFIGURATION` asks four STUN servers, two of them over **IPv6

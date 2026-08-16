@@ -80,6 +80,9 @@ const { peerId, connection } = await session.acceptAnswer(answer)
 
 - **Kein TURN-Server.** Zwei Peers hinter symmetrischen NATs können über IPv4
   scheitern. Mit globalem IPv6 auf beiden Seiten verbinden sie sich trotzdem.
+- **Wi-Fi-Client-Isolation** bricht die Verbindung, während jede Prüfung
+  besteht – in Gästenetzen verbreitet und für die Bereitschaftsprüfung
+  unsichtbar. Siehe [Netzbereitschaft](network).
 - **Nutzlasten verfallen nach zehn Minuten**, zwei Minuten Uhrenversatz werden
   toleriert. Das Fenster ist mitsigniert — Umschreiben macht es ungültig, nicht
   länger.

@@ -59,4 +59,20 @@ The **channel the code travels over**. A QR code scanned off a screen is
 out-of-band by construction. A link pasted into a messenger is not: whoever can
 read that message can read the offer. The signature stops tampering, not reading.
 
+## This channel is observable
+
+"No server involved" is not "invisible on the network". The defensive-security
+study [vbocan/webrtc-oob-pairing](https://github.com/vbocan/webrtc-oob-pairing)
+ships working Sigma detection signatures for exactly this pattern and reports
+full detection across its test scenarios.
+
+Nothing here claims to be covert, and it should stay that way: a QR code scanned
+off a screen is out-of-band, but the WebRTC traffic that follows is ordinary
+traffic on an ordinary network. Someone on a monitored network should not infer
+a covert channel from the absence of a signaling server.
+
+The same study reports the channel works **through TLS-intercepting proxies and
+with DNS blocked** - which supports the no-infrastructure claim, and is the same
+observation from the other direction.
+
 Full derivation: [`docs/connection-security.md`](https://github.com/NiKrause/libp2p-webrtc-qr/blob/main/docs/connection-security.md).
