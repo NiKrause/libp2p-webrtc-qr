@@ -7,6 +7,14 @@ name: Remote link handover
 # same box. That cannot fail the way a real handover fails - it has no second
 # network to cross. This puts the answering browser on an Aleph VM and runs the
 # same scenario, in both payload formats, against a deployed build.
+#
+# It runs the scenario TWICE when the first attempt fails, on a freshly
+# provisioned VM. That is not flake tolerance, it is the experiment #76 had to
+# be run by hand to settle: the handover failed on 14 Aug and passed on 13 and
+# 16 Aug with connection timings within noise of each other, and the only thing
+# that differed was the host. A CRN whose NAT forbids the punch looks exactly
+# like a broken transport from here. One red run cannot tell them apart, so
+# this workflow stops reporting one as if it could.
 
 on:
   workflow_dispatch:
@@ -21,6 +29,11 @@ on:
         required: false
         default: b41c7fe9fe687a22f37f52b52d008a9a924280faec04591ecf47976038f065be
         type: string
+      second_attempt:
+        description: Provision a second VM when the first attempt fails
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -32,9 +45,11 @@ concurrency:
 jobs:
   handover:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    # Two provisioning rounds, each of which may itself walk a ranked CRN list.
+    timeout-minutes: 60
     env:
       INSTANCE_NAME: webrtc-qr-${{ github.run_id }}-${{ github.run_attempt }}
+      RESULTS: test-results/remote-link-handover
     steps:
       - uses: actions/checkout@v6
 
@@ -63,6 +78,8 @@ jobs:
           echo "PLAYWRIGHT_RUNNER_SSH_KEY=$RUNNER_TEMP/playwright-runner-id" >> "$GITHUB_ENV"
           echo "PLAYWRIGHT_RUNNER_SSH_PUBLIC_KEY=$(cat "$RUNNER_TEMP/playwright-runner-id.pub")" >> "$GITHUB_ENV"
 
+      # ---- first attempt ------------------------------------------------------
+
       # Deploy, port resolution, TLS and secret injection, and the authenticated
       # version check all live in this action - which is why this workflow is
       # short. Do not reimplement any of it here.
@@ -77,7 +94,11 @@ jobs:
           ssh_private_key_path: ${{ env.PLAYWRIGHT_RUNNER_SSH_KEY }}
           secret: ${{ env.PLAYWRIGHT_RUNNER_SECRET }}
 
+      # continue-on-error, so a red first attempt reaches the second one instead
+      # of ending the job. The job still fails at the end if both fail.
       - name: Hand a link across two networks
+        id: attempt1
+        continue-on-error: true
         working-directory: examples/demo
         env:
           NODE_EXTRA_CA_CERTS: ${{ steps.runner.outputs.ca_cert_path }}
@@ -88,36 +109,155 @@ jobs:
           ALEPH_PLAYWRIGHT_SECRET: ${{ env.PLAYWRIGHT_RUNNER_SECRET }}
         run: pnpm test:remote
 
-      - name: Record what was actually crossed
+      # Attempt 2 writes to the same directory, so keep this one before it runs.
+      - name: Set the first attempt's results aside
         if: always()
         shell: bash
         working-directory: examples/demo
         run: |
-          summary=test-results/remote-link-handover/summary.json
-          if [ -f "$summary" ]; then
-            {
-              echo '### Remote link handover'
-              echo
-              echo "CRN: ${{ steps.runner.outputs.crn_name || 'unknown' }}"
-              echo
-              echo '```json'
-              cat "$summary"
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
+          if [ -d "$RESULTS" ]; then
+            mv "$RESULTS" "$RESULTS-1"
           fi
 
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: remote-link-handover
-          path: examples/demo/test-results/remote-link-handover
-          if-no-files-found: warn
-
-      # An ephemeral runner that outlives its run is a VM nobody is watching and
-      # everybody is paying for.
+      # Immediately, and before the second deploy - two live VMs at once is
+      # double the cost and the second cleanup is the one that gets skipped when
+      # something goes wrong in between.
       - name: Remove the runner
         if: always() && steps.runner.outputs.instance_item_hash != ''
         uses: NiKrause/relay-button/.github/actions/aleph-playwright-runner-cleanup@main
         with:
           aleph_private_key: ${{ secrets.ALEPH_PLAYWRIGHT_PRIVATE_KEY }}
           instance_item_hash: ${{ steps.runner.outputs.instance_item_hash }}
+
+      # ---- second attempt, only if the first failed ---------------------------
+
+      - name: Deploy a second runner
+        id: runner2
+        if: steps.attempt1.outcome == 'failure' && inputs.second_attempt
+        uses: NiKrause/relay-button/.github/actions/aleph-playwright-runner@main
+        with:
+          aleph_private_key: ${{ secrets.ALEPH_PLAYWRIGHT_PRIVATE_KEY }}
+          rootfs_item_hash: ${{ inputs.rootfs_item_hash }}
+          name: ${{ env.INSTANCE_NAME }}-2
+          ssh_public_key: ${{ env.PLAYWRIGHT_RUNNER_SSH_PUBLIC_KEY }}
+          ssh_private_key_path: ${{ env.PLAYWRIGHT_RUNNER_SSH_KEY }}
+          secret: ${{ env.PLAYWRIGHT_RUNNER_SECRET }}
+
+      - name: Hand a link across two networks, on another host
+        id: attempt2
+        if: steps.runner2.outcome == 'success'
+        continue-on-error: true
+        working-directory: examples/demo
+        env:
+          NODE_EXTRA_CA_CERTS: ${{ steps.runner2.outputs.ca_cert_path }}
+          REMOTE_APP_URL: ${{ inputs.app_url }}
+          REMOTE_PROVIDER: aleph
+          ALEPH_PLAYWRIGHT_WS_ENDPOINT: ${{ steps.runner2.outputs.ws_endpoint }}
+          ALEPH_PLAYWRIGHT_VERSION_URL: ${{ steps.runner2.outputs.version_url }}
+          ALEPH_PLAYWRIGHT_SECRET: ${{ env.PLAYWRIGHT_RUNNER_SECRET }}
+        run: pnpm test:remote
+
+      - name: Remove the second runner
+        if: always() && steps.runner2.outputs.instance_item_hash != ''
+        uses: NiKrause/relay-button/.github/actions/aleph-playwright-runner-cleanup@main
+        with:
+          aleph_private_key: ${{ secrets.ALEPH_PLAYWRIGHT_PRIVATE_KEY }}
+          instance_item_hash: ${{ steps.runner2.outputs.instance_item_hash }}
+
+      # ---- what was actually crossed -----------------------------------------
+
+      - name: Record what was actually crossed
+        if: always()
+        shell: bash
+        working-directory: examples/demo
+        env:
+          CRN_1: ${{ steps.runner.outputs.crn_name || 'unknown' }}
+          CRN_2: ${{ steps.runner2.outputs.crn_name || '' }}
+          OUTCOME_1: ${{ steps.attempt1.outcome }}
+          OUTCOME_2: ${{ steps.attempt2.outcome || 'not needed' }}
+        run: |
+          {
+            echo '### Remote link handover'
+            echo
+            echo "| attempt | CRN | result |"
+            echo "| --- | --- | --- |"
+            echo "| 1 | ${CRN_1} | ${OUTCOME_1} |"
+            if [ -n "$CRN_2" ]; then
+              echo "| 2 | ${CRN_2} | ${OUTCOME_2} |"
+            fi
+            echo
+
+            # The runner action has no way to exclude a host, so a second deploy
+            # can land back on the one that just failed. When it does, the retry
+            # answered nothing and the summary has to say so rather than let two
+            # reds read as a confirmed regression.
+            if [ -n "$CRN_2" ] && [ "$CRN_1" = "$CRN_2" ]; then
+              echo '> **Both attempts landed on the same CRN.** This run cannot'
+              echo '> distinguish a transport regression from that host'"'"'s network.'
+              echo
+            fi
+
+            # Attempt 1 was moved aside before attempt 2 ran, which is still
+            # writing to the undecorated path.
+            if [ -f "$RESULTS-1/summary.json" ]; then
+              echo '#### Attempt 1'
+              echo
+              echo '```json'
+              cat "$RESULTS-1/summary.json"
+              echo
+              echo '```'
+              echo
+            fi
+
+            if [ -f "$RESULTS/summary.json" ]; then
+              echo '#### Attempt 2'
+              echo
+              echo '```json'
+              cat "$RESULTS/summary.json"
+              echo
+              echo '```'
+              echo
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: remote-link-handover
+          path: examples/demo/test-results/remote-link-handover*
+          if-no-files-found: warn
+
+      # The job's verdict, stated once and in one place. Green if either host
+      # carried the handover; red only when the scenario failed everywhere it
+      # was tried.
+      - name: Report the verdict
+        if: always()
+        shell: bash
+        env:
+          OUTCOME_1: ${{ steps.attempt1.outcome }}
+          OUTCOME_2: ${{ steps.attempt2.outcome || 'skipped' }}
+          RUNNER2: ${{ steps.runner2.outcome || 'skipped' }}
+        run: |
+          if [ "$OUTCOME_1" = success ] || [ "$OUTCOME_2" = success ]; then
+            echo "Handover crossed two networks."
+            exit 0
+          fi
+
+          # The scenario never ran: provisioning failed, which is an Aleph
+          # problem and says nothing at all about the transport. Distinguishing
+          # this from a real failure is half the point of the step.
+          if [ "$OUTCOME_1" != failure ]; then
+            echo "::error::No attempt reached the scenario - the first runner" \
+                 "could not be provisioned. This run says nothing about the transport."
+            exit 1
+          fi
+
+          if [ "$RUNNER2" != success ]; then
+            echo "::error::The scenario failed on one host and no second host" \
+                 "could be provisioned, so a bad host is not ruled out."
+            exit 1
+          fi
+
+          echo "::error::The handover failed on two separately provisioned" \
+               "hosts. That is a finding, not a bad host."
+          exit 1
