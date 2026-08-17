@@ -7,11 +7,6 @@ rediscover it. Read the top three before changing anything in the connect path.
 going. This file is neither: it is the set of facts that are expensive to learn
 twice, and the questions worth asking before writing code.
 
-Three things below are in open pull requests rather than on `main` at the time
-of writing - `offNetworkRisk` and `test/exports.test.js` in #75, and
-`BROWSERS_THAT_HOLD` in #77. They are documented here because the reasoning is
-the point and it outlives the branch; if one of them is missing, that is why.
-
 ---
 
 ## 1. Mobile browsers kill a waiting invite within seconds
@@ -34,6 +29,34 @@ Consequences already built on this:
 - the `.pc-health` readout, which records the connection's state on the way out
   and on the way back — nobody can watch a screen that is in the background
 - `BROWSERS_THAT_HOLD`, the single place to change when this stops being true
+- `createKeepAlive()` in the package, which keeps the page playing audio so the
+  browser does not suspend it in the first place. Audible by default: a stream
+  the browser judges inaudible stops counting as playback, so silence is the
+  failure mode rather than the polite choice — and the media notification it
+  earns is a labelled way back into the app, which is the other half of the
+  problem. Verified as a mechanism only; whether it survives a real app switch
+  is a claim about Android that two phones and a messenger have to settle.
+
+**Open, and it decides how consumer apps build their share flow.** Whether the
+keep-alive actually holds a connection through an app switch is a claim about
+Android that no test here can make. `createKeepAlive()` is verified as a
+mechanism — the audio graph starts, loops and is released — and that is all.
+
+The experiment that settles it, and it is cheap:
+
+1. Produce an invite on phone A.
+2. Switch to a messenger, paste it, come back.
+3. Time how long before the connection is gone — with the keep-alive running and
+   without.
+4. Repeat per browser. Vanadium on GrapheneOS and Chrome are the ones that fail
+   today; DuckDuckGo and Safari already hold for around ten seconds, so they say
+   least about whether this helps.
+
+**Write the answer here**, in place of this block, and update
+`BROWSERS_THAT_HOLD` if the numbers move. A result that lives in a pull request
+comment is a result the next person re-derives. If it turns out not to help,
+that is worth recording just as much — it would mean the round trip has to get
+shorter instead, which is the question below rather than this one.
 
 **Ask before you build:** is the feature you are adding making the round trip
 longer? Item 0 on the roadmap (a handshake inside a photograph) is behind this
