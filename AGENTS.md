@@ -37,6 +37,27 @@ Consequences already built on this:
   problem. Verified as a mechanism only; whether it survives a real app switch
   is a claim about Android that two phones and a messenger have to settle.
 
+**Open, and it decides how consumer apps build their share flow.** Whether the
+keep-alive actually holds a connection through an app switch is a claim about
+Android that no test here can make. `createKeepAlive()` is verified as a
+mechanism — the audio graph starts, loops and is released — and that is all.
+
+The experiment that settles it, and it is cheap:
+
+1. Produce an invite on phone A.
+2. Switch to a messenger, paste it, come back.
+3. Time how long before the connection is gone — with the keep-alive running and
+   without.
+4. Repeat per browser. Vanadium on GrapheneOS and Chrome are the ones that fail
+   today; DuckDuckGo and Safari already hold for around ten seconds, so they say
+   least about whether this helps.
+
+**Write the answer here**, in place of this block, and update
+`BROWSERS_THAT_HOLD` if the numbers move. A result that lives in a pull request
+comment is a result the next person re-derives. If it turns out not to help,
+that is worth recording just as much — it would mean the round trip has to get
+shorter instead, which is the question below rather than this one.
+
 **Ask before you build:** is the feature you are adding making the round trip
 longer? Item 0 on the roadmap (a handshake inside a photograph) is behind this
 question, not in front of it.
