@@ -7,11 +7,6 @@ rediscover it. Read the top three before changing anything in the connect path.
 going. This file is neither: it is the set of facts that are expensive to learn
 twice, and the questions worth asking before writing code.
 
-Three things below are in open pull requests rather than on `main` at the time
-of writing - `offNetworkRisk` and `test/exports.test.js` in #75, and
-`BROWSERS_THAT_HOLD` in #77. They are documented here because the reasoning is
-the point and it outlives the branch; if one of them is missing, that is why.
-
 ---
 
 ## 1. Mobile browsers kill a waiting invite within seconds
@@ -34,6 +29,13 @@ Consequences already built on this:
 - the `.pc-health` readout, which records the connection's state on the way out
   and on the way back — nobody can watch a screen that is in the background
 - `BROWSERS_THAT_HOLD`, the single place to change when this stops being true
+- `createKeepAlive()` in the package, which keeps the page playing audio so the
+  browser does not suspend it in the first place. Audible by default: a stream
+  the browser judges inaudible stops counting as playback, so silence is the
+  failure mode rather than the polite choice — and the media notification it
+  earns is a labelled way back into the app, which is the other half of the
+  problem. Verified as a mechanism only; whether it survives a real app switch
+  is a claim about Android that two phones and a messenger have to settle.
 
 **Ask before you build:** is the feature you are adding making the round trip
 longer? Item 0 on the roadmap (a handshake inside a photograph) is behind this
