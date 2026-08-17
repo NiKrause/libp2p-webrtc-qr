@@ -72,6 +72,62 @@ and the ICE state — what a failure message should carry.
 
 ---
 
+## Staying alive while somebody leaves
+
+Sending an invite through a messenger means leaving the app, and a browser
+closes an `RTCPeerConnection` when it suspends the page — on Android within a
+couple of seconds, without firing an event. The carrier that is easiest to use
+is the one the platform breaks.
+
+A page that is playing audio is not one Chromium freezes. `createKeepAlive()`
+does that and nothing else:
+
+```js
+import { createKeepAlive } from '@le-space/libp2p-webrtc-qr'
+
+const keepAlive = createKeepAlive({
+  track: '/audio/waiting.mp3',
+  metadata: { title: 'Waiting for the other phone', artist: 'Simple-Todo' }
+})
+
+// From the click that produces the invite — `AudioContext` starts suspended
+// under the autoplay policy, and there is no gesture left once the user has
+// already gone.
+await keepAlive.start()
+
+// The moment the connection is up, or the attempt is abandoned.
+await keepAlive.stop()
+```
+
+| option | meaning |
+| --- | --- |
+| `track` | URL of an audio file to loop. Without one it runs near-silent. |
+| `silent` | Run inaudibly even with a `track`. |
+| `volume` | `0..1`, applied to `track`. Default `0.35`. |
+| `metadata` | Shown in the platform's media notification. |
+
+`start()` resolves to whether audio is playing; `running` and `supported` say
+where it stands. Both are safe to call twice.
+
+**Audible is the default on purpose.** Silence is the failure mode: a stream the
+browser decides is inaudible stops counting as playback, and the page is frozen
+anyway with the battery already spent. Audio the user can hear also says the app
+is still holding the line through a wait that is otherwise a minute of nothing —
+and Android's media notification, once `metadata` is set, is a labelled one-tap
+way back into the app, which is the half of the problem nothing else addresses.
+
+Even near-silent, the buffer is not zeros. A buffer of silence is precisely what
+a browser may treat as "nothing is playing", so it carries one least-significant
+bit instead: inaudible, and not silence to a level meter.
+
+**This is not a wake lock.** A wake lock holds the screen, not the page, and the
+browser drops it the moment the page is hidden. The two cover different halves.
+
+> Verified as mechanism, not as cure: the tests assert the audio graph is built,
+> resumed and released. Whether it keeps a peer connection alive through a real
+> app switch is a claim about Android that only two phones and a messenger can
+> settle.
+
 ## Payload formats
 
 Two wire formats. **Reading both is unconditional; producing v3 is a choice.**

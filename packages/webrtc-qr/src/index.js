@@ -1,5 +1,6 @@
 export { webRTCQR, createWebRTCUpgradeContext } from './transport.js'
 export { QRSession, describeIce } from './session.js'
+export { createKeepAlive } from './keep-alive.js'
 export {
   CLOCK_SKEW_MS,
   DEFAULT_LIFETIME_MS,
