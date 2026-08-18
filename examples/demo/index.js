@@ -559,13 +559,27 @@ const keepAlive = createKeepAlive({
  * Only ever stops. Starting needs a user gesture, so unlike the wake lock it
  * cannot be driven from state.
  */
+/**
+ * Our decision, kept apart from the platform's answer to it - the same split
+ * `wakelock.js` makes, and for the same reason. Whether audio actually plays
+ * depends on an audio stack: it runs in Firefox on a desktop and not in the CI
+ * container, so asserting `running` is asserting on the machine rather than on
+ * this code.
+ */
+let keepAliveWanted = false
+
 function refreshKeepAlive () {
-  if (keepAlive.running && !inviteBoxEl.open) {
-    keepAlive.stop().catch(() => {})
+  if (!keepAliveWanted || inviteBoxEl.open) {
+    return
   }
+
+  keepAliveWanted = false
+  keepAlive.stop().catch(() => {})
 }
 
 function startKeepAlive () {
+  keepAliveWanted = true
+
   keepAlive.start().then(playing => {
     appendLog(playing
       ? 'Keep-alive audio is playing - this page should survive an app switch.'
@@ -2016,6 +2030,7 @@ window.__libp2pQrTest = {
    * and `audible` is false while the keep-alive is working perfectly.
    */
   keepAliveState: () => ({
+    wanted: keepAliveWanted,
     running: keepAlive.running,
     supported: keepAlive.supported,
     audible: navigator.mediaSession?.metadata != null

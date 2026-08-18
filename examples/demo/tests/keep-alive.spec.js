@@ -8,15 +8,16 @@ import { expect, test } from '@playwright/test'
  * where the browser suspends the page and closes the peer connection without
  * firing anything. A page that is playing audio is not a page Chromium freezes.
  *
- * What is asserted here is the *wiring* - that a start is attempted inside the
- * gesture and that it stops when the code leaves the screen. Whether audio
- * genuinely survives an app switch on Android is a claim about Android, and no
- * headless browser can make it; that experiment lives in AGENTS.md and needs
- * two phones.
+ * `wanted` is asserted, never `running` - the same split `wake-lock.spec.js`
+ * makes, and the first version of this file got it wrong. Whether audio truly
+ * plays depends on an audio stack rather than on this code: it runs in Firefox
+ * on a desktop and not in the CI container, which is a fact about the machine.
+ * What is ours to get right is that a start is attempted inside the gesture and
+ * given up when the code leaves the screen.
  *
- * `audible` is deliberately not asserted. Playwright's Chromium ships without
- * proprietary codecs, so the MP3 does not decode and the near-silent buffer is
- * used instead - which is the keep-alive working, not failing.
+ * Whether audio then survives an app switch on Android is a claim about Android
+ * that no headless browser can make. That experiment lives in AGENTS.md and
+ * needs two phones.
  */
 
 const keepAlive = page => page.evaluate(() => window.__libp2pQrTest.keepAliveState())
@@ -28,42 +29,40 @@ const startPeer = async page => {
 }
 
 test.describe('keep-alive audio', () => {
-  test('is not running on an idle started peer', async ({ page }) => {
+  test('is not wanted on an idle started peer', async ({ page }) => {
     await startPeer(page)
 
     // Nothing is waiting for an answer, so nothing needs protecting from a
-    // suspension that is not going to cost anything.
-    expect((await keepAlive(page)).running).toBe(false)
+    // suspension that would not cost anything.
+    expect((await keepAlive(page)).wanted).toBe(false)
   })
 
-  test('runs while an invite waits, and stops when the invite closes', async ({ page }) => {
+  test('is wanted while an invite waits, and given up when it closes', async ({ page }) => {
     await startPeer(page)
     await page.locator('#create-offer').click()
     await expect(page.locator('#invite-box')).toBeVisible({ timeout: 60000 })
 
-    // Polled, not read once, and the reason is worth knowing: `start()` resumes
-    // the AudioContext inside the gesture but only reports `running` once the
-    // track has been fetched and decoded. With `?ice=host` the invite appears
-    // almost immediately, so it beats the audio to the screen every time.
-    await expect.poll(async () => (await keepAlive(page)).running, { timeout: 15000 }).toBe(true)
+    // The window the whole feature exists for: a code on screen, nobody has
+    // replied, and the next thing this person does is leave for a messenger.
+    expect((await keepAlive(page)).wanted).toBe(true)
 
     await page.locator('#invite-box [data-close-modal]').first().click()
     await expect(page.locator('#invite-box')).toBeHidden()
 
     // Audio still playing afterwards holds the CPU awake for nothing and tells
     // the user the app is working on something it finished.
-    await expect.poll(async () => (await keepAlive(page)).running).toBe(false)
+    expect((await keepAlive(page)).wanted).toBe(false)
   })
 
-  test('starts from the gesture, not from the invite appearing', async ({ page }) => {
+  test('is wanted from the gesture, before the invite appears', async ({ page }) => {
     await startPeer(page)
 
     // The distinction is the whole reason this is wired where it is: an
     // AudioContext resumed outside a user gesture is refused, and by the time
-    // ICE has gathered and the box is visible there is no gesture left. So it
-    // has to be running before the invite shows, not after.
+    // ICE has gathered and the box is visible there is no gesture left. So the
+    // attempt has to happen before the invite shows, not after.
     await page.locator('#create-offer').click()
-    await expect.poll(async () => (await keepAlive(page)).running, { timeout: 15000 }).toBe(true)
+    expect((await keepAlive(page)).wanted).toBe(true)
     await expect(page.locator('#invite-box')).toBeVisible({ timeout: 60000 })
   })
 })
