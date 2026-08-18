@@ -33,6 +33,7 @@ import {
   decodePayload,
   encodeSignedPayload,
   parsePayload,
+  createKeepAlive,
   webRTCQR,
   PAYLOAD_VERSION,
   QR_TYPE_ANSWER,
@@ -521,6 +522,90 @@ function refreshWakeLock () {
   syncWakeLock(wantWakeLock())
 }
 
+/**
+ * The other half of the same problem, and the half a wake lock cannot reach.
+ *
+ * A wake lock holds the *screen*, and only while this page is visible - so it
+ * does nothing for the case that actually kills invites: leaving for a
+ * messenger, where the browser suspends the page and takes the peer connection
+ * with it. A page that is playing audio is not a page Chromium freezes.
+ *
+ * Audible on purpose. Silence is the failure mode: a stream the browser judges
+ * inaudible stops counting as playback, and the page is frozen anyway. The
+ * media notification it earns is also a labelled one-tap way back.
+ *
+ * Whether this actually survives an app switch on Android is unsettled - see
+ * the open experiment in AGENTS.md. This is what makes it answerable.
+ */
+const keepAlive = createKeepAlive({
+  track: 'audio/zauberfloete-dies-bildnis-cossira-1903.mp3',
+  metadata: {
+    title: 'Waiting for the other phone',
+    artist: 'Mozart, Die Zauberflöte - Emile Cossira, 1903'
+  }
+})
+
+/**
+ * Must be called from inside the gesture, before any await: `AudioContext`
+ * starts suspended under the autoplay policy, and a resume outside a gesture is
+ * refused. By the time ICE has gathered there is no gesture left to spend.
+ */
+/**
+ * Stop once the code is off the screen - which is both endings at once, because
+ * `attachChatStream` closes the invite the moment a stream attaches. Audio still
+ * playing after that holds the CPU awake for nothing and tells the user we are
+ * working on something that finished.
+ *
+ * Only ever stops. Starting needs a user gesture, so unlike the wake lock it
+ * cannot be driven from state.
+ */
+/**
+ * Our decision, kept apart from the platform's answer to it - the same split
+ * `wakelock.js` makes, and for the same reason. Whether audio actually plays
+ * depends on an audio stack: it runs in Firefox on a desktop and not in the CI
+ * container, so asserting `running` is asserting on the machine rather than on
+ * this code.
+ */
+let keepAliveWanted = false
+
+function refreshKeepAlive () {
+  if (!keepAliveWanted || inviteBoxEl.open) {
+    return
+  }
+
+  keepAliveWanted = false
+  keepAlive.stop().catch(() => {})
+}
+
+function startKeepAlive () {
+  keepAliveWanted = true
+
+  keepAlive.start().then(playing => {
+    appendLog(playing
+      ? 'Keep-alive audio is playing - this page should survive an app switch.'
+      : 'Keep-alive audio could not start; leaving the app will likely end the invite.')
+  }).catch(() => {})
+}
+
+/**
+ * The answering side never gets the gesture the offering side does.
+ *
+ * Opening an invite link auto-starts the node and renders the reply without
+ * anyone pressing anything - and that person has the harder job, because they
+ * are the one who has to leave for a messenger twice. So take the next touch
+ * they make, whatever it is, while a code is still on screen.
+ *
+ * Passive and once-only: it stops listening as soon as audio is running, and it
+ * never interferes with what the touch was actually for.
+ */
+document.addEventListener('pointerdown', () => {
+  if (keepAlive.running || !inviteBoxEl.open) {
+    return
+  }
+
+  startKeepAlive()
+}, { capture: true, passive: true })
+
 function renderPeers () {
   // One of the places the wake lock is kept in step - see refreshWakeLock.
   refreshWakeLock()
@@ -993,6 +1078,7 @@ function closeModal (dialog) {
   }
 
   refreshWakeLock()
+  refreshKeepAlive()
 }
 
 inviteBoxEl.addEventListener('click', event => {
@@ -1010,7 +1096,12 @@ scanModalEl.addEventListener('close', () => {
 
 // Escape or the backdrop closes a <dialog> natively, without going through
 // closeModal, so the native event is where "invite no longer shown" is caught.
-inviteBoxEl.addEventListener('close', refreshWakeLock)
+// Covers a dialog dismissed by the platform - Escape, or the backdrop - which
+// never goes through closeModal.
+inviteBoxEl.addEventListener('close', () => {
+  refreshWakeLock()
+  refreshKeepAlive()
+})
 
 function setStepsCollapsed (collapsed) {
   for (const card of setupCards) {
@@ -1576,6 +1667,11 @@ resetIdentityButton.addEventListener('click', () => {
 })
 
 async function createInvite (button) {
+  // First, and synchronously: this runs inside the click that called it, which
+  // is the only moment the autoplay policy will let audio start. Everything
+  // below awaits.
+  startKeepAlive()
+
   // Before anything else, and before the seconds of gathering: this is the last
   // moment where changing browser is still a cheap decision.
   showBrowserWarning()
@@ -1927,6 +2023,18 @@ window.__libp2pQrTest = {
     return closed
   },
   wakeLockState,
+  /**
+   * Whether the keep-alive is running, and whether it got the real recording or
+   * fell back to near-silence. The second half matters in a test: Playwright's
+   * Chromium ships without proprietary codecs, so the MP3 does not decode there
+   * and `audible` is false while the keep-alive is working perfectly.
+   */
+  keepAliveState: () => ({
+    wanted: keepAliveWanted,
+    running: keepAlive.running,
+    supported: keepAlive.supported,
+    audible: navigator.mediaSession?.metadata != null
+  }),
   // Whether the scanner modal is on screen. Deliberately *not* named after the
   // camera: it reports the dialog, and a dialog that has closed says nothing
   // about whether the track behind it was released. The test measures that
