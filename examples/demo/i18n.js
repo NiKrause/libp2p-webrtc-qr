@@ -13,6 +13,8 @@
  */
 
 import {
+  QR_INTRO_STRINGS,
+  QR_INTRO_STRINGS_DE,
   QR_INVITE_STRINGS,
   QR_INVITE_STRINGS_DE,
   QR_PEERS_STRINGS,
@@ -34,12 +36,14 @@ const CATALOGUES = { en, de }
 /** The element tables that go with each locale, kept beside the app's own. */
 const ELEMENTS = {
   en: {
+    intro: QR_INTRO_STRINGS,
     invite: QR_INVITE_STRINGS,
     peers: QR_PEERS_STRINGS,
     scanner: QR_SCANNER_STRINGS,
     status: QR_STATUS_STRINGS
   },
   de: {
+    intro: QR_INTRO_STRINGS_DE,
     invite: QR_INVITE_STRINGS_DE,
     peers: QR_PEERS_STRINGS_DE,
     scanner: QR_SCANNER_STRINGS_DE,

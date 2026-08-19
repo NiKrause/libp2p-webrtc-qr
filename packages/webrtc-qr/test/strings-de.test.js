@@ -9,11 +9,13 @@ import test from 'node:test'
 globalThis.HTMLElement ??= class {}
 globalThis.customElements ??= { define () {}, get () { return undefined } }
 
+const { QR_INTRO_STRINGS } = await import('../src/elements/qr-intro.js')
 const { QR_INVITE_STRINGS } = await import('../src/elements/qr-invite.js')
 const { QR_PEERS_STRINGS } = await import('../src/elements/qr-peers.js')
 const { QR_SCANNER_STRINGS } = await import('../src/elements/qr-scanner.js')
 const { QR_STATUS_STRINGS } = await import('../src/elements/qr-status.js')
 const {
+  QR_INTRO_STRINGS_DE,
   QR_INVITE_STRINGS_DE,
   QR_PEERS_STRINGS_DE,
   QR_SCANNER_STRINGS_DE,
@@ -34,7 +36,8 @@ const PAIRS = [
   ['status', QR_STATUS_STRINGS, QR_STATUS_STRINGS_DE],
   ['scanner', QR_SCANNER_STRINGS, QR_SCANNER_STRINGS_DE],
   ['invite', QR_INVITE_STRINGS, QR_INVITE_STRINGS_DE],
-  ['peers', QR_PEERS_STRINGS, QR_PEERS_STRINGS_DE]
+  ['peers', QR_PEERS_STRINGS, QR_PEERS_STRINGS_DE],
+  ['intro', QR_INTRO_STRINGS, QR_INTRO_STRINGS_DE]
 ]
 
 for (const [name, en, de] of PAIRS) {
@@ -54,11 +57,22 @@ for (const [name, en, de] of PAIRS) {
   test(`no ${name} entry was left in English`, () => {
     // Copying the English table and translating half of it is the likely way
     // this goes wrong, and it produces a file that passes both tests above.
-    const same = Object.keys(en).filter(key =>
-      typeof en[key] === 'string' && en[key] === de[key] &&
-      // Proper nouns and protocol names are the same word in both languages,
-      // and translating them would be worse than leaving them.
-      !['Browser', 'IPv4', 'IPv6'].includes(en[key]))
+    //
+    // Proper nouns and protocol names are the same word in both languages, and
+    // translating them would be worse than leaving them.
+    const SHARED = ['Browser', 'IPv4', 'IPv6']
+    const untranslated = value => typeof value === 'string' && !SHARED.includes(value)
+
+    const same = Object.keys(en).filter(key => {
+      // Arrays carry the longest prose in these tables - the intro's list of
+      // caveats is four sentences - so leaving one behind is both the easiest
+      // mistake and the most visible one.
+      if (Array.isArray(en[key])) {
+        return en[key].some((line, i) => untranslated(line) && line === de[key]?.[i])
+      }
+
+      return untranslated(en[key]) && en[key] === de[key]
+    })
 
     assert.deepEqual(same, [], 'identical to the English')
   })
