@@ -46,6 +46,31 @@ network offers IPv4 only", which two screenshots disproved.
 **Do not** present a verdict as a fact about the network, and **do not** disable
 controls on a bad one: a symmetric NAT still connects peers on the same network.
 
+## Translating the elements
+
+Every element takes a `strings` table that is **merged** over its defaults, so
+replacing three labels does not lose the rest.
+
+**German ships with the package.** Two consumers were translating the same three
+dozen labels by hand, from the same English defaults, with no way to notice when
+a string was added upstream.
+
+```js
+import { QR_STATUS_STRINGS_DE } from '@le-space/libp2p-webrtc-qr/elements'
+
+status.strings = QR_STATUS_STRINGS_DE                      // all of it
+status.strings = { ...QR_STATUS_STRINGS_DE, blocked: '—' } // with your own voice
+```
+
+`QR_STATUS_STRINGS_DE`, `QR_SCANNER_STRINGS_DE`, `QR_INVITE_STRINGS_DE` and
+`QR_PEERS_STRINGS_DE` are defaults for a locale, not a finished translation of
+your app.
+
+A second locale rots differently from a README: a missing German key is
+invisible, because `mergeStrings` falls through to the English and the screen
+still reads as finished. The package asserts against that — same keys, same
+shape per entry, and no entry left identical to the English.
+
 ## What the probe cannot see
 
 **Wi-Fi client isolation.** Guest networks in cafes, hotels and conference
