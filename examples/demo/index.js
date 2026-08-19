@@ -48,6 +48,10 @@ function applyLocale (next) {
   document.documentElement.lang = locale()
   localeEl.value = locale()
   document.getElementById('locale-label').textContent = t('language.label')
+
+  // The copy button carries its own state in its label, so it is not repainted
+  // by anything else and has to be told the language changed.
+  resetCopied()
 }
 import { fromString, toString } from 'uint8arrays'
 import {
@@ -149,6 +153,13 @@ const scanReplyButton = document.getElementById('scan-reply')
 const pasteReplyButton = document.getElementById('paste-reply')
 const pasteFallbackEl = document.querySelector('.paste-fallback')
 const inviteLinkEl = document.getElementById('invite-link')
+const copyLinkEl = document.getElementById('copy-link')
+// Beside its own control, and - the part that matters - above the
+// `applyLocale` call below, which resets that button before the first paint.
+// A `let` declared further down is in its temporal dead zone at that moment;
+// minified it reads as "Cannot access 'w5' before initialization" and takes the
+// whole app down before libp2p ever starts.
+let copiedTimer = null
 const inviteFreshnessEl = document.getElementById('invite-freshness')
 const hurryBackEl = document.getElementById('hurry-back')
 const browserWarningEl = document.getElementById('browser-warning')
@@ -1484,6 +1495,59 @@ function startInviteCountdown () {
   inviteCountdown = setInterval(tick, 15000)
 }
 
+/**
+ * Select the whole link the moment the field is touched.
+ *
+ * The one thing somebody does with a read-only field is copy out of it, and on
+ * a phone selecting a 1000-character string by dragging is not a thing anybody
+ * manages. This is the manual path working properly, not a substitute for the
+ * button.
+ */
+inviteLinkEl.addEventListener('focus', () => inviteLinkEl.select())
+
+/**
+ * Copy, and say so on the button that was pressed.
+ *
+ * Deliberately `clipboard.writeText` rather than `shareOrCopy`: the share sheet
+ * is what the primary control above offers, and somebody who opened this fold
+ * and reached for a button marked "Copy" asked for the clipboard.
+ */
+async function copyInviteLink () {
+  try {
+    await navigator.clipboard.writeText(inviteLinkEl.value)
+    markCopied(true)
+  } catch {
+    // Refused - insecure origin, a permission policy, some mobile browsers.
+    // The field beside the button is the answer, so point at it rather than
+    // failing silently.
+    markCopied(false)
+    inviteLinkEl.focus()
+  }
+}
+
+function markCopied (ok) {
+  clearTimeout(copiedTimer)
+  copyLinkEl.classList.toggle('is-done', ok)
+  copyLinkEl.textContent = t(ok ? 'invite.copied' : 'invite.copyByHand')
+
+  copiedTimer = setTimeout(resetCopied, 2500)
+}
+
+/**
+ * Back to "Copy".
+ *
+ * Also called when a new payload is rendered: the offer and the answer are two
+ * different links, and a "Copied" left standing after the link changed says
+ * something that is no longer true.
+ */
+function resetCopied () {
+  clearTimeout(copiedTimer)
+  copyLinkEl.classList.remove('is-done')
+  copyLinkEl.textContent = t('invite.copy')
+}
+
+copyLinkEl.addEventListener('click', copyInviteLink)
+
 async function shareOrCopy (text, what) {
   if (navigator.share != null) {
     try {
@@ -1517,6 +1581,7 @@ async function renderOutbound (payload, kind) {
   const link = linkFor(kind === QR_TYPE_OFFER ? INVITE_PARAM : REPLY_PARAM, payload)
 
   inviteLinkEl.value = link
+  resetCopied()
   // Showing an offer means waiting for a reply; showing an answer means the
   // other side is about to connect. Only the first has a next step to offer.
   scanReplyButton.hidden = kind !== QR_TYPE_OFFER

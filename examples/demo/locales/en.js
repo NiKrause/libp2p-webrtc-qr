@@ -11,6 +11,11 @@
  * which of those a first-time reader ever sees.
  */
 export default {
+  invite: {
+    copy: 'Copy',
+    copied: 'Copied',
+    copyByHand: 'Select and copy'
+  },
   language: {
     label: 'Language',
     en: 'English',

@@ -383,10 +383,24 @@
         can watch a screen that is in the background.
       -->
       <p class="pc-health" role="status" aria-live="polite"></p>
+      <!--
+        The code is the headline; this sits under it, small and folded away, for
+        when a camera is not an option - no second device to point, a screen in
+        the sun, or two people who turned out not to be in the same room.
+      -->
       <details class="invite-link-fallback">
-        <summary>Copy the link instead</summary>
-        <label for="invite-link">Send this link to the other person</label>
-        <input id="invite-link" type="text" readonly />
+        <summary id="invite-link-summary">Copy the link instead</summary>
+        <div class="link-row">
+          <!--
+            The field stays *beside* the button rather than being replaced by
+            it. Clipboard access is refused often enough - insecure origins,
+            permission policies, some mobile browsers - that leaving no way to
+            select the text by hand would strand exactly the people on phones
+            this is meant for.
+          -->
+          <input id="invite-link" type="text" readonly aria-labelledby="invite-link-summary" />
+          <button id="copy-link" type="button" class="copy-link">Copy</button>
+        </div>
         <div class="actions">
           <button id="create-offer-again" type="button">New link</button>
         </div>
