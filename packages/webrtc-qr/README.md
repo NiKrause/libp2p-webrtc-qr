@@ -206,8 +206,9 @@ Registers four custom elements. All are theme-able through CSS custom properties
 and translatable through `strings`.
 
 The classes — `QrInviteElement`, `QrScannerElement`, `QrStatusElement`,
-`QrPeersElement` — are exported for framework wrappers and for registering under
-a different tag name; importing the module is enough for normal use.
+`QrPeersElement`, `QrIntroElement` — are exported for framework wrappers and for
+registering under a different tag name; importing the module is enough for
+normal use.
 
 ### `<qr-invite>` — shows a payload as a code
 
@@ -255,6 +256,33 @@ yourself.
 same phone on the same Wi-Fi can report IPv6 as usable in one browser and absent
 in another.
 
+### `<qr-intro>` — explain it before asking anyone to use it
+
+| | |
+| --- | --- |
+| attribute | `technical` — show the caveats list |
+| properties | `strings`, `technical`, `isOpen`, `result`, `rtcConfiguration` |
+| methods | `open()` → the measured result, `close()` |
+| events | `check` → the result, `close` → `{ remember }` |
+| slot | default — the app's own story |
+| strings | `title`, `close`, `checkHeading`, `checking`, `ok`, `unreliable`, `none`, `sameNetwork`, `technicalHeading`, `technical` (an array), `dontShow` |
+
+Two halves. The **story** is yours and arrives through the slot — what your app
+is for, who the other person is. The **caveats** are the library's: whether a
+phone holds a waiting invite, whether Chrome on Android reports IPv6, what a VPN
+does. Every consumer needs those and would otherwise write them from memory.
+
+Between them sits a live verdict from `probeNetwork()`, measured on first
+`open()` rather than on page load, so nobody spends STUN round trips on a dialog
+they never see. `sameNetwork` sits *next to* the verdict rather than inside it:
+telling two phones already on one Wi-Fi to find another network would be wrong.
+
+`createIntroPolicy({ storageKey })` decides when to show it:
+`shouldOpen({ arrivedViaInvite })`, `remember()`, `forget()`. Three rules worth
+knowing — somebody who **arrived by invite never sees it** (they came to accept
+something), **blocked storage shows it** (seen twice beats never seen), and
+`forget()` exists because dismissing must not be a one-way door.
+
 ### `<qr-peers>` — who is connected
 
 | | |
@@ -285,10 +313,11 @@ does not fix its word order onto a consumer. `mergeStrings` and `resolveText` ar
 exported for anyone building on top.
 
 Defaults: `QR_INVITE_STRINGS`, `QR_SCANNER_STRINGS`, `QR_STATUS_STRINGS`,
-`QR_PEERS_STRINGS`.
+`QR_PEERS_STRINGS`, `QR_INTRO_STRINGS`.
 
 **German ships with the package**: `QR_INVITE_STRINGS_DE`,
-`QR_SCANNER_STRINGS_DE`, `QR_STATUS_STRINGS_DE`, `QR_PEERS_STRINGS_DE`. Two
+`QR_SCANNER_STRINGS_DE`, `QR_STATUS_STRINGS_DE`, `QR_PEERS_STRINGS_DE`,
+`QR_INTRO_STRINGS_DE`. Two
 consumers were translating the same three dozen labels by hand from the same
 defaults, which is the same work twice and two chances to fall behind when a
 string is added here.

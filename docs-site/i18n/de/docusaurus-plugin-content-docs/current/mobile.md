@@ -37,6 +37,40 @@ und der Browser gibt ihn frei, sobald die Seite verborgen ist. Fürs Scannen ist
 er trotzdem richtig — ein Bildschirm, der mitten im Scan einschläft, ist ein
 eigenes Problem —, aber er behebt das hier nicht.
 
+## Es vorher erklären
+
+`<qr-intro>` stellt die obigen Vorbehalte jemandem voran, bevor er sie braucht,
+neben einem live gemessenen Urteil — und `createIntroPolicy()` entscheidet, wann.
+
+```js
+import { createIntroPolicy } from '@le-space/libp2p-webrtc-qr/elements'
+
+const policy = createIntroPolicy({ storageKey: 'meineapp.introSeen' })
+
+if (policy.shouldOpen({ arrivedViaInvite })) {
+  await intro.open()          // misst einmal, mit probeNetwork
+}
+
+intro.addEventListener('close', event => {
+  if (event.detail.remember) policy.remember()
+})
+```
+
+Die eigene Erklärung der App kommt in den Slot; Vorbehalte und Urteil liefert das
+Element. `technical` zeigt die Vorbehaltsliste — in einer App mit einfacher und
+technischer Ansicht ist dieses Attribut das, was der Umschalter steuert.
+
+Drei Regeln der Politik lohnen sich zu kennen, weil man jede beim ersten Anlauf
+andersherum entscheiden würde:
+
+- **Wer über eine Einladung kommt, sieht sie nicht.** Diese Person kam, um etwas
+  anzunehmen, und ein Dialog davor steht dem Einzigen im Weg, weswegen sie kam.
+  Sie sieht die Einführung beim nächsten normalen Besuch — Unterdrücken zählt
+  deshalb **nicht** als gesehen.
+- **Blockierter Speicher zeigt sie.** Eine zweimal gezeigte Einführung wiegt
+  weniger als ein Erstbesucher, der nie eine bekommt.
+- **`forget()` gibt es.** Wegklicken darf keine Einbahnstraße sein.
+
 ## Die Lage erkennen
 
 ```js

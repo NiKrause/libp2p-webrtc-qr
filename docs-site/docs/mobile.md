@@ -34,6 +34,39 @@ There is no fix in the library. A relay would fix it; nothing in the page can.
 drops it the moment the page is hidden. It is worth having for scanning — a
 screen that sleeps mid-scan is its own problem — but it is not a fix for this.
 
+## Explaining it first
+
+`<qr-intro>` puts the caveats above in front of somebody before they need them,
+next to a live verdict — and `createIntroPolicy()` decides when.
+
+```js
+import { createIntroPolicy } from '@le-space/libp2p-webrtc-qr/elements'
+
+const policy = createIntroPolicy({ storageKey: 'myapp.introSeen' })
+
+if (policy.shouldOpen({ arrivedViaInvite })) {
+  await intro.open()          // measures once, with probeNetwork
+}
+
+intro.addEventListener('close', event => {
+  if (event.detail.remember) policy.remember()
+})
+```
+
+The app's own explanation goes in the slot; the caveats and the verdict come
+from the element. Set `technical` to show the caveat list — in an app with a
+simple and a technical view, that attribute is what the switch drives.
+
+Three rules in the policy are worth knowing, because each is a decision somebody
+would otherwise make the other way:
+
+- **Arriving by invite suppresses it.** That person came to accept something,
+  and a dialog in front of it is in the way of the only thing they came for.
+  They see it on their next plain visit — so suppressing does *not* mark it seen.
+- **Blocked storage shows it.** An introduction seen twice is a smaller problem
+  than a first-time user who never gets one.
+- **`forget()` exists.** Dismissing must not be a one-way door.
+
 ## Detecting the situation
 
 ```js

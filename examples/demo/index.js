@@ -2056,6 +2056,9 @@ window.__libp2pQrTest = {
 
     return closed
   },
+  // The tables for the current locale, so a spec can hand the shipped German to
+  // an element rather than retyping it and proving only that it retyped it.
+  elementStrings,
   wakeLockState,
   /**
    * Whether the keep-alive is running, and whether it got the real recording or

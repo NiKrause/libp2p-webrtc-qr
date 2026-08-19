@@ -66,6 +66,26 @@ export const QR_INVITE_STRINGS_DE = {
   recovery: 'Wiederherstellungsbild — Telefon still halten'
 }
 
+/** @type {typeof import('./qr-intro.js').QR_INTRO_STRINGS} */
+export const QR_INTRO_STRINGS_DE = {
+  title: 'Bevor Sie anfangen',
+  close: 'Schließen',
+  checkHeading: 'Dieser Browser, in diesem Netz',
+  checking: 'Prüfe, was dieses Netz zulässt…',
+  ok: 'Eine Direktverbindung aus diesem Netz heraus sieht möglich aus.',
+  unreliable: 'Dieses Netz vergibt pro Ziel einen neuen Port und bietet kein IPv6. Eine Direktverbindung klappt daher meist nur zu jemandem im selben Netz.',
+  none: 'Es wurde kein Weg aus diesem Netz heraus gefunden. Zu jemandem im selben Netz können Sie sich trotzdem verbinden.',
+  sameNetwork: 'Zwei Geräte im selben WLAN verbinden sich unabhängig von alledem.',
+  technicalHeading: 'Wissenswert',
+  technical: [
+    'Ein Telefon schließt eine wartende Einladung wenige Sekunden nach dem Verlassen der App. Nur bei DuckDuckGo und Safari wurde beobachtet, dass sie etwa zehn Sekunden hält.',
+    'Chrome auf Android meldet kein IPv6, wo Firefox und DuckDuckGo auf demselben Telefon im selben WLAN eines melden. Ein Urteil beschreibt diesen Browser, nicht das Netz.',
+    'Im Mobilfunk verhindert Carrier-NAT eine Direktverbindung zu Gegenstellen außerhalb dieses Netzes meistens.',
+    'Ein VPN verlegt beide Enden woandershin — das kann ein blockiertes Netz retten und ein funktionierendes zerstören.'
+  ],
+  dontShow: 'Nicht mehr anzeigen'
+}
+
 /** @type {typeof import('./qr-peers.js').QR_PEERS_STRINGS} */
 export const QR_PEERS_STRINGS_DE = {
   connected: 'verbunden',

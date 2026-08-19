@@ -10,6 +10,8 @@
  */
 import './buffer-shim.js'
 
+export { QrIntroElement, QR_INTRO_STRINGS } from './qr-intro.js'
+export { createIntroPolicy } from './intro-policy.js'
 export { QrInviteElement, QR_INVITE_STRINGS } from './qr-invite.js'
 export { QrPeersElement, QR_PEERS_STRINGS } from './qr-peers.js'
 export { QrScannerElement, QR_SCANNER_STRINGS } from './qr-scanner.js'
@@ -22,6 +24,7 @@ export { mergeStrings, resolveText } from './strings.js'
 // German defaults for all four, so the same three dozen labels are not
 // translated once per consumer. See strings-de.js.
 export {
+  QR_INTRO_STRINGS_DE,
   QR_INVITE_STRINGS_DE,
   QR_PEERS_STRINGS_DE,
   QR_SCANNER_STRINGS_DE,

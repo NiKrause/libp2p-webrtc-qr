@@ -28,13 +28,25 @@ test('the judgements a consumer needs are reachable from ./elements', () => {
 })
 
 test('the elements themselves and their strings are reachable', () => {
-  for (const name of ['QrStatusElement', 'QrScannerElement', 'QrInviteElement', 'QrPeersElement']) {
+  for (const name of ['QrStatusElement', 'QrScannerElement', 'QrInviteElement', 'QrPeersElement', 'QrIntroElement']) {
     assert.equal(typeof elements[name], 'function', `${name} must be exported`)
   }
 
-  for (const name of ['QR_STATUS_STRINGS', 'QR_SCANNER_STRINGS', 'QR_INVITE_STRINGS', 'QR_PEERS_STRINGS']) {
+  for (const name of ['QR_STATUS_STRINGS', 'QR_SCANNER_STRINGS', 'QR_INVITE_STRINGS', 'QR_PEERS_STRINGS', 'QR_INTRO_STRINGS']) {
     assert.equal(typeof elements[name], 'object', `${name} must be exported so a consumer can translate`)
   }
+
+  // German is shipped, so it has to be reachable the same way. A locale that
+  // exists in the source and not in the barrel is a locale nobody can use.
+  for (const name of ['QR_STATUS_STRINGS_DE', 'QR_SCANNER_STRINGS_DE', 'QR_INVITE_STRINGS_DE', 'QR_PEERS_STRINGS_DE', 'QR_INTRO_STRINGS_DE']) {
+    assert.equal(typeof elements[name], 'object', `${name} must be exported`)
+  }
+})
+
+test('the introduction policy is reachable without the element', () => {
+  // An app writing its own introduction still wants the rule, and the rule is
+  // the part that is easy to get wrong.
+  assert.equal(typeof elements.createIntroPolicy, 'function')
 })
 
 test('the session and the format-aware parser are reachable from the root', () => {
