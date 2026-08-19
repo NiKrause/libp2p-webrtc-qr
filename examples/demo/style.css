@@ -214,6 +214,47 @@ code {
   height: 17px;
 }
 
+/* The language control wears the same pill as its neighbours, with the browser
+   chrome taken off the <select> so it reads as one of them rather than as a
+   form field that wandered into the header. */
+.nav-locale {
+  padding: 0;
+  cursor: pointer;
+}
+
+.nav-locale select {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  padding: 7px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+/* Native pickers render their own list, which does not inherit the page's
+   palette - so the options need a background of their own or they are white
+   text on white in dark mode. */
+.nav-locale option {
+  background: var(--ls-card);
+  color: var(--ls-text);
+}
+
+/* A label a screen reader needs and the eye does not: the visible value of the
+   control already says which language is selected. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ---------- layout ---------- */
 
 main {

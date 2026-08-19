@@ -19,6 +19,14 @@ export { QrStatusElement, QR_STATUS_STRINGS } from './qr-status.js'
 // does - useful when the translations live in a store rather than in one
 // literal at the call site.
 export { mergeStrings, resolveText } from './strings.js'
+// German defaults for all four, so the same three dozen labels are not
+// translated once per consumer. See strings-de.js.
+export {
+  QR_INVITE_STRINGS_DE,
+  QR_PEERS_STRINGS_DE,
+  QR_SCANNER_STRINGS_DE,
+  QR_STATUS_STRINGS_DE
+} from './strings-de.js'
 export {
   DEFAULT_RTC_CONFIGURATION,
   isGlobalUnicastV6,
