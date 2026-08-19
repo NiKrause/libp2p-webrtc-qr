@@ -196,6 +196,37 @@ When that stops holding: [`docs/connection-security.md`](../../docs/connection-s
 
 ---
 
+## Surviving an app switch
+
+Four parts of one problem: whether a pending invite is still there when somebody
+comes back from a messenger. See [`docs/`](https://nikrause.github.io/libp2p-webrtc-qr/mobile)
+for why this is the constraint that shapes the rest.
+
+| | |
+| --- | --- |
+| `leavingSuspendsUs()` | does leaving suspend this page - the gate for showing a hurry-back warning at all |
+| `BROWSERS_THAT_HOLD` | browsers observed to hold a waiting invite ~10s. Read this list, do not copy it |
+| `createKeepAlive(options)` | keep the page playing audio so it is not suspended. `start()` needs a gesture |
+| `createWakeLock()` | keep the *screen* awake. `sync(active)`, and `supported` / `wanted` / `held` |
+| `stateOf(peerConnection)` | one word for what a connection is doing, `signalingState` first |
+| `pendingConnections(session)` | every connection a session owns - both `offers` and `inbound` |
+
+`createKeepAlive` and `createWakeLock` are not interchangeable: one holds the
+page through an app switch, the other holds the screen while the page is
+visible. A consumer usually wants both.
+
+`stateOf` reads `signalingState` first because a connection the browser closed
+under a suspended page reports `closed` there while `connectionState` can still
+say something reassuring - and browsers have shipped versions that closed it
+without firing any event ([w3c/webrtc-pc#2489](https://github.com/w3c/webrtc-pc/issues/2489)).
+So it is read, never awaited.
+
+`wanted` and `held` are reported separately because only the first is yours to
+get right: a headless browser exposes the wake-lock API and then refuses every
+request, having no screen to keep awake.
+
+---
+
 ## Elements
 
 ```js

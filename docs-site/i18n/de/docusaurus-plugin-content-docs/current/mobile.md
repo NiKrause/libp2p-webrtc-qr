@@ -85,6 +85,40 @@ ist der Mechanismus — der Audiograph startet, läuft in Schleife und wird
 freigegeben —, mehr nicht. Die Klärung braucht zwei Telefone und einen
 Messenger; das Experiment steht ausformuliert in
 [AGENTS.md](https://github.com/NiKrause/libp2p-webrtc-qr/blob/main/AGENTS.md).
+## Der Rest des Werkzeugkastens
+
+`createKeepAlive()` oben ist einer von vier Teilen desselben Problems. Die übrigen:
+
+| | |
+| --- | --- |
+| `leavingSuspendsUs()` | suspendiert das Verlassen diese Seite — die Bedingung dafür, überhaupt zur Eile zu mahnen |
+| `BROWSERS_THAT_HOLD` | Browser, die eine wartende Einladung ~10 s halten. **Diese Liste lesen, nicht kopieren** — zwei Kopien laufen auseinander |
+| `createWakeLock()` | den *Bildschirm* wach halten: `sync(active)`, dazu `supported` / `wanted` / `held` |
+| `stateOf(peerConnection)` | ein Wort dafür, was eine Verbindung gerade tut |
+| `pendingConnections(session)` | jede Verbindung einer Session — `offers` **und** `inbound` |
+
+```js
+import { leavingSuspendsUs, createWakeLock, stateOf, pendingConnections } from '@le-space/libp2p-webrtc-qr'
+
+if (leavingSuspendsUs()) {
+  // Nur hier stimmt eine Mahnung zur Eile. Wer sie am Schreibtisch sieht,
+  // lernt, Warnungen zu übergehen.
+}
+
+const wakeLock = createWakeLock()
+await wakeLock.sync(codeIstSichtbar)         // auch aus `visibilitychange`
+
+const tot = pendingConnections(session).some(c => stateOf(c.peerConnection) === 'closed')
+```
+
+`pendingConnections` deckt **beide** Hälften ab, und es ist leicht, nur eine zu
+erinnern: `offers` sind Einladungen, die auf eine Antwort warten, `inbound` sind
+Verbindungen aus einem angenommenen Angebot. Wer nur über eine iteriert, meldet
+für die Hälfte der Verbindungen Gesundheit und für die andere Stille.
+
+`wanted` und `held` am Wake Lock sind getrennt, weil nur das erste in deiner
+Hand liegt — ein Headless-Browser bietet die Schnittstelle an und lehnt dann
+jede Anfrage ab, weil er keinen Bildschirm hat, den er wach halten könnte.
 
 ## Die Lage erkennen
 

@@ -1,6 +1,8 @@
 export { webRTCQR, createWebRTCUpgradeContext } from './transport.js'
 export { QRSession, describeIce } from './session.js'
 export { createKeepAlive } from './keep-alive.js'
+export { createWakeLock } from './wake-lock.js'
+export { BROWSERS_THAT_HOLD, leavingSuspendsUs, pendingConnections, stateOf } from './suspension.js'
 export {
   CLOCK_SKEW_MS,
   DEFAULT_LIFETIME_MS,
