@@ -20,7 +20,18 @@
 const REPLY_TIMEOUT = 90_000
 
 const inviteOf = async (page, { compact }) => {
-  await page.locator('#start-client').click()
+  // Press Start only where there is one to press.
+  //
+  // The simple view folds starting into the invite button, so step 1 is not on
+  // screen; the technical view keeps them apart and the invite button stays
+  // disabled until Start has been used. This helper also runs against a
+  // deployed build that may predate the switch entirely, so it asks the page
+  // rather than assuming any of the three.
+  const start = page.locator('#start-client')
+
+  if (await start.isVisible().catch(() => false)) {
+    await start.click()
+  }
 
   // The box is per-offer, so it has to be set before the invite is made.
   const box = page.locator('#compact-payload')

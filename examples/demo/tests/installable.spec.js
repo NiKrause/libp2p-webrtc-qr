@@ -22,7 +22,7 @@ const manifestOf = async request => {
 
 test.describe('installable', () => {
   test('the page links a manifest that is actually there', async ({ page, request }) => {
-    await page.goto('/')
+    await page.goto('/?view=technical')
 
     const href = await page.locator('link[rel="manifest"]').getAttribute('href')
 
@@ -80,7 +80,7 @@ test.describe('installable', () => {
   })
 
   test('the iOS tags are present, because iOS reads none of the manifest', async ({ page, request }) => {
-    await page.goto('/')
+    await page.goto('/?view=technical')
 
     await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', './apple-touch-icon.png')
     await expect(page.locator('meta[name="apple-mobile-web-app-capable"]')).toHaveAttribute('content', 'yes')
@@ -104,7 +104,7 @@ test.describe('installable', () => {
     })
 
     const start = async page => {
-      await page.goto('/?ice=host')
+      await page.goto('/?ice=host&view=technical')
       await page.locator('#start-client').click()
       await page.waitForFunction(() => document.getElementById('peer-id').textContent !== 'not started')
 
@@ -143,7 +143,7 @@ test.describe('installable', () => {
   test('resetting clears both stores, not just the one in use', async ({ context }) => {
     const page = await context.newPage()
 
-    await page.goto('/?ice=host')
+    await page.goto('/?ice=host&view=technical')
     await page.locator('#start-client').click()
     await page.waitForFunction(() => document.getElementById('peer-id').textContent !== 'not started')
 
@@ -161,7 +161,7 @@ test.describe('installable', () => {
   })
 
   test('ships no service worker, and that is the decision', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/?view=technical')
 
     // Asserted rather than left implicit, so nobody adds one by reflex. If one
     // is ever wanted, this test is the place the argument gets written down.
@@ -172,7 +172,7 @@ test.describe('installable', () => {
 
 test.describe('the peer id', () => {
   test('is readable whether the explanation is folded or not', async ({ page }) => {
-    await page.goto('/?ice=host')
+    await page.goto('/?ice=host&view=technical')
     await page.locator('#start-client').click()
     await page.waitForFunction(() => document.getElementById('peer-id').textContent !== 'not started')
 
@@ -190,7 +190,7 @@ test.describe('the peer id', () => {
   test('says where the key is kept, and is right about it', async ({ context }) => {
     const tab = await context.newPage()
 
-    await tab.goto('/?ice=host')
+    await tab.goto('/?ice=host&view=technical')
     await tab.locator('#start-client').click()
     await tab.waitForFunction(() => document.getElementById('peer-id').textContent !== 'not started')
 
@@ -205,7 +205,7 @@ test.describe('the peer id', () => {
         ? { matches: true, media: query, addEventListener () {}, removeEventListener () {} }
         : real(query)
     })
-    await installed.goto('/?ice=host')
+    await installed.goto('/?ice=host&view=technical')
     await installed.locator('#start-client').click()
     await installed.waitForFunction(() => document.getElementById('peer-id').textContent !== 'not started')
 

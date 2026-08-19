@@ -11,9 +11,15 @@
  * which of those a first-time reader ever sees.
  */
 export default {
+  view: {
+    label: 'View',
+    simple: 'Simple',
+    technical: 'Technical'
+  },
   invite: {
     copy: 'Copy',
     copied: 'Copied',
+    starting: 'Starting…',
     copyByHand: 'Select and copy'
   },
   language: {

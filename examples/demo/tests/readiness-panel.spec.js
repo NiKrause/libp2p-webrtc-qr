@@ -19,7 +19,7 @@ const makeStatus = page => page.evaluate(() => {
 
 test.describe('the readiness panel', () => {
   test('shows a progress bar while measuring, gone once it settles', async ({ page }) => {
-    await page.goto('/?ice=host')
+    await page.goto('/?ice=host&view=technical')
     await page.waitForFunction(() => customElements.get('qr-status') != null)
     await makeStatus(page)
 
@@ -44,7 +44,7 @@ test.describe('the readiness panel', () => {
   })
 
   test('raises an alarm when no path off this network exists', async ({ page }) => {
-    await page.goto('/?ice=host')
+    await page.goto('/?ice=host&view=technical')
     await page.waitForFunction(() => customElements.get('qr-status') != null)
     await makeStatus(page)
 
@@ -71,7 +71,7 @@ test.describe('the readiness panel', () => {
   })
 
   test('warns more quietly when a path exists but only reaches this network', async ({ page }) => {
-    await page.goto('/?ice=host')
+    await page.goto('/?ice=host&view=technical')
     await page.waitForFunction(() => customElements.get('qr-status') != null)
     await makeStatus(page)
 
@@ -99,7 +99,7 @@ test.describe('the readiness panel', () => {
   })
 
   test('does not disturb the row order the panel is selected by', async ({ page }) => {
-    await page.goto('/?ice=host')
+    await page.goto('/?ice=host&view=technical')
     await page.waitForFunction(() => customElements.get('qr-status') != null)
     await makeStatus(page)
 

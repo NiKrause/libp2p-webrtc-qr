@@ -17,7 +17,7 @@ import { chromium, expect, test } from '@playwright/test'
 const wanted = page => page.evaluate(() => window.__libp2pQrTest.wakeLockState().wanted)
 
 const startPeer = async page => {
-  await page.goto('/?ice=host')
+  await page.goto('/?ice=host&view=technical')
   await page.locator('#start-client').click()
   await page.waitForFunction(() => document.getElementById('peer-id').textContent !== 'not started')
 }
@@ -61,7 +61,7 @@ test.describe('wake lock while scanning', () => {
     try {
       const page = await (await browser.newContext({ baseURL })).newPage()
 
-      await page.goto('/?ice=host')
+      await page.goto('/?ice=host&view=technical')
       await page.locator('#start-client').click()
       await page.waitForFunction(() => document.getElementById('peer-id').textContent !== 'not started')
 

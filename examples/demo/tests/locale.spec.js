@@ -13,7 +13,7 @@ import { expect, test } from '@playwright/test'
  */
 
 const open = async (page, query = '') => {
-  await page.goto(`/?ice=host${query}`)
+  await page.goto(`/?ice=host&view=technical${query}`)
   await page.locator('#start-client').click()
   await page.waitForFunction(() => document.getElementById('peer-id').textContent !== 'not started')
 }

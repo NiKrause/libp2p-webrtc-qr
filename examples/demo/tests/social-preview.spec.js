@@ -8,13 +8,13 @@ async function meta (page, selector) {
 
 test.describe('social preview and canonical', () => {
   test('declares a canonical url', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/?view=technical')
 
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', CANONICAL)
   })
 
   test('image urls are absolute, because gateways resolve them from elsewhere', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/?view=technical')
 
     // The build is served from the custom domain and from IPFS gateway paths
     // like /ipfs/<cid>/. A relative og:image resolves to a URL that does not
@@ -28,7 +28,7 @@ test.describe('social preview and canonical', () => {
   })
 
   test('the declared image actually ships in the build', async ({ page, request }) => {
-    await page.goto('/')
+    await page.goto('/?view=technical')
 
     // The failure this catches: the tag survives a refactor, the asset does
     // not, and every shared link loses its preview without anything erroring.
@@ -40,7 +40,7 @@ test.describe('social preview and canonical', () => {
   })
 
   test('the declared image dimensions match the file', async ({ page, request }) => {
-    await page.goto('/')
+    await page.goto('/?view=technical')
 
     const declared = await meta(page, 'meta[property="og:image"]')
     const buffer = await (await request.get(new URL(declared).pathname)).body()
@@ -57,7 +57,7 @@ test.describe('social preview and canonical', () => {
   })
 
   test('the handoff banner stays out of sight until it has something to say', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/?view=technical')
 
     // Setting `display` on a hidden element overrides the user agent's
     // `[hidden] { display: none }`, which put an empty banner on every load.
@@ -65,7 +65,7 @@ test.describe('social preview and canonical', () => {
   })
 
   test('the nav links to the roadmap and the repository', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/?view=technical')
 
     // Both are external documents that can be moved or renamed. A nav link
     // pointing at a 404 is invisible until someone clicks it.
@@ -84,7 +84,7 @@ test.describe('social preview and canonical', () => {
   })
 
   test('titles and descriptions are present and not empty', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/?view=technical')
 
     for (const selector of [
       'meta[name="description"]',
