@@ -1276,3 +1276,31 @@ button.is-busy::before {
 .network-line.is-blocked {
   --dot: var(--ls-red);
 }
+
+/* ---------- the link beside its copy button ---------- */
+
+.link-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+
+/* min-width: 0 or the input refuses to shrink below its content and pushes the
+   button off a narrow screen - which is every screen this matters on. */
+.link-row input {
+  flex: 1;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+}
+
+.copy-link {
+  white-space: nowrap;
+}
+
+/* The confirmation is a state of the button rather than a line of text
+   somewhere else: the eye is already on the button that was just pressed. */
+.copy-link.is-done {
+  border-color: var(--ls-ok, #3edc97);
+  color: var(--ls-ok, #3edc97);
+}
