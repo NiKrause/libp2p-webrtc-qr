@@ -47,6 +47,31 @@ Der Wortlaut in der Bibliothek wurde genau deswegen korrigiert: er sagte einmal
 schlechtes Urteil hin **nichts sperren**: ein symmetrisches NAT verbindet Peers
 im selben Netz weiterhin.
 
+## Die Elemente übersetzen
+
+Jedes Element nimmt eine `strings`-Tabelle, die über seine Vorgaben **gemerged**
+wird — drei ersetzte Beschriftungen verlieren also den Rest nicht.
+
+**Deutsch liegt dem Paket bei.** Zwei Verbraucher übersetzten dieselben drei
+Dutzend Beschriftungen von Hand, aus denselben englischen Vorgaben, ohne zu
+bemerken, wenn oben eine dazukam.
+
+```js
+import { QR_STATUS_STRINGS_DE } from '@le-space/libp2p-webrtc-qr/elements'
+
+status.strings = QR_STATUS_STRINGS_DE                      // alles
+status.strings = { ...QR_STATUS_STRINGS_DE, blocked: '—' } // mit eigener Stimme
+```
+
+`QR_STATUS_STRINGS_DE`, `QR_SCANNER_STRINGS_DE`, `QR_INVITE_STRINGS_DE` und
+`QR_PEERS_STRINGS_DE` sind Vorgaben für eine Sprache, keine fertige Übersetzung
+Ihrer App.
+
+Eine zweite Sprache verrottet anders als ein README: ein fehlender deutscher
+Schlüssel ist unsichtbar, weil `mergeStrings` aufs Englische durchfällt und der
+Bildschirm fertig aussieht. Das Paket sichert dagegen ab — gleiche Schlüssel,
+gleiche Form je Eintrag, und kein Eintrag identisch zum Englischen.
+
 ## Was die Prüfung nicht sehen kann
 
 **Wi-Fi-Client-Isolation.** Gästenetze in Cafés, Hotels und auf Konferenzen

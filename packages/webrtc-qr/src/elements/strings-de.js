@@ -1,0 +1,79 @@
+/**
+ * German for everything the elements show.
+ *
+ * The `strings` seam exists so a consumer can translate; it does not mean each
+ * consumer should have to. Two of them - yogasūcī and simple-todo - were
+ * translating the same three dozen labels by hand, into German, from the same
+ * English defaults. That is the same work three times, and three chances for
+ * one of them to fall behind when a string is added upstream.
+ *
+ * These are **defaults for a locale**, not a finished translation of anybody's
+ * app: an app with its own voice merges its own wording over them and keeps the
+ * rest. That is what `mergeStrings` is for.
+ *
+ * ```js
+ * import { QR_STATUS_STRINGS_DE } from '@le-space/libp2p-webrtc-qr/elements'
+ *
+ * status.strings = QR_STATUS_STRINGS_DE
+ * ```
+ *
+ * The wording follows the English in substance, not word by word. Where the
+ * English hedges - "usually fail", "cannot reach" - the German hedges the same
+ * amount, because those verdicts are observations about *this browser* and
+ * overstating them is the specific mistake the English text was corrected for.
+ *
+ * `test/strings-de.test.js` asserts these tables carry exactly the keys the
+ * English ones do, so a string added upstream cannot silently stay English.
+ */
+
+/** @type {typeof import('./qr-status.js').QR_STATUS_STRINGS} */
+export const QR_STATUS_STRINGS_DE = {
+  browser: 'Browser',
+  ipv4: 'IPv4',
+  ipv6: 'IPv6',
+  camera: 'Kamera',
+  overall: 'Ergebnis',
+  open: 'nutzbar',
+  relay: 'über TURN',
+  symmetric: 'nur lokal',
+  blocked: 'keins',
+  measuring: 'Prüfe, was dieses Netz zulässt…',
+  alarm: 'Dieses Netz erreicht keinen Peer in einem anderen Netz. Eine hier erzeugte Einladung verbindet sich nicht, bis Sie ins WLAN wechseln, IPv6 aktivieren oder ein Relay benutzen.',
+  alarmUnreliable: 'Dieses Netz vergibt pro Ziel einen neuen Port und hat kein IPv6. Eine hier erzeugte Einladung erreicht Peers in diesem Netz, zu allen anderen scheitert sie meistens. WLAN, IPv6 oder ein Relay macht es verlässlich.'
+}
+
+/** @type {typeof import('./qr-scanner.js').QR_SCANNER_STRINGS} */
+export const QR_SCANNER_STRINGS_DE = {
+  label: 'Code scannen',
+  close: 'Schließen',
+  unsupported: 'Dieser Browser unterstützt keinen Kamerazugriff',
+  starting: 'Kamera wird gestartet…',
+  looking: 'Suche einen Code… ruhig halten und etwa das halbe Bild ausfüllen.',
+  stillLooking: ({ attempts }) =>
+    `Suche weiter… ${attempts} Versuche. Gehen Sie etwas näher heran, halten Sie ruhig, und vermeiden Sie Spiegelungen.`,
+  rejected: 'Dieser Code ist nicht der, auf den dieser Bildschirm wartet.',
+  // Zahl und Gesamtzahl stehen im Deutschen anders herum als eine
+  // Vorlage mit {n} es erzwingen würde - genau deshalb ist es eine Funktion.
+  animated: ({ received, total }) =>
+    `Bewegter Code: Teil ${received} von ${total}. Weiter ruhig halten.`,
+  animatedUnknown: 'Bewegter Code erkannt. Weiter ruhig halten.'
+}
+
+/** @type {typeof import('./qr-invite.js').QR_INVITE_STRINGS} */
+export const QR_INVITE_STRINGS_DE = {
+  alt: 'Einladungscode',
+  part: ({ slot, total }) => `Teil ${slot} von ${total} — Telefon still halten`,
+  recovery: 'Wiederherstellungsbild — Telefon still halten'
+}
+
+/** @type {typeof import('./qr-peers.js').QR_PEERS_STRINGS} */
+export const QR_PEERS_STRINGS_DE = {
+  connected: 'verbunden',
+  connecting: 'verbindet…',
+  disconnected: 'verbindet erneut…',
+  failed: 'fehlgeschlagen',
+  closed: 'geschlossen',
+  new: 'verbindet…',
+  disconnect: 'Trennen',
+  disconnectFrom: ({ peerId }) => `Verbindung zu ${peerId} trennen`
+}

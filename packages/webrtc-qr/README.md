@@ -318,6 +318,20 @@ exported for anyone building on top.
 Defaults: `QR_INVITE_STRINGS`, `QR_SCANNER_STRINGS`, `QR_STATUS_STRINGS`,
 `QR_PEERS_STRINGS`.
 
+**German ships with the package**: `QR_INVITE_STRINGS_DE`,
+`QR_SCANNER_STRINGS_DE`, `QR_STATUS_STRINGS_DE`, `QR_PEERS_STRINGS_DE`. Two
+consumers were translating the same three dozen labels by hand from the same
+defaults, which is the same work twice and two chances to fall behind when a
+string is added here.
+
+```js
+status.strings = QR_STATUS_STRINGS_DE                      // all of it
+status.strings = { ...QR_STATUS_STRINGS_DE, blocked: '—' } // with your own voice
+```
+
+They are defaults for a locale, not a finished translation of your app: merge
+your own wording over them and keep the rest.
+
 ---
 
 ## Network judgements

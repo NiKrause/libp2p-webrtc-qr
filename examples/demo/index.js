@@ -18,12 +18,37 @@ import {
   preload as preloadAnimatedQr
 } from '@le-space/libp2p-webrtc-qr/elements'
 import { applyBrowserTheme } from './browser-theme.js'
+import { elementStrings, initialLocale, locale, setLocale, t } from './i18n.js'
 import { forgetIdentity, launchedStandalone, loadOrCreateIdentity } from './identity.js'
 
 // Cosmetic and independent of everything else, so it runs the moment the module
 // loads rather than waiting on a node. The tint is up before the first paint
 // settles, which is the point - you should know which window this is at a glance.
 applyBrowserTheme().catch(() => {})
+
+/**
+ * Put the whole page in one language.
+ *
+ * The elements are handed their tables here rather than reaching for a locale
+ * themselves: `strings` is the seam the library offers, and a library that read
+ * a global would be a library with an opinion about how an app stores one.
+ *
+ * Runs before the first paint for the same reason `applyBrowserTheme` does -
+ * nobody should watch the page change language after it has settled.
+ */
+function applyLocale (next) {
+  setLocale(next)
+
+  const strings = elementStrings()
+  qrImage.strings = strings.invite
+  scanModalEl.strings = strings.scanner
+  networkStateEl.strings = strings.status
+  peerListEl.strings = strings.peers
+
+  document.documentElement.lang = locale()
+  localeEl.value = locale()
+  document.getElementById('locale-label').textContent = t('language.label')
+}
 import { fromString, toString } from 'uint8arrays'
 import {
   QRSession,
@@ -130,11 +155,20 @@ const browserWarningEl = document.getElementById('browser-warning')
 const createOfferAgainButton = document.getElementById('create-offer-again')
 const handoffBannerEl = document.getElementById('handoff-banner')
 const peerListEl = document.getElementById('peer-list')
+const localeEl = document.getElementById('locale')
 const peerCountEl = document.getElementById('peer-count')
 const networkStateEl = document.getElementById('network-state')
 const compactPayloadEl = document.getElementById('compact-payload')
 const setupCards = [document.getElementById('step-start'), document.getElementById('step-connect')]
 const dataCard = document.getElementById('step-data')
+
+// Here rather than beside the function, which is declared above the elements it
+// touches: a function declaration hoists, `const scanModalEl` does not.
+applyLocale(initialLocale())
+
+// Rendered text is refreshed by the elements themselves - they re-render when
+// `strings` is assigned - so a switch costs nothing beyond the assignment.
+localeEl.addEventListener('change', event => applyLocale(event.target.value))
 
 const qrCanvas = document.createElement('canvas')
 const qrCanvasContext = qrCanvas.getContext('2d', { willReadFrequently: true })

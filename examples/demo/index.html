@@ -77,6 +77,21 @@
         </a>
 
         <div class="nav-links">
+          <!--
+            The language control, first in the row because somebody who cannot
+            read the page cannot look for it anywhere else. A <select> rather
+            than two links: it is one control with the current value showing,
+            it needs no extra markup per language added later, and every mobile
+            browser gives it a native picker without any code from us.
+          -->
+          <label class="nav-link nav-locale">
+            <span class="visually-hidden" id="locale-label">Language</span>
+            <select id="locale" aria-labelledby="locale-label">
+              <option value="en">English</option>
+              <option value="de">Deutsch</option>
+            </select>
+          </label>
+
           <!-- Labelled explicitly: the visible span is hidden on phones, which
                removes it from the accessibility tree along with the name. -->
           <a class="nav-link" href="https://github.com/NiKrause/libp2p-webrtc-qr/blob/main/ROADMAP.md" target="_blank" rel="noopener noreferrer" aria-label="Roadmap">
