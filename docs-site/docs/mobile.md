@@ -115,6 +115,43 @@ connections and silence for the other.
 yours to get right - a headless browser exposes the API and then refuses every
 request, having no screen to keep awake.
 
+## Explaining it first
+
+`<qr-intro>` puts the caveats above in front of somebody before they need them,
+next to a live verdict — and `createIntroPolicy()` decides when.
+
+```js
+import { createIntroPolicy } from '@le-space/libp2p-webrtc-qr/elements'
+
+const policy = createIntroPolicy({ storageKey: 'myapp.introSeen' })
+
+if (policy.shouldOpen({ arrivedViaInvite })) {
+  await intro.open()          // measures once, with probeNetwork
+}
+
+intro.addEventListener('close', event => {
+  if (event.detail.remember) policy.remember()
+})
+```
+
+The app's own explanation goes in the slot; the caveats and the verdict come
+from the element. Set `technical` to show the caveat list — in an app with a
+simple and a technical view, that attribute is what the switch drives.
+
+Three rules in the policy, each a decision somebody would otherwise make the
+other way:
+
+- **Arriving by invite suppresses it.** That person came to accept something,
+  and a dialog in front of it is in the way of the only thing they came for.
+  They see it on their next plain visit — so suppressing does *not* mark it seen.
+- **Blocked storage shows it.** An introduction seen twice is a smaller problem
+  than a first-time user who never gets one.
+- **`forget()` exists.** Dismissing must not be a one-way door.
+
+Its text is translatable like every other element's: `QR_INTRO_STRINGS` holds the
+English defaults, `QR_INTRO_STRINGS_DE` the German. `QrIntroElement` is exported
+for framework wrappers and for registering under another tag name.
+
 ## Detecting the situation
 
 ```js
