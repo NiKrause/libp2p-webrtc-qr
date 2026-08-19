@@ -37,6 +37,54 @@ und der Browser gibt ihn frei, sobald die Seite verborgen ist. Fürs Scannen ist
 er trotzdem richtig — ein Bildschirm, der mitten im Scan einschläft, ist ein
 eigenes Problem —, aber er behebt das hier nicht.
 
+## Was helfen kann: die Seite Ton abspielen lassen
+
+Eine Seite, die Ton abspielt, friert Chromium nicht ein. Das ist der ganze
+Mechanismus, und `createKeepAlive()` ist er.
+
+```js
+import { createKeepAlive } from '@le-space/libp2p-webrtc-qr'
+
+const keepAlive = createKeepAlive({
+  track: 'audio/warten.mp3',
+  metadata: { title: 'Warten auf das andere Telefon', artist: '…' }
+})
+
+// In der Geste, die die Einladung erzeugt - vor jedem await.
+await keepAlive.start()
+
+// Sobald die Verbindung steht oder der Versuch aufgegeben wird.
+await keepAlive.stop()
+```
+
+| Option | Vorgabe | Bedeutung |
+| --- | --- | --- |
+| `track` | — | URL einer Audiodatei für die Schleife. Ohne sie läuft es fast stumm |
+| `silent` | `false` | unhörbar laufen, auch mit `track` |
+| `volume` | `0.35` | gilt nur für `track` |
+| `metadata` | — | `{ title, artist }` für die Medienbenachrichtigung der Plattform |
+
+Eigenschaften: `running`, `supported`. Methoden: `start()` → `Promise<boolean>`,
+`stop()`.
+
+Drei Dinge daran sind Absicht:
+
+- **`start()` gehört in eine Nutzergeste.** Ein `AudioContext` beginnt
+  suspendiert, und ein Resume außerhalb einer Geste wird abgelehnt. Bis ICE
+  fertig gesammelt hat, ist keine Geste mehr übrig.
+- **Hörbar als Vorgabe.** Stille ist der Fehlerfall: was der Browser für
+  unhörbar hält, zählt irgendwann nicht mehr als Wiedergabe — dann friert die
+  Seite trotzdem ein, und die Batterie war umsonst. Hörbar bringt außerdem eine
+  Medienbenachrichtigung, und die ist ein beschrifteter Weg mit einem Tipp
+  zurück in die App.
+- **Es ist kein Wake Lock, und keines ersetzt das andere.** Das eine hält den
+  Bildschirm, das andere die Seite am Leben.
+
+**Ob das einen echten App-Wechsel auf Android übersteht, ist offen.** Verifiziert
+ist der Mechanismus — der Audiograph startet, läuft in Schleife und wird
+freigegeben —, mehr nicht. Die Klärung braucht zwei Telefone und einen
+Messenger; das Experiment steht ausformuliert in
+[AGENTS.md](https://github.com/NiKrause/libp2p-webrtc-qr/blob/main/AGENTS.md).
 ## Der Rest des Werkzeugkastens
 
 `createKeepAlive()` oben ist einer von vier Teilen desselben Problems. Die übrigen:

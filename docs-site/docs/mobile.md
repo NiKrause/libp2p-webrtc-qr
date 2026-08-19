@@ -34,6 +34,52 @@ There is no fix in the library. A relay would fix it; nothing in the page can.
 drops it the moment the page is hidden. It is worth having for scanning — a
 screen that sleeps mid-scan is its own problem — but it is not a fix for this.
 
+## What can help: keep the page playing audio
+
+A page that is playing audio is not a page Chromium freezes. That is the whole
+mechanism, and `createKeepAlive()` is it.
+
+```js
+import { createKeepAlive } from '@le-space/libp2p-webrtc-qr'
+
+const keepAlive = createKeepAlive({
+  track: 'audio/waiting.mp3',
+  metadata: { title: 'Waiting for the other phone', artist: '…' }
+})
+
+// Inside the gesture that produces the invite - before anything awaits.
+await keepAlive.start()
+
+// The moment the connection is up, or the attempt is abandoned.
+await keepAlive.stop()
+```
+
+| option | default | meaning |
+| --- | --- | --- |
+| `track` | — | URL of an audio file to loop. Without one it runs near-silent |
+| `silent` | `false` | run inaudibly even with a `track` |
+| `volume` | `0.35` | applies to `track` only |
+| `metadata` | — | `{ title, artist }` for the platform's media notification |
+
+Properties: `running`, `supported`. Methods: `start()` → `Promise<boolean>`,
+`stop()`.
+
+Three things about it are deliberate:
+
+- **`start()` must be called from a user gesture.** An `AudioContext` begins
+  suspended under the autoplay policy and a resume outside a gesture is refused.
+  By the time ICE has gathered there is no gesture left to spend.
+- **Audible by default.** Silence is the failure mode: a stream the browser
+  judges inaudible stops counting as playback, and the page is frozen anyway
+  with nothing to show for the battery. Audible also earns a media notification,
+  which is a labelled one-tap way back into the app.
+- **It is not a wake lock, and neither substitutes for the other.** One holds the
+  screen, the other keeps the page alive.
+
+**Whether this survives a real app switch on Android is unsettled.** The
+mechanism is verified — the graph starts, loops and is released — and that is
+all. Settling it needs two phones and a messenger; the experiment is written out
+in [AGENTS.md](https://github.com/NiKrause/libp2p-webrtc-qr/blob/main/AGENTS.md).
 ## The rest of the toolkit
 
 `createKeepAlive()` above is one of four parts of the same problem. The others:
