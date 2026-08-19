@@ -662,6 +662,29 @@ button.is-busy::before {
     display: none;
   }
 
+  /* The two <select> controls carry their value as visible text, which is the
+     point of using one - so they cannot lose their label the way the icon links
+     do. On a 390px phone the row was 31px too wide and pushed the whole page
+     sideways, so they give up padding instead. */
+  .nav-locale select,
+  .nav-view select {
+    padding: 7px 8px;
+    font-size: 0.8rem;
+  }
+
+  .nav-links {
+    gap: 4px;
+  }
+
+  /* Their labels are hidden above, so the padding was sized for text that is no
+     longer there - an icon in a 14px-per-side pill.
+     `a.nav-link` and not `.nav-link`: the two <select> wrappers carry that class
+     too, and padding them again on top of the padding their select already has
+     made the row *wider* rather than narrower. */
+  a.nav-link {
+    padding: 7px 10px;
+  }
+
   /* Break the QR out of the card and page padding. On a 390px phone that is
      316px against 390px of screen - a quarter of the available module size
      given away to margins, for a code nobody reads but a camera. */
@@ -1303,4 +1326,37 @@ button.is-busy::before {
 .copy-link.is-done {
   border-color: var(--ls-ok, #3edc97);
   color: var(--ls-ok, #3edc97);
+}
+
+/* ---------- simple and technical ---------- */
+
+/*
+   One rule, driven by one attribute. `display: none` rather than
+   `visibility: hidden`: a panel that is not for this reader should not be in
+   the accessibility tree either, or a screen reader announces a peer id that
+   nobody asked to hear.
+*/
+:root[data-view="simple"] [data-view="technical"] {
+  display: none;
+}
+
+.nav-view {
+  padding: 0;
+  cursor: pointer;
+}
+
+.nav-view select {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  padding: 7px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.nav-view option {
+  background: var(--ls-card);
+  color: var(--ls-text);
 }

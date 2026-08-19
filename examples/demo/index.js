@@ -19,6 +19,7 @@ import {
 } from '@le-space/libp2p-webrtc-qr/elements'
 import { applyBrowserTheme } from './browser-theme.js'
 import { elementStrings, initialLocale, locale, setLocale, t } from './i18n.js'
+import { applyViewMode, isSimple } from './view-mode.js'
 import { forgetIdentity, launchedStandalone, loadOrCreateIdentity } from './identity.js'
 
 // Cosmetic and independent of everything else, so it runs the moment the module
@@ -48,6 +49,9 @@ function applyLocale (next) {
   document.documentElement.lang = locale()
   localeEl.value = locale()
   document.getElementById('locale-label').textContent = t('language.label')
+  document.getElementById('view-label').textContent = t('view.label')
+  viewModeEl.options[0].textContent = t('view.simple')
+  viewModeEl.options[1].textContent = t('view.technical')
 
   // The copy button carries its own state in its label, so it is not repainted
   // by anything else and has to be told the language changed.
@@ -167,6 +171,7 @@ const createOfferAgainButton = document.getElementById('create-offer-again')
 const handoffBannerEl = document.getElementById('handoff-banner')
 const peerListEl = document.getElementById('peer-list')
 const localeEl = document.getElementById('locale')
+const viewModeEl = document.getElementById('view-mode')
 const peerCountEl = document.getElementById('peer-count')
 const networkStateEl = document.getElementById('network-state')
 const compactPayloadEl = document.getElementById('compact-payload')
@@ -176,6 +181,18 @@ const dataCard = document.getElementById('step-data')
 // Here rather than beside the function, which is declared above the elements it
 // touches: a function declaration hoists, `const scanModalEl` does not.
 applyLocale(initialLocale())
+
+// Before the first paint, like the language and the tint: nobody should watch
+// half the page disappear a moment after it settled.
+applyViewMode()
+viewModeEl.value = isSimple() ? 'simple' : 'technical'
+viewModeEl.addEventListener('change', event => {
+  applyViewMode(event.target.value === 'simple')
+  // The controls depend on the mode now - the invite button is enabled in the
+  // simple view before anything has started, because there it does the starting.
+  updateControls()
+})
+
 
 // Rendered text is refreshed by the elements themselves - they re-render when
 // `strings` is assigned - so a switch costs nothing beyond the assignment.
@@ -207,11 +224,28 @@ const testState = {
   busyObserved: new Set()
 }
 
-function appendLog (text) {
+/**
+ * One surface carries two different things, and they are not for the same
+ * reader: what somebody said, and what the protocol did.
+ *
+ * So diagnostics are the default and chat opts out. That is the right way round
+ * because there are three chat call sites and fifty-odd diagnostic ones - a
+ * default of "chat" would mean marking fifty lines and forgetting one.
+ *
+ * Marked per line rather than by hiding the whole box: hiding it would take the
+ * conversation with it, which is the one thing the simple view is *for*.
+ */
+function appendLog (text, { technical = true } = {}) {
   const line = document.createElement('div')
   line.textContent = text
+  if (technical) line.dataset.view = 'technical'
   chatLogEl.appendChild(line)
   chatLogEl.scrollTop = chatLogEl.scrollHeight
+}
+
+/** What a person said. Visible in both views - it is the conversation. */
+function appendChat (text) {
+  appendLog(text, { technical: false })
 }
 
 /**
@@ -928,7 +962,7 @@ async function readChatMessages (stream, from) {
     }
 
     if (message.kind === 'file') {
-      appendLog(`${shortPeer(from)} is offering ${message.name} (${message.size} bytes)`)
+      appendChat(`${shortPeer(from)} is offering ${message.name} (${message.size} bytes)`)
       receiveFile(message).catch(error => {
         appendLog(`Could not fetch ${message.name}: ${error.message}`)
       })
@@ -937,7 +971,7 @@ async function readChatMessages (stream, from) {
 
     testState.lastReceivedMessage = message.text
     testState.receivedMessages.push({ from, text: message.text })
-    appendLog(`${shortPeer(from)}: ${message.text}`)
+    appendChat(`${shortPeer(from)}: ${message.text}`)
   }
 }
 
@@ -969,7 +1003,7 @@ async function broadcast (payload, what) {
 
 async function sendMessage (message) {
   await broadcast({ kind: 'text', text: message }, 'message')
-  appendLog(`You: ${message}`)
+  appendChat(`You: ${message}`)
 }
 
 const MAX_FILE_BYTES = 32 * 1024 * 1024
@@ -1633,7 +1667,10 @@ async function handleReceivedPayload (input, expectedType) {
 
 function updateControls () {
   const started = node != null
-  createOfferButton.disabled = !started
+  // In the simple view this button starts the peer itself, so disabling it
+  // until something else has been pressed would disable the only control on
+  // screen - permanently, because that something else is hidden.
+  createOfferButton.disabled = !started && !isSimple()
   createOfferAgainButton.disabled = !started
   scanOfferButton.disabled = !started
   scanAnswerButton.disabled = !started || session.offers.size === 0
@@ -1711,6 +1748,22 @@ async function createInvite (button) {
   // is the only moment the autoplay policy will let audio start. Everything
   // below awaits.
   startKeepAlive()
+
+  // Step 1 is technical - "start a browser peer" is not a thing anybody set out
+  // to do - so in the simple view it is not on screen to press. The button that
+  // *is* pressed does it instead, which is also the honest order: nobody wants
+  // a peer, they want to invite somebody.
+  if (node == null) {
+    setButtonBusy(button, t('invite.starting'))
+
+    try {
+      await createNode()
+    } catch (error) {
+      clearButtonBusy(button)
+      setStatus(explain(error))
+      return
+    }
+  }
 
   // Before anything else, and before the seconds of gathering: this is the last
   // moment where changing browser is still a cheap decision.
@@ -2259,5 +2312,15 @@ async function consumeLink () {
     appendLog(`Opening the link failed: ${error.message}`)
   }
 }
+
+// The markup ships the invite button disabled and, until now, nothing enabled it
+// until "Start" had been pressed. That was invisible while step 1 was always on
+// screen; with it behind the switch, the simple view would have shown one
+// control and left it dead.
+//
+// Down here rather than beside the switch: `updateControls` reads `session`,
+// which is a `let` declared further up the file than the switch is wired but
+// further *down* than that wiring runs.
+updateControls()
 
 consumeLink()

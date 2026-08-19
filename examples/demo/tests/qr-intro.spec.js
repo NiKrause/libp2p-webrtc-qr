@@ -12,7 +12,7 @@ import { expect, test } from '@playwright/test'
  */
 
 const mount = async (page, { locale = 'en', technical = false } = {}) => {
-  await page.goto('/?ice=host')
+  await page.goto('/?ice=host&view=technical')
 
   // Through the app's own switch, so `elementStrings()` below returns the
   // tables for that language rather than whatever the default happened to be.

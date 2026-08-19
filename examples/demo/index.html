@@ -84,6 +84,19 @@
             it needs no extra markup per language added later, and every mobile
             browser gives it a native picker without any code from us.
           -->
+          <!--
+            Simple or technical. Beside the language control because both answer
+            "who is reading this", and both belong where somebody looks for a
+            setting rather than buried in the page they are trying to read.
+          -->
+          <label class="nav-link nav-view">
+            <span class="visually-hidden" id="view-label">View</span>
+            <select id="view-mode" aria-labelledby="view-label">
+              <option value="simple">Simple</option>
+              <option value="technical">Technical</option>
+            </select>
+          </label>
+
           <label class="nav-link nav-locale">
             <span class="visually-hidden" id="locale-label">Language</span>
             <select id="locale" aria-labelledby="locale-label">
@@ -144,7 +157,10 @@
       </div>
 
       <div class="steps">
-        <section class="card" id="step-start">
+        <!-- The whole of step 1 is about a libp2p node and its key pair, which
+             is not language a first-time reader has any use for. Starting still
+             happens - it is driven from step 2 in the simple view. -->
+        <section class="card" id="step-start" data-view="technical">
           <h2 class="step-heading" tabindex="0" role="button" aria-expanded="true"><span class="step-no">1</span> Start browser peer<!--
             Inside the heading on purpose: a collapsed card hides every child but
             the h2, and this is the one fact worth keeping on screen after the
