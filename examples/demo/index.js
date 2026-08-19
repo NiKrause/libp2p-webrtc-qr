@@ -20,7 +20,6 @@ import {
 import { applyBrowserTheme } from './browser-theme.js'
 import { elementStrings, initialLocale, locale, setLocale, t } from './i18n.js'
 import { forgetIdentity, launchedStandalone, loadOrCreateIdentity } from './identity.js'
-import { state as wakeLockState, sync as syncWakeLock } from './wakelock.js'
 
 // Cosmetic and independent of everything else, so it runs the moment the module
 // loads rather than waiting on a node. The tint is up before the first paint
@@ -59,7 +58,12 @@ import {
   encodeSignedPayload,
   parsePayload,
   createKeepAlive,
+  createWakeLock,
+  leavingSuspendsUs,
+  pendingConnections,
+  stateOf,
   webRTCQR,
+  BROWSERS_THAT_HOLD,
   PAYLOAD_VERSION,
   QR_TYPE_ANSWER,
   QR_TYPE_OFFER
@@ -552,8 +556,10 @@ function wantWakeLock () {
   return scanModalEl.isOpen || inviteBoxEl.open || chatStreams.size > 0
 }
 
+const wakeLock = createWakeLock()
+
 function refreshWakeLock () {
-  syncWakeLock(wantWakeLock())
+  wakeLock.sync(wantWakeLock())
 }
 
 /**
@@ -595,7 +601,7 @@ const keepAlive = createKeepAlive({
  */
 /**
  * Our decision, kept apart from the platform's answer to it - the same split
- * `wakelock.js` makes, and for the same reason. Whether audio actually plays
+ * `createWakeLock()` makes, and for the same reason. Whether audio actually plays
  * depends on an audio stack: it runs in Firefox on a desktop and not in the CI
  * container, so asserting `running` is asserting on the machine rather than on
  * this code.
@@ -1206,28 +1212,6 @@ function showBanner (text, state) {
 }
 
 /**
- * Does leaving this app suspend it?
- *
- * Named for what matters rather than for "is this a phone" - the phone is only
- * a proxy. A desktop browser keeps a background tab running and the handover
- * through a chat window is unhurried there. A phone suspends whatever is not in
- * front, and the field report from two Android devices is that you have **a
- * couple of seconds** before the connection is gone. Hurrying a desktop user
- * would be false, and false urgency is how people learn to ignore a warning.
- *
- * `hover: none and pointer: coarse` is true on phones and tablets and false on
- * desktops, including the touchscreen laptops that a bare touch check misreads.
- */
-function leavingSuspendsUs () {
-  try {
-    return navigator.userAgentData?.mobile === true ||
-      window.matchMedia('(hover: none) and (pointer: coarse)').matches
-  } catch {
-    return false
-  }
-}
-
-/**
  * The one sentence that can still be acted on.
  *
  * Two Android phones, Chrome and DuckDuckGo: the handover works, provided you
@@ -1235,16 +1219,6 @@ function leavingSuspendsUs () {
  * it is put next to the button that sends them away - and only there, because a
  * warning that arrives on the way back is a post-mortem.
  */
-/**
- * Browsers observed to hold a waiting invite long enough to be worth trying.
- *
- * Measured by hand across phones, not derived from anything - a record of what
- * was seen, not something the platform promises. Roughly ten seconds in these,
- * and seconds in the rest. If that changes, this list is the only thing to
- * change.
- */
-const BROWSERS_THAT_HOLD = ['ddg', 'safari']
-
 function showHurryBack () {
   if (!leavingSuspendsUs()) {
     return
@@ -1299,39 +1273,6 @@ const pcHealthEls = [...document.querySelectorAll('.pc-health')]
  * the connection it built from that offer. Whichever device goes away, this is
  * the object that goes with it.
  */
-function pendingConnections () {
-  if (session == null) {
-    return []
-  }
-
-  const out = []
-
-  for (const [sessionId, offer] of session.offers) {
-    out.push({ role: 'invite', label: sessionId.slice(0, 6), peerConnection: offer.peerConnection })
-  }
-
-  let n = 0
-
-  for (const peerConnection of session.inbound) {
-    n += 1
-    out.push({ role: 'reply', label: `#${n}`, peerConnection })
-  }
-
-  return out
-}
-
-/**
- * `signalingState` is the honest one. A connection the browser closed while the
- * page was suspended reports `closed` here, and browsers have shipped versions
- * that closed it without firing any event (w3c/webrtc-pc#2489) - so this is
- * read, never awaited.
- */
-function stateOf (peerConnection) {
-  return peerConnection.signalingState === 'closed'
-    ? 'closed'
-    : peerConnection.connectionState ?? peerConnection.iceConnectionState ?? 'new'
-}
-
 // What the states were on the way out, and the sentence describing what came
 // back. Kept as text because it has to survive on screen: nobody can watch a
 // display that is in the background, so the readout is only ever read later.
@@ -1339,7 +1280,7 @@ let healthOnHide = null
 let healthReport = ''
 
 function noteHealthHidden () {
-  const pending = pendingConnections()
+  const pending = pendingConnections(session)
 
   if (pending.length === 0) {
     return
@@ -1357,7 +1298,7 @@ function noteHealthVisible () {
   }
 
   const away = Math.round((Date.now() - healthOnHide.at) / 1000)
-  const now = new Map(pendingConnections().map(item => [`${item.role} ${item.label}`, stateOf(item.peerConnection)]))
+  const now = new Map(pendingConnections(session).map(item => [`${item.role} ${item.label}`, stateOf(item.peerConnection)]))
   const lines = []
 
   for (const [key, before] of healthOnHide.states) {
@@ -1375,7 +1316,7 @@ function noteHealthVisible () {
 }
 
 function renderPeerHealth () {
-  const pending = pendingConnections()
+  const pending = pendingConnections(session)
   const live = pending.map(item => `${item.role} ${item.label}: ${stateOf(item.peerConnection)}`)
   const dead = pending.some(item => stateOf(item.peerConnection) === 'closed')
   const parts = [
@@ -1947,7 +1888,7 @@ function noteInviteVisible () {
   // after *a couple* of seconds, so the rule stayed silent through the absence
   // that actually killed it - and it cried wolf after a long one that happened
   // to survive. `signalingState` knows which of those just happened.
-  const died = pendingConnections().some(item => stateOf(item.peerConnection) === 'closed')
+  const died = pendingConnections(session).some(item => stateOf(item.peerConnection) === 'closed')
 
   appendLog(`This tab was in the background for ${seconds}s with an invite waiting.`)
 
@@ -2056,7 +1997,7 @@ window.__libp2pQrTest = {
 
     return closed
   },
-  wakeLockState,
+  wakeLockState: () => ({ supported: wakeLock.supported, wanted: wakeLock.wanted, held: wakeLock.held }),
   /**
    * Whether the keep-alive is running, and whether it got the real recording or
    * fell back to near-silence. The second half matters in a test: Playwright's

@@ -37,6 +37,22 @@ test('the elements themselves and their strings are reachable', () => {
   }
 })
 
+/**
+ * All four halves of one subject: whether a pending invite is still there when
+ * somebody comes back from a messenger. Every one of them was written inside
+ * the demo first, which is the same mistake `offNetworkBlocked` made - useful
+ * to a consumer, invisible to one.
+ */
+test('surviving an app switch is reachable from the root', () => {
+  for (const name of ['createKeepAlive', 'createWakeLock', 'leavingSuspendsUs', 'stateOf', 'pendingConnections']) {
+    assert.equal(typeof core[name], 'function', `${name} must be exported from the root`)
+  }
+
+  // The list, not a copy of it: a consumer naming these browsers from its own
+  // literal is a consumer whose list stops matching this one.
+  assert.ok(Array.isArray(core.BROWSERS_THAT_HOLD), 'BROWSERS_THAT_HOLD must be exported')
+})
+
 test('the session and the format-aware parser are reachable from the root', () => {
   for (const name of ['QRSession', 'webRTCQR', 'parsePayload', 'decodePayload', 'describeIce']) {
     assert.equal(typeof core[name], 'function', `${name} must be exported`)

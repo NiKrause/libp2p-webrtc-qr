@@ -80,6 +80,40 @@ Three things about it are deliberate:
 mechanism is verified — the graph starts, loops and is released — and that is
 all. Settling it needs two phones and a messenger; the experiment is written out
 in [AGENTS.md](https://github.com/NiKrause/libp2p-webrtc-qr/blob/main/AGENTS.md).
+## The rest of the toolkit
+
+`createKeepAlive()` above is one of four parts of the same problem. The others:
+
+| | |
+| --- | --- |
+| `leavingSuspendsUs()` | does leaving suspend this page - the gate for showing any hurry-back warning |
+| `BROWSERS_THAT_HOLD` | browsers observed to hold a waiting invite ~10s. **Read this list rather than copying it** - two copies stop matching |
+| `createWakeLock()` | keep the *screen* awake: `sync(active)`, plus `supported` / `wanted` / `held` |
+| `stateOf(peerConnection)` | one word for what a connection is doing |
+| `pendingConnections(session)` | every connection a session owns - `offers` **and** `inbound` |
+
+```js
+import { leavingSuspendsUs, createWakeLock, stateOf, pendingConnections } from '@le-space/libp2p-webrtc-qr'
+
+if (leavingSuspendsUs()) {
+  // Only here is a hurry-back warning true. A desktop shown one learns to
+  // ignore warnings.
+}
+
+const wakeLock = createWakeLock()
+await wakeLock.sync(codeIsOnScreen)          // also from `visibilitychange`
+
+const died = pendingConnections(session).some(c => stateOf(c.peerConnection) === 'closed')
+```
+
+`pendingConnections` covers **both** halves and it is easy to remember only one:
+`offers` are invites waiting for an answer, `inbound` are connections built from
+an offer this peer accepted. Iterating one reports health for half the
+connections and silence for the other.
+
+`wanted` and `held` on the wake lock are separate because only the first is
+yours to get right - a headless browser exposes the API and then refuses every
+request, having no screen to keep awake.
 
 ## Detecting the situation
 
