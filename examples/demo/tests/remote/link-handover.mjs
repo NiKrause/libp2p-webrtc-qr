@@ -19,6 +19,17 @@
 
 const REPLY_TIMEOUT = 90_000
 
+const withoutIntro = url => {
+  try {
+    const parsed = new URL(url)
+    parsed.searchParams.set('intro', 'off')
+    return parsed.toString()
+  } catch {
+    // Not absolute - a relative path from the local spec. Appending is enough.
+    return url + (url.includes('?') ? '&' : '?') + 'intro=off'
+  }
+}
+
 const inviteOf = async (page, { compact }) => {
   // Press Start only where there is one to press.
   //
@@ -120,7 +131,11 @@ export async function runLinkHandover ({ browserA, browserB, appUrl, compact }) 
   const timings = {}
 
   try {
-    await a.goto(appUrl)
+    // A first visit opens the introduction, and a modal blocks every click
+    // behind it. Added here rather than by each caller because this helper
+    // always wants a page it can drive; an older deployment that does not know
+    // the flag ignores it.
+    await a.goto(withoutIntro(appUrl))
     const invite = await inviteOf(a, { compact })
     timings.inviteMs = Date.now() - started
 

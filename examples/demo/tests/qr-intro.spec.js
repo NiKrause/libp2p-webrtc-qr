@@ -12,7 +12,7 @@ import { expect, test } from '@playwright/test'
  */
 
 const mount = async (page, { locale = 'en', technical = false } = {}) => {
-  await page.goto('/?ice=host&view=technical')
+  await page.goto('/?ice=host&view=technical&intro=off')
 
   // Through the app's own switch, so `elementStrings()` below returns the
   // tables for that language rather than whatever the default happened to be.
@@ -20,6 +20,10 @@ const mount = async (page, { locale = 'en', technical = false } = {}) => {
 
   return page.evaluate(({ locale, technical }) => {
     const intro = document.createElement('qr-intro')
+    // Named, because the demo now mounts one of its own: an unqualified
+    // `qr-intro` locator matches both, and the assertions below are about this
+    // one - the element in isolation, with no story and no first-visit policy.
+    intro.id = 'probe-intro'
     const story = document.createElement('p')
 
     story.textContent = 'The app says this part.'
@@ -43,7 +47,7 @@ const mount = async (page, { locale = 'en', technical = false } = {}) => {
 // they respect `hidden`. The first version of this file asserted on
 // `shadowRoot.textContent` and failed, because a hidden <ul> still has its text
 // and the <style> block contributes its own.
-const inShadow = (page, selector) => page.locator(`qr-intro ${selector}`)
+const inShadow = (page, selector) => page.locator(`#probe-intro ${selector}`)
 
 test.describe('qr-intro', () => {
   test('shows the app story through the slot', async ({ page }) => {
@@ -52,7 +56,7 @@ test.describe('qr-intro', () => {
 
     // The story is light DOM, so it is the page's text and not the shadow's -
     // which is the whole point of using a slot for it.
-    await expect(page.locator('qr-intro')).toContainText('The app says this part.')
+    await expect(page.locator('#probe-intro')).toContainText('The app says this part.')
   })
 
   test('measures on open and reports a verdict', async ({ page }) => {

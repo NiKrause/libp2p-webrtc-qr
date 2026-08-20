@@ -23,7 +23,7 @@ import { expect, test } from '@playwright/test'
 const keepAlive = page => page.evaluate(() => window.__libp2pQrTest.keepAliveState())
 
 const startPeer = async page => {
-  await page.goto('/?ice=host&view=technical')
+  await page.goto('/?ice=host&view=technical&intro=off')
   await page.locator('#start-client').click()
   await page.waitForFunction(() => document.getElementById('peer-id').textContent !== 'not started')
 }

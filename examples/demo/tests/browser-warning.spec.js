@@ -13,7 +13,7 @@ import { expect, test } from '@playwright/test'
  * seen to" rather than stating it as a rule.
  */
 
-const APP = '/?ice=host&view=technical'
+const APP = '/?ice=host&view=technical&intro=off'
 
 const PHONE_UA = {
   chrome: 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
