@@ -1,0 +1,78 @@
+# Publishing @le-space/libp2p-webrtc-qr to npm.
+#
+# Triggered by a GitHub Release, not by a push: publishing is irreversible -
+# npm keeps a version number forever, even unpublished - so it needs a
+# deliberate act rather than a merge.
+#
+# The version comes from `packages/webrtc-qr/package.json` and the tag has to
+# agree with it. A mismatch is a mistake worth stopping on rather than
+# guessing about, and it is the mistake somebody makes at 11pm.
+name: Publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Pack and check without publishing
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  # Provenance: npm records that this tarball was built by this workflow from
+  # this commit, and shows it on the package page. It is only obtainable from
+  # CI - a publish from a laptop cannot produce one - which is the actual
+  # argument for automating this at all.
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - run: pnpm install --frozen-lockfile
+
+      # The gate. `prepublishOnly` builds the elements bundle, but a broken
+      # package that builds is still broken, and the tests are what say so.
+      - run: pnpm --filter @le-space/libp2p-webrtc-qr test
+
+      - name: Check the tag against the version
+        if: github.event_name == 'release'
+        shell: bash
+        run: |
+          version="$(node -p "require('./packages/webrtc-qr/package.json').version")"
+          tag="${GITHUB_REF_NAME#v}"
+
+          if [ "$version" != "$tag" ]; then
+            echo "::error::Release tag $GITHUB_REF_NAME does not match package version $version."
+            exit 1
+          fi
+
+          echo "Publishing $version"
+
+      # What would go out, before it goes out. `npm pack` lists the contents,
+      # and `files: ["src", "dist"]` is easy to get wrong in a way nobody
+      # notices until a consumer imports something that was never shipped.
+      - name: Show what the tarball contains
+        working-directory: packages/webrtc-qr
+        run: npm pack --dry-run
+
+      - name: Publish
+        if: github.event_name == 'release'
+        working-directory: packages/webrtc-qr
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
