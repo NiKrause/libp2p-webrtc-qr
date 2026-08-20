@@ -33,6 +33,12 @@ const asPhone = page => page.addInitScript(() => {
   window.matchMedia = query => query.includes('hover: none')
     ? { matches: true, media: query, addEventListener () {}, removeEventListener () {} }
     : real(query)
+
+  // A phone also has a share sheet, and the page now hides "Send link…" where
+  // there is none - on a desktop it would only repeat the Copy button in the
+  // fold. Without this the simulation is a phone that cannot share, which is
+  // not a phone, and the tap these specs are about is not on screen to make.
+  navigator.share ??= async () => {}
 })
 
 const createInvite = async page => {

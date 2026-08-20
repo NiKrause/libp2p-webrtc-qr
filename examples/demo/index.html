@@ -149,7 +149,7 @@
 
       <div class="intro">
         <h1 data-i18n="page.title">libp2p WebRTC over QR</h1>
-        <p>
+        <p data-i18n="page.lede">
           Two browsers connect directly as libp2p peers — no relay, no signaling server. The WebRTC
           offer and answer travel out-of-band as signed QR codes: one device scans the code off the
           other screen.
@@ -161,38 +161,24 @@
              is not language a first-time reader has any use for. Starting still
              happens - it is driven from step 2 in the simple view. -->
         <section class="card" id="step-start" data-view="technical">
-          <h2 class="step-heading" tabindex="0" role="button" aria-expanded="true"><span class="step-no">1</span> Start browser peer<!--
+          <h2 class="step-heading" tabindex="0" role="button" aria-expanded="true"><span class="step-no">1</span> <span data-i18n="step.start.heading">Start browser peer</span><!--
             Inside the heading on purpose: a collapsed card hides every child but
             the h2, and this is the one fact worth keeping on screen after the
             step is done. Which peer you are is what the other side checks your
             signature against, and hunting for it behind two disclosures is the
             wrong amount of work for something that identifies you.
           --><code id="peer-id-brief" class="peer-brief" hidden></code></h2>
-          <p class="hint">Creates a libp2p node with a fresh key pair. Its Peer ID signs every payload you show.</p>
+          <p class="hint" data-i18n="step.start.hint">Creates a libp2p node with a fresh key pair. Its Peer ID signs every payload you show.</p>
 
           <details class="peer" id="stun-disclosure">
-            <summary>What this sends, and to whom</summary>
-            <p class="peer-note">
-              Checking the network means asking a STUN server what address your packets arrive
-              from. Two operators answer that question here, <strong>Cloudflare</strong> and
-              <strong>Google</strong>, and each sees the public address the request came from: over
-              IPv4 that is your router's address, shared with everyone behind it — over IPv6 it is
-              this device's own address, which is not shared with anyone.
-            </p>
-            <p class="peer-note">
-              A STUN request carries nothing else. No page address, no cookies, no browser name —
-              less than any website you open is told about you. It happens again whenever you create
-              or accept an invite, because a direct connection cannot be made without those
-              addresses.
-            </p>
-            <p class="peer-note">
-              The answer comes back to this page and stays here. Nothing is sent to us: this page has
-              no backend to send it to.
-            </p>
+            <summary data-i18n="stun.summary">What this sends, and to whom</summary>
+            <p class="peer-note" data-i18n-html="stun.who"></p>
+            <p class="peer-note" data-i18n="stun.what"></p>
+            <p class="peer-note" data-i18n="stun.stays"></p>
           </details>
 
           <div class="actions">
-            <button id="start-client" class="primary">Start</button>
+            <button id="start-client" class="primary" data-i18n="step.start.button">Start</button>
           </div>
 
           <qr-status id="network-state" rows="browser ipv4 ipv6 camera overall" hidden></qr-status>
@@ -205,28 +191,17 @@
             should fold away once they have been read.
           -->
           <p class="peer-identity">
-            <span class="peer-label">Your Peer ID</span>
+            <span class="peer-label" data-i18n="identity.label">Your Peer ID</span>
             <span id="peer-id">not started</span>
           </p>
           <p id="identity-origin" class="peer-note"></p>
 
           <details class="peer">
-            <summary>What your peer identity is, and where its key lives</summary>
-            <p class="peer-note">
-              Your Peer ID. It travels inside every invite you create — the other side needs it to
-              check your signature, because the public key is embedded in it. The private key it was
-              derived from is what actually signs, and it never leaves this device.
-            </p>
-            <p class="peer-note">
-              In a browser tab the key is kept for <strong>that tab</strong>, so reloading - or a
-              phone waking from standby - comes back as the same peer instead of a stranger, while
-              another tab stays a different peer you can still connect to. Installed to a home
-              screen there is no second tab, so the key is kept for the app instead and survives
-              between launches. Either way the same identifier appears in every invite from here
-              until you reset it, and resetting clears both.
-            </p>
+            <summary data-i18n="identity.summary">What your peer identity is, and where its key lives</summary>
+            <p class="peer-note" data-i18n="identity.what"></p>
+            <p class="peer-note" data-i18n-html="identity.where"></p>
             <div class="actions">
-              <button id="reset-identity" type="button">Start over as a new peer</button>
+              <button id="reset-identity" type="button" data-i18n="identity.reset">Start over as a new peer</button>
             </div>
           </details>
         </section>
@@ -240,7 +215,7 @@
 
           <div id="reconnect-prompt" class="reconnect-prompt" role="status" hidden>
             <span id="reconnect-text"></span>
-            <button id="reconnect" type="button" class="primary">Reconnect</button>
+            <button id="reconnect" type="button" class="primary" data-i18n="step.connect.reconnect">Reconnect</button>
           </div>
 
           <!-- The same readout as in the invite dialog. It belongs in both: the
@@ -274,24 +249,20 @@
                than leaving the link to imply interop. -->
           <label class="option">
             <input id="compact-payload" type="checkbox">
-            <span>Short code (<a
-              href="https://magarcia.github.io/qwbp/spec.html"
-              target="_blank"
-              rel="noreferrer">QWBP</a>-style)
-              <small>experimental, and signed rather than bare</small></span>
+            <span data-i18n-html="compact.label"></span>
           </label>
 
           <!-- The way in for someone whose link did not open the page by itself.
                It is the rarer case, so it stays folded until it is needed. -->
           <details class="paste-fallback">
-            <summary>Someone sent me a link and tapping it did not work</summary>
+            <summary data-i18n="paste.summary">Someone sent me a link and tapping it did not work</summary>
             <div class="field">
-              <label for="payload-display">Paste the link they sent you</label>
+              <label for="payload-display" data-i18n="paste.label">Paste the link they sent you</label>
               <textarea id="payload-display" rows="3" placeholder="https://webrtc-qr.le-space.de/#i=…"></textarea>
             </div>
             <div class="actions">
-              <button id="process-payload" disabled>Use this link</button>
-              <button id="scan-answer" disabled>Scan their reply</button>
+              <button id="process-payload" data-i18n="paste.use" disabled>Use this link</button>
+              <button id="scan-answer" data-i18n="paste.scanReply" disabled>Scan their reply</button>
             </div>
           </details>
         </section>
@@ -309,9 +280,9 @@
           <div id="status" class="status" aria-live="polite" data-i18n="status.idle">Not connected</div>
 
           <div class="field">
-            <label for="peer-list">Connected <span id="peer-count" class="peer-count">No one connected yet.</span></label>
+            <label for="peer-list"><span data-i18n="peers.label">Connected</span> <span id="peer-count" class="peer-count" data-i18n="peers.none">No one connected yet.</span></label>
             <qr-peers id="peer-list"></qr-peers>
-            <button id="invite-another" type="button" class="link-button">+ Invite someone else</button>
+            <button id="invite-another" type="button" class="link-button" data-i18n="peers.inviteAnother">+ Invite someone else</button>
           </div>
           <div class="send-row">
             <div class="field">
@@ -322,7 +293,7 @@
           </div>
 
           <div class="field">
-            <label for="drop-zone">Send a file</label>
+            <label for="drop-zone" data-i18n="files.send">Send a file</label>
             <div id="drop-zone" class="drop-zone is-disabled" role="button" tabindex="0" aria-disabled="true">
               <strong>Drop a file here</strong>
               <span>or click to choose one — it is added to Helia and its CID is sent over the chat stream</span>
@@ -331,7 +302,7 @@
           </div>
 
           <div class="field">
-            <label>Received files</label>
+            <label data-i18n="files.received">Received files</label>
             <div id="received-files" class="received-files"></div>
           </div>
 
@@ -397,14 +368,14 @@
       </div>
       <qr-invite id="qr-image"></qr-invite>
       <p class="scan-help">
-        Their phone camera opens the same link - or send it to them.
+        <span data-i18n="invite.scanHelp">Their phone camera opens the same link - or send it to them.</span>
       </p>
       <!-- Showing an invite means waiting for a reply, and the reply arrives one
            of two ways. Both live here, because here is where the waiting happens. -->
       <div class="actions">
-        <button id="copy-payload" class="primary">Send link…</button>
-        <button id="scan-reply">Scan their reply</button>
-        <button id="paste-reply">They sent a link</button>
+        <button id="copy-payload" class="primary" data-i18n="invite.sendLink">Send link…</button>
+        <button id="scan-reply" data-i18n="invite.scanReply">Scan their reply</button>
+        <button id="paste-reply" data-i18n="invite.pasteReply">They sent a link</button>
       </div>
       <!--
         Shown only where leaving actually costs something. A phone suspends this
@@ -430,7 +401,7 @@
         the sun, or two people who turned out not to be in the same room.
       -->
       <details class="invite-link-fallback">
-        <summary id="invite-link-summary" data-i18n="invite.linkSummary">Copy the link instead</summary>
+        <summary id="invite-link-summary" data-i18n="invite.linkSummary">Or send it as a link</summary>
         <div class="link-row">
           <!--
             The field stays *beside* the button rather than being replaced by

@@ -20,6 +20,36 @@ const invite = async page => {
 }
 
 test.describe('the link beside the code', () => {
+  test('the share button is absent where it would only duplicate Copy', async ({ page }) => {
+    await invite(page)
+
+    // Without `navigator.share`, `shareOrCopy` falls back to the clipboard -
+    // which is exactly what the Copy button in the fold does. Two controls
+    // doing the same thing side by side is the duplication this removes.
+    expect(await page.evaluate(() => typeof navigator.share)).toBe('undefined')
+    await expect(page.locator('#copy-payload')).toBeHidden()
+  })
+
+  test('and present where it goes somewhere else', async ({ page }) => {
+    // On a phone the sheet goes straight into a messenger, and that handover is
+    // the case this project is built around - so it is hidden for absence, not
+    // on principle.
+    await page.addInitScript(() => { navigator.share = async () => {} })
+    await invite(page)
+
+    await expect(page.locator('#copy-payload')).toBeVisible()
+  })
+
+  test('a reply on screen offers no way to reply to it', async ({ page }) => {
+    await invite(page)
+
+    // Showing an offer means waiting for a reply. Showing an *answer* means the
+    // other side is about to connect, and both ways of taking that next step
+    // belong to the first case - `paste-reply` used to stay visible either way.
+    await expect(page.locator('#scan-reply')).toBeVisible()
+    await expect(page.locator('#paste-reply')).toBeVisible()
+  })
+
   test('the field and the button are both there, and the field holds the link', async ({ page }) => {
     await invite(page)
     await page.locator('.invite-link-fallback summary').click()
