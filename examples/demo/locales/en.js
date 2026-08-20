@@ -14,7 +14,39 @@
  */
 export default {
   page: {
-    title: 'libp2p WebRTC over QR'
+    title: 'libp2p WebRTC over QR',
+    lede: 'Two browsers connect directly as libp2p peers — no relay, no signaling server. The WebRTC offer and answer travel out-of-band as signed QR codes: one device scans the code off the other screen.'
+  },
+  stun: {
+    summary: 'What this sends, and to whom',
+    who: 'Checking the network means asking a STUN server what address your packets arrive from. Two operators answer that question here, <strong>Cloudflare</strong> and <strong>Google</strong>, and each sees the public address the request came from: over IPv4 that is your router\u2019s address, shared with everyone behind it — over IPv6 it is this device\u2019s own address, which is not shared with anyone.',
+    what: 'A STUN request carries nothing else. No page address, no cookies, no browser name — less than any website you open is told about you. It happens again whenever you create or accept an invite, because a direct connection cannot be made without those addresses.',
+    stays: 'The answer comes back to this page and stays here. Nothing is sent to us: this page has no backend to send it to.'
+  },
+  identity: {
+    label: 'Your Peer ID',
+    summary: 'What your peer identity is, and where its key lives',
+    what: 'Your Peer ID. It travels inside every invite you create — the other side needs it to check your signature, because the public key is embedded in it. The private key it was derived from is what actually signs, and it never leaves this device.',
+    where: 'In a browser tab the key is kept for <strong>that tab</strong>, so reloading - or a phone waking from standby - comes back as the same peer instead of a stranger, while another tab stays a different peer you can still connect to. Installed to a home screen there is no second tab, so the key is kept for the app instead and survives between launches. Either way the same identifier appears in every invite from here until you reset it, and resetting clears both.',
+    reset: 'Start over as a new peer'
+  },
+  compact: {
+    label: 'Short code (<a href="https://magarcia.github.io/qwbp/spec.html" target="_blank" rel="noreferrer">QWBP</a>-style) <small>experimental, and signed rather than bare</small>'
+  },
+  paste: {
+    summary: 'Someone sent me a link and tapping it did not work',
+    label: 'Paste the link they sent you',
+    use: 'Use this link',
+    scanReply: 'Scan their reply'
+  },
+  peers: {
+    label: 'Connected',
+    none: 'No one connected yet.',
+    inviteAnother: '+ Invite someone else'
+  },
+  files: {
+    send: 'Send a file',
+    received: 'Received files'
   },
   view: {
     label: 'View',
@@ -27,11 +59,17 @@ export default {
     de: 'Deutsch'
   },
   step: {
+    start: {
+      heading: 'Start browser peer',
+      hint: 'Creates a libp2p node with a fresh key pair. Its Peer ID signs every payload you show.',
+      button: 'Start'
+    },
     connect: {
       heading: 'Connect to someone',
       hint: 'Invite someone, or scan the code they are showing you. Either one gets you to the same place.',
       invite: 'Create invite link',
-      scan: 'Scan their code'
+      scan: 'Scan their code',
+      reconnect: 'Reconnect'
     },
     data: {
       heading: 'Talk and send files',
@@ -45,6 +83,10 @@ export default {
   },
   invite: {
     heading: 'Show this to the other person',
+    scanHelp: 'Their phone camera opens the same link - or send it to them.',
+    sendLink: 'Send link…',
+    scanReply: 'Scan their reply',
+    pasteReply: 'They sent a link',
     linkSummary: 'Copy the link instead',
     newLink: 'New link',
     copy: 'Copy',
