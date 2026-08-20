@@ -35,8 +35,8 @@ const GATHER_TIMEOUT = 60000
  * The invite link drops the query on purpose (`url.search = ''`), so it has to
  * be put back for the side that arrives by opening one.
  */
-const APP = '/?ice=host&view=technical'
-const asHostIce = link => link.replace('#', '?ice=host&view=technical#')
+const APP = '/?ice=host&view=technical&intro=off'
+const asHostIce = link => link.replace('#', '?ice=host&view=technical&intro=off#')
 
 const createInvite = async page => {
   await page.locator('#start-client').click()

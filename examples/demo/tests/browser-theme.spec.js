@@ -35,7 +35,7 @@ test.describe('per-browser tint', () => {
       const context = await browser.newContext({ userAgent, baseURL })
       const page = await context.newPage()
 
-      await page.goto('/?ice=host&view=technical')
+      await page.goto('/?ice=host&view=technical&intro=off')
       await expect.poll(() => page.evaluate(() => document.documentElement.dataset.browser)).toBe(expected)
 
       await context.close()
@@ -52,7 +52,7 @@ test.describe('per-browser tint', () => {
 
     const page = await context.newPage()
 
-    await page.goto('/?ice=host&view=technical')
+    await page.goto('/?ice=host&view=technical&intro=off')
     await expect.poll(() => page.evaluate(() => document.documentElement.dataset.browser)).toBe('brave')
 
     await context.close()
@@ -63,7 +63,7 @@ test.describe('per-browser tint', () => {
       const context = await browser.newContext({ userAgent, baseURL })
       const page = await context.newPage()
 
-      await page.goto('/?ice=host&view=technical')
+      await page.goto('/?ice=host&view=technical&intro=off')
       await expect.poll(() => page.evaluate(() => document.documentElement.dataset.browser)).not.toBe('')
       const tint = await tintOf(page)
 

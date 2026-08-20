@@ -21,7 +21,7 @@ const stamp = page => page.locator('.build-stamp')
 
 test.describe('build stamp', () => {
   test('names the library version that was built', async ({ page }) => {
-    await page.goto('/?view=technical')
+    await page.goto('/?view=technical&intro=off')
 
     // Not the demo's own private 0.1.0: someone reading this is comparing the
     // page against their npm install of the library.
@@ -29,14 +29,14 @@ test.describe('build stamp', () => {
   })
 
   test('carries a build time and a commit', async ({ page }) => {
-    await page.goto('/?view=technical')
+    await page.goto('/?view=technical&intro=off')
 
     await expect(stamp(page).locator('time')).toHaveText(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC$/)
     await expect(stamp(page).locator('code')).toHaveText(/^[0-9a-f]{7}$|^unknown$/)
   })
 
   test('the machine-readable time actually parses', async ({ page }) => {
-    await page.goto('/?view=technical')
+    await page.goto('/?view=technical&intro=off')
 
     // The point of the attribute is that something other than a person can read
     // it. "2026-08-13 09:37 UTC" looks fine and parses as nothing.
@@ -46,7 +46,7 @@ test.describe('build stamp', () => {
   })
 
   test('every token is substituted', async ({ page }) => {
-    await page.goto('/?view=technical')
+    await page.goto('/?view=technical&intro=off')
 
     // The plugin failing open would leave `v__QR_VERSION__` on the page, which
     // reads as a build stamp until you look at it. Assert against the whole
@@ -56,7 +56,7 @@ test.describe('build stamp', () => {
   })
 
   test('the commit links to the commit it names', async ({ page }) => {
-    await page.goto('/?view=technical')
+    await page.goto('/?view=technical&intro=off')
 
     const link = stamp(page).locator('a').last()
     const sha = (await link.textContent()).trim()

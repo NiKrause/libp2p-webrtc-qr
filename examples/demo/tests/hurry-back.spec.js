@@ -13,7 +13,7 @@ import { expect, test } from '@playwright/test'
  * something. False urgency is how people learn to ignore a warning.
  */
 
-const APP = '/?ice=host&view=technical'
+const APP = '/?ice=host&view=technical&intro=off'
 
 const createInvite = async page => {
   await page.locator('#start-client').click()

@@ -12,7 +12,7 @@ import { expect, test } from '@playwright/test'
  */
 
 const invite = async page => {
-  await page.goto('/?ice=host&view=technical')
+  await page.goto('/?ice=host&view=technical&intro=off')
   await page.locator('#start-client').click()
   await page.waitForFunction(() => document.getElementById('peer-id').textContent !== 'not started')
   await page.locator('#create-offer').click()
@@ -75,7 +75,7 @@ test.describe('the link beside the code', () => {
   })
 
   test('the button speaks the chosen language', async ({ page }) => {
-    await page.goto('/?ice=host&view=technical')
+    await page.goto('/?ice=host&view=technical&intro=off')
     await page.locator('#locale').selectOption('de')
     await page.locator('#start-client').click()
     await page.waitForFunction(() => document.getElementById('peer-id').textContent !== 'not started')

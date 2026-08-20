@@ -113,7 +113,7 @@ test.describe('the camera path', () => {
     let cameraBrowser = null
 
     try {
-      await shown.goto('/?ice=host&view=technical')
+      await shown.goto('/?ice=host&view=technical&intro=off')
       await shown.waitForFunction(() => typeof window.__libp2pQrTest?.createOfferPayload === 'function')
       await shown.locator('#start-client').click()
       await expect(shown.locator('#status')).toContainText('Peer started')
@@ -168,7 +168,7 @@ test.describe('the camera path', () => {
       const scannerErrors = []
 
       scanner.on('pageerror', error => scannerErrors.push(error.message))
-      await scanner.goto('/?ice=host&view=technical')
+      await scanner.goto('/?ice=host&view=technical&intro=off')
       await scanner.waitForFunction(() => typeof window.__libp2pQrTest?.createOfferPayload === 'function')
       await scanner.locator('#start-client').click()
       await expect(scanner.locator('#status')).toContainText('Peer started')
@@ -220,7 +220,7 @@ test.describe('the camera path', () => {
     let cameraBrowser = null
 
     try {
-      await blank.goto('/?ice=host&view=technical')
+      await blank.goto('/?ice=host&view=technical&intro=off')
       await blank.waitForFunction(() => typeof window.__libp2pQrTest?.createOfferPayload === 'function')
 
       // The same surround as the real feed, with no code on it.
@@ -239,7 +239,7 @@ test.describe('the camera path', () => {
 
       const scanner = await (await cameraBrowser.newContext({ baseURL })).newPage()
 
-      await scanner.goto('/?ice=host&view=technical')
+      await scanner.goto('/?ice=host&view=technical&intro=off')
       await scanner.waitForFunction(() => typeof window.__libp2pQrTest?.createOfferPayload === 'function')
       await scanner.locator('#start-client').click()
       await expect(scanner.locator('#status')).toContainText('Peer started')

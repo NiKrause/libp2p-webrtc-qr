@@ -17,8 +17,9 @@ import {
   needsAnimation,
   preload as preloadAnimatedQr
 } from '@le-space/libp2p-webrtc-qr/elements'
+import { createIntroPolicy } from '@le-space/libp2p-webrtc-qr/elements'
 import { applyBrowserTheme } from './browser-theme.js'
-import { elementStrings, initialLocale, locale, setLocale, t } from './i18n.js'
+import { elementStrings, initialLocale, locale, setLocale, t, translateDocument } from './i18n.js'
 import { applyViewMode, isSimple } from './view-mode.js'
 import { forgetIdentity, launchedStandalone, loadOrCreateIdentity } from './identity.js'
 
@@ -42,6 +43,7 @@ function applyLocale (next) {
 
   const strings = elementStrings()
   qrImage.strings = strings.invite
+  introEl.strings = strings.intro
   scanModalEl.strings = strings.scanner
   networkStateEl.strings = strings.status
   peerListEl.strings = strings.peers
@@ -52,6 +54,9 @@ function applyLocale (next) {
   document.getElementById('view-label').textContent = t('view.label')
   viewModeEl.options[0].textContent = t('view.simple')
   viewModeEl.options[1].textContent = t('view.technical')
+
+  // Everything that names a key in the markup.
+  translateDocument()
 
   // The copy button carries its own state in its label, so it is not repainted
   // by anything else and has to be told the language changed.
@@ -172,6 +177,7 @@ const handoffBannerEl = document.getElementById('handoff-banner')
 const peerListEl = document.getElementById('peer-list')
 const localeEl = document.getElementById('locale')
 const viewModeEl = document.getElementById('view-mode')
+const introEl = document.getElementById('intro')
 const peerCountEl = document.getElementById('peer-count')
 const networkStateEl = document.getElementById('network-state')
 const compactPayloadEl = document.getElementById('compact-payload')
@@ -185,9 +191,11 @@ applyLocale(initialLocale())
 // Before the first paint, like the language and the tint: nobody should watch
 // half the page disappear a moment after it settled.
 applyViewMode()
+introEl.technical = !isSimple()
 viewModeEl.value = isSimple() ? 'simple' : 'technical'
 viewModeEl.addEventListener('change', event => {
   applyViewMode(event.target.value === 'simple')
+  introEl.technical = !isSimple()
   // The controls depend on the mode now - the invite button is enabled in the
   // simple view before anything has started, because there it does the starting.
   updateControls()
@@ -384,7 +392,7 @@ async function createNode () {
 
     if (direction === 'inbound') {
       watchConnection(peerId, peerConnection)
-      setStatus(`Connected to ${peerId}`)
+      setStatus(t('status.connected', { peerId }))
     }
   })
 
@@ -432,7 +440,7 @@ async function createNode () {
   identityOriginEl.textContent = identity.restored
     ? `Restored for ${kept} - the same peer you were before.`
     : `Freshly generated and kept for ${kept}.`
-  setStatus('Peer started. Create an invite, or scan the code they are showing you.')
+  setStatus(t('status.started'))
   appendLog(`Started libp2p peer ${node.peerId}${identity.restored ? ' (restored)' : ''}`)
   updateControls()
 
@@ -510,7 +518,7 @@ async function acceptAnswerPayload (text) {
 
   watchConnection(peerId, session.offers.get(parsed.sessionId)?.peerConnection)
   attachChatStream(stream, peerId, `Connected to ${shortPeer(peerId)}.`)
-  setStatus(`Connected to ${peerId}`)
+  setStatus(t('status.connected', { peerId }))
 
   return address.toString()
 }
@@ -816,7 +824,7 @@ function resumeAfterLoss (peerId) {
   if (routes.length === 0) {
     // Nothing left to signal over. Every automatic path needs a live connection
     // somewhere, so this one genuinely has to go back through a human.
-    setStatus(`Lost the connection to ${shortPeer(peerId)} - reconnect below.`)
+    setStatus(t('status.lost', { peerId: shortPeer(peerId) }))
     offerReconnect(peerId)
     return
   }
@@ -828,7 +836,7 @@ function resumeAfterLoss (peerId) {
     return
   }
 
-  setStatus(`Lost ${shortPeer(peerId)} - putting the connection back through the others…`)
+  setStatus(t('status.rerouting', { peerId: shortPeer(peerId) }))
   resumeRoutes.set(peerId, routes)
   tryNextRoute(peerId)
 }
@@ -864,7 +872,7 @@ function tryNextRoute (target) {
 
   if (via == null) {
     resumeRoutes.delete(target)
-    setStatus(`Could not reach ${shortPeer(target)} through anyone still connected - reconnect below.`)
+    setStatus(t('status.unreachable', { peerId: shortPeer(target) }))
     offerReconnect(target)
     return
   }
@@ -1650,7 +1658,7 @@ async function handleReceivedPayload (input, expectedType) {
 
     const answerPayload = await acceptOfferPayload(text)
     await renderOutbound(answerPayload, QR_TYPE_ANSWER)
-    setStatus('Verified. Send the reply link back and keep this tab open.')
+    setStatus(t('status.verified'))
     appendLog('Verified their invite and created a reply link.')
     return answerPayload
   }
@@ -1692,7 +1700,7 @@ function beginScan (expectedType) {
   scanModalEl.validate = async text => classifyScanned(text, expectedType)
 
   scanModalEl.open().catch(error => {
-    setStatus(`Camera failed: ${error.message}`)
+    setStatus(t('status.cameraFailed', { reason: error.message }))
     // The dialog may have opened before the camera failed; drop the lock if it
     // closed behind the error.
     refreshWakeLock()
@@ -1709,7 +1717,7 @@ scanModalEl.addEventListener('scan', async event => {
   const expectedType = scanMode
 
   scanMode = null
-  setStatus('Correct QR type detected. Verifying signature…')
+  setStatus(t('status.verifying'))
 
   try {
     const classified = await classifyScanned(event.detail.text, expectedType)
@@ -1717,7 +1725,7 @@ scanModalEl.addEventListener('scan', async event => {
     await handleReceivedPayload(classified.payloadText, expectedType)
     updateControls()
   } catch (error) {
-    setStatus(`QR processing failed: ${error.message}`)
+    setStatus(t('status.qrFailed', { reason: error.message }))
     appendLog(`QR processing failed: ${error.message}`)
   }
 })
@@ -1729,7 +1737,7 @@ startButton.addEventListener('click', async () => {
     await createNode()
   } catch (error) {
     startButton.disabled = false
-    setStatus(`Start failed: ${error.message}`)
+    setStatus(t('status.startFailed', { reason: error.message }))
     appendLog(`Start failed: ${error.message}`)
   }
 })
@@ -1785,7 +1793,7 @@ async function createInvite (button) {
   try {
     const payload = await createOfferPayload()
     await renderOutbound(payload, QR_TYPE_OFFER)
-    setStatus('Invite ready. Send the link, then keep this tab open until they reply.')
+    setStatus(t('status.inviteReady'))
     appendLog('Created a signed invite link.')
   } catch (error) {
     setStatus(explain(error))
@@ -2053,7 +2061,7 @@ document.addEventListener('visibilitychange', () => {
   })
 
   if (lost.length > 0) {
-    setStatus(`${lost.length === 1 ? 'A connection was' : `${lost.length} connections were`} lost while you were away - create a new invite to reconnect.`)
+    setStatus(t('status.lostWhileAway', { count: lost.length }))
   }
 })
 
@@ -2275,7 +2283,7 @@ async function consumeLink () {
   history.replaceState(null, '', window.location.pathname + window.location.search)
 
   if (reply != null && await handOffReply(reply)) {
-    setStatus('Reply handed to the tab where you created the invite.')
+    setStatus(t('status.handedOver'))
     showBanner('Handed to the tab where you created the invite. Waiting for it to connect…', 'waiting')
 
     handoff.addEventListener('message', event => {
@@ -2322,5 +2330,37 @@ async function consumeLink () {
 // which is a `let` declared further up the file than the switch is wired but
 // further *down* than that wiring runs.
 updateControls()
+
+/**
+ * The introduction, on a first visit only.
+ *
+ * `arrivedViaInvite` is the whole reason the policy takes an argument: somebody
+ * who followed a link came to accept an invite, and a dialog in front of that is
+ * in the way of the only thing they came for. They get it on their next plain
+ * visit instead.
+ */
+const introPolicy = createIntroPolicy({ storageKey: 'webrtc-qr.introSeen' })
+
+introEl.addEventListener('close', event => {
+  if (event.detail.remember) introPolicy.remember()
+})
+
+/**
+ * `?intro=off` keeps it shut.
+ *
+ * A modal blocks the page behind it, which is correct for a person and fatal
+ * for a test: every spec that clicks anything would wait for a dialog it never
+ * asked for. The specs open pages four different ways, so a fixture pins one
+ * and misses the rest - the URL is the only handle they all share, the same
+ * reason `?view=` exists.
+ *
+ * It is not only a test flag. A demo being screen-shared, or embedded in a page
+ * that explains it already, wants the same thing.
+ */
+const introWanted = new URLSearchParams(location.search).get('intro') !== 'off'
+
+if (introWanted && introPolicy.shouldOpen({ arrivedViaInvite: window.location.hash.length > 1 })) {
+  introEl.open().catch(() => {})
+}
 
 consumeLink()

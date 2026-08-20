@@ -24,7 +24,7 @@ const open = async (page, mode) => {
     }, [VIEW_MODE_STORAGE_KEY, String(mode === 'simple')])
   }
 
-  await page.goto('/?ice=host')
+  await page.goto('/?ice=host&intro=off')
 }
 
 test.describe('simple and technical', () => {

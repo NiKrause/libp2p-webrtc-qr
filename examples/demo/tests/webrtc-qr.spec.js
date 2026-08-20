@@ -15,7 +15,7 @@ function skipWithoutWebRTC (test, browserName) {
 
 async function openPeer (page, errors) {
   page.on('pageerror', error => errors.push(error.message))
-  await page.goto('/?ice=host&view=technical')
+  await page.goto('/?ice=host&view=technical&intro=off')
   await page.waitForFunction(() => typeof window.__libp2pQrTest?.createOfferPayload === 'function')
   await page.locator('#start-client').click()
   await expect(page.locator('#status')).toContainText('Peer started')
@@ -319,7 +319,7 @@ test.describe('signed QR WebRTC signaling', () => {
 
     try {
       page.on('pageerror', error => pageErrors.push(error.message))
-      await page.goto('/?view=technical')
+      await page.goto('/?view=technical&intro=off')
       await page.waitForFunction(() => typeof window.__libp2pQrTest?.createOfferPayload === 'function')
       await page.locator('#start-client').click()
 
@@ -364,7 +364,7 @@ test.describe('signed QR WebRTC signaling', () => {
     const page = await context.newPage()
 
     try {
-      await page.goto('/?view=technical')
+      await page.goto('/?view=technical&intro=off')
       await page.waitForFunction(() => typeof window.__libp2pQrTest?.createOfferPayload === 'function')
       await page.locator('#start-client').click()
       await expect(page.locator('qr-status')).toBeVisible({ timeout: 30000 })
@@ -406,7 +406,7 @@ test.describe('signed QR WebRTC signaling', () => {
     const page = await browser.newPage()
 
     try {
-      await page.goto('/?view=technical')
+      await page.goto('/?view=technical&intro=off')
 
       // Before any click: the disclosure has to be readable while the choice to
       // click is still open, and it has to name the operators that get the
@@ -681,7 +681,7 @@ test.describe('signed QR WebRTC signaling', () => {
 
     try {
       page.on('pageerror', error => pageErrors.push(error.message))
-      await page.goto('/?ice=host&view=technical')
+      await page.goto('/?ice=host&view=technical&intro=off')
 
       const first = await start()
 
@@ -700,7 +700,7 @@ test.describe('signed QR WebRTC signaling', () => {
       const otherTab = await context.newPage()
 
       try {
-        await otherTab.goto('/?ice=host&view=technical')
+        await otherTab.goto('/?ice=host&view=technical&intro=off')
         await otherTab.waitForFunction(() => typeof window.__libp2pQrTest?.createOfferPayload === 'function')
         await otherTab.locator('#start-client').click()
         await otherTab.waitForFunction(() => document.getElementById('peer-id').textContent !== 'not started')
@@ -760,7 +760,7 @@ test.describe('signed QR WebRTC signaling', () => {
     const page = await browser.newPage()
 
     try {
-      await page.goto('/?view=technical')
+      await page.goto('/?view=technical&intro=off')
       await page.waitForFunction(() => typeof window.__libp2pQrTest?.bcurFrames === 'function')
 
       const result = await page.evaluate(async () => {
@@ -874,7 +874,7 @@ test.describe('signed QR WebRTC signaling', () => {
     const page = await browser.newPage()
 
     try {
-      await page.goto('/?view=technical')
+      await page.goto('/?view=technical&intro=off')
       await page.waitForFunction(() => typeof window.__libp2pQrTest?.needsAnimation === 'function')
 
       const verdicts = await page.evaluate(() => {
@@ -1059,7 +1059,7 @@ test.describe('signed QR WebRTC signaling', () => {
       // do everything: start the node, verify the invite, produce the reply.
       answerer.on('pageerror', error => pageErrors.push(error.message))
       const url = new URL(invite)
-      url.search = '?ice=host&view=technical'
+      url.search = '?ice=host&view=technical&intro=off'
       await answerer.goto(url.toString())
 
       await expect(answerer.locator('#invite-box')).toBeVisible({ timeout: 30000 })
@@ -1192,7 +1192,7 @@ test.describe('signed QR WebRTC signaling', () => {
       const secondTab = await context.newPage()
       secondTab.on('pageerror', error => pageErrors.push(error.message))
       const url = new URL(reply)
-      url.search = '?ice=host&view=technical'
+      url.search = '?ice=host&view=technical&intro=off'
       await secondTab.goto(url.toString())
 
       const banner = secondTab.locator('#handoff-banner')
@@ -1461,7 +1461,7 @@ test.describe('signed QR WebRTC signaling', () => {
   })
 
   test('reading the specification does not switch the format on', async ({ page }) => {
-    await page.goto('/?view=technical')
+    await page.goto('/?view=technical&intro=off')
 
     const box = page.locator('#compact-payload')
 
@@ -1651,7 +1651,7 @@ test.describe('signed QR WebRTC signaling', () => {
     // The proof that #51 actually landed, at the element rather than at the
     // helper: the labels were module constants with no way in, and the demo
     // never noticed because the demo is English.
-    await page.goto('/?view=technical')
+    await page.goto('/?view=technical&intro=off')
     await page.locator('#start-client').click()
     await expect(page.locator('qr-status')).toBeVisible({ timeout: 30000 })
 

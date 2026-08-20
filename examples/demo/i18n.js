@@ -98,6 +98,35 @@ export function elementStrings () {
 }
 
 /**
+ * Fill every element that names a key.
+ *
+ * `data-i18n="step.connect.heading"` replaces the element's text;
+ * `data-i18n-html` replaces its markup, for the handful of sentences that carry
+ * a link or an emphasis inside them. `data-i18n-attr="placeholder:field.hint"`
+ * covers the rest.
+ *
+ * Marked in the markup rather than driven from a list of selectors here, for
+ * the same reason the view switch is: a list in a module is a list that stops
+ * matching the page, and silently.
+ */
+export function translateDocument (root = document) {
+  for (const el of root.querySelectorAll('[data-i18n]')) {
+    el.textContent = t(el.dataset.i18n)
+  }
+
+  for (const el of root.querySelectorAll('[data-i18n-html]')) {
+    el.innerHTML = t(el.dataset.i18nHtml)
+  }
+
+  for (const el of root.querySelectorAll('[data-i18n-attr]')) {
+    for (const pair of el.dataset.i18nAttr.split(',')) {
+      const [attr, key] = pair.split(':').map(part => part.trim())
+      if (attr && key) el.setAttribute(attr, t(key))
+    }
+  }
+}
+
+/**
  * Look a key up, and call it when it carries numbers.
  *
  * A missing key returns the key itself rather than an empty string. Blank text

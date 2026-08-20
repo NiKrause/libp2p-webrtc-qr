@@ -148,7 +148,7 @@
       </div>
 
       <div class="intro">
-        <h1>libp2p WebRTC over QR</h1>
+        <h1 data-i18n="page.title">libp2p WebRTC over QR</h1>
         <p>
           Two browsers connect directly as libp2p peers — no relay, no signaling server. The WebRTC
           offer and answer travel out-of-band as signed QR codes: one device scans the code off the
@@ -232,8 +232,8 @@
         </section>
 
         <section class="card" id="step-connect">
-          <h2 class="step-heading" tabindex="0" role="button" aria-expanded="true"><span class="step-no">2</span> Connect to someone</h2>
-          <p class="hint">
+          <h2 class="step-heading" tabindex="0" role="button" aria-expanded="true"><span class="step-no">2</span> <span data-i18n="step.connect.heading">Connect to someone</span></h2>
+          <p class="hint" data-i18n="step.connect.hint">
             Invite someone, or scan the code they are showing you. Either one gets you to the same
             place.
           </p>
@@ -249,8 +249,8 @@
           <p class="pc-health" role="status" aria-live="polite"></p>
 
           <div class="actions">
-            <button id="create-offer" class="primary" disabled>Create invite link</button>
-            <button id="scan-offer" disabled>Scan their code</button>
+            <button id="create-offer" class="primary" data-i18n="step.connect.invite" disabled>Create invite link</button>
+            <button id="scan-offer" data-i18n="step.connect.scan" disabled>Scan their code</button>
           </div>
 
           <!--
@@ -297,13 +297,16 @@
         </section>
 
         <section class="card" id="step-data">
-          <h2><span class="step-no">3</span> Send data over libp2p</h2>
-          <p class="hint">
+          <h2>
+            <span class="step-no">3</span>
+            <span data-i18n="step.data.heading">Talk and send files</span>
+          </h2>
+          <p class="hint" data-view="technical" data-i18n="step.data.hint">
             Once the handshake completes, messages travel over a libp2p protocol stream on the WebRTC data
             channel. Files go through Helia: the sender adds the bytes and announces the CID, the receiver
             pulls them with bitswap over the same connection.
           </p>
-          <div id="status" class="status" aria-live="polite">Not connected</div>
+          <div id="status" class="status" aria-live="polite" data-i18n="status.idle">Not connected</div>
 
           <div class="field">
             <label for="peer-list">Connected <span id="peer-count" class="peer-count">No one connected yet.</span></label>
@@ -363,11 +366,33 @@
       including being removed from the document. What stays here is deciding
       whether a scanned payload is the one this screen was waiting for.
     -->
+    <!--
+      Shown once, on a first visit, and never to somebody who arrived by invite -
+      that person came to accept something and a dialog is in the way of it. The
+      caveats and the live network verdict come from the element; what is in the
+      slot is this demo's own story, which is the half a transport has no
+      business holding.
+    -->
+    <qr-intro id="intro">
+      <p data-i18n="intro.what">
+        Two browsers connect to each other directly. There is no server in the middle
+        holding your messages, and nothing you send passes through us.
+      </p>
+      <p data-i18n="intro.how">
+        Show the code on this screen to the person next to you, or send them the link.
+        They scan or tap it, show you a code back, and you are connected.
+      </p>
+      <p data-i18n="intro.who">
+        Whoever holds that code can connect to you until it expires, ten minutes later.
+        Show it to the person you mean to.
+      </p>
+    </qr-intro>
+
     <qr-scanner id="scan-modal"></qr-scanner>
 
     <dialog id="invite-box" class="modal" aria-labelledby="invite-modal-title">
       <div class="modal-head">
-        <h3 id="invite-modal-title">Show this to the other person</h3>
+        <h3 id="invite-modal-title" data-i18n="invite.heading">Show this to the other person</h3>
         <button class="modal-close" data-close-modal type="button" aria-label="Close">×</button>
       </div>
       <qr-invite id="qr-image"></qr-invite>
@@ -405,7 +430,7 @@
         the sun, or two people who turned out not to be in the same room.
       -->
       <details class="invite-link-fallback">
-        <summary id="invite-link-summary">Copy the link instead</summary>
+        <summary id="invite-link-summary" data-i18n="invite.linkSummary">Copy the link instead</summary>
         <div class="link-row">
           <!--
             The field stays *beside* the button rather than being replaced by
@@ -415,10 +440,10 @@
             this is meant for.
           -->
           <input id="invite-link" type="text" readonly aria-labelledby="invite-link-summary" />
-          <button id="copy-link" type="button" class="copy-link">Copy</button>
+          <button id="copy-link" type="button" class="copy-link" data-i18n="invite.copy">Copy</button>
         </div>
         <div class="actions">
-          <button id="create-offer-again" type="button">New link</button>
+          <button id="create-offer-again" type="button" data-i18n="invite.newLink">New link</button>
         </div>
       </details>
     </dialog>
