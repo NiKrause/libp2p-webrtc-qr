@@ -1417,7 +1417,7 @@ function openProgress (step, text) {
   }
 
   openProgressBarEl.value = step
-  openProgressStepEl.textContent = `Step ${step} of 3 — ${text}`
+  openProgressStepEl.textContent = t('progress.step', { step, text })
   openProgressEl.hidden = false
 
   // Awaited by the caller, and it has to be. Starting the node generates keys
@@ -1518,10 +1518,10 @@ function inviteAgeLabel () {
   const remaining = INVITE_FRESH_MS - (Date.now() - inviteCreatedAt)
 
   if (remaining <= 0) {
-    return 'This invite is probably too old to connect - create a new one.'
+    return t('freshness.stale')
   }
 
-  return `This invite stays fresh for about ${Math.ceil(remaining / 60000)} more minute(s).`
+  return t('freshness.fresh', { minutes: Math.ceil(remaining / 60000) })
 }
 
 function startInviteCountdown () {
@@ -1555,6 +1555,12 @@ inviteLinkEl.addEventListener('focus', () => inviteLinkEl.select())
  * and reached for a button marked "Copy" asked for the clipboard.
  */
 async function copyInviteLink () {
+  // The same warning the share button gives, for the same reason: copying a
+  // link is what somebody does immediately before leaving for a messenger. On a
+  // phone whose browser has no share sheet this is the *only* way out, and
+  // until now it was the one that said nothing.
+  showHurryBack()
+
   try {
     await navigator.clipboard.writeText(inviteLinkEl.value)
     markCopied(true)
@@ -1624,9 +1630,28 @@ async function renderOutbound (payload, kind) {
 
   inviteLinkEl.value = link
   resetCopied()
+
+  /**
+   * The share sheet, only where there is one.
+   *
+   * `shareOrCopy` falls back to the clipboard when `navigator.share` is absent -
+   * which is most desktops - and the fold below now has a Copy button of its
+   * own. Two controls doing exactly the same thing, side by side, is what this
+   * hides.
+   *
+   * On a phone they are not the same at all: the sheet goes straight into a
+   * messenger, and that handover is the case this whole project is built
+   * around. So it stays, where it exists.
+   */
+  copyPayloadButton.hidden = typeof navigator.share !== 'function'
   // Showing an offer means waiting for a reply; showing an answer means the
-  // other side is about to connect. Only the first has a next step to offer.
-  scanReplyButton.hidden = kind !== QR_TYPE_OFFER
+  // other side is about to connect. Only the first has a next step to offer -
+  // and both ways of taking that step belong to it, not only the camera one.
+  // `paste-reply` was left visible while showing an answer, offering to paste a
+  // reply to a reply.
+  const waitingForReply = kind === QR_TYPE_OFFER
+  scanReplyButton.hidden = !waitingForReply
+  pasteReplyButton.hidden = !waitingForReply
   openModal(inviteBoxEl)
   startInviteCountdown()
 
@@ -1653,7 +1678,7 @@ async function handleReceivedPayload (input, expectedType) {
     // Only meaningful while opening a link; a no-op otherwise, since the panel
     // is hidden and this leaves it hidden.
     if (!openProgressEl.hidden) {
-      await openProgress(3, 'building your reply — finding a network path…')
+      await openProgress(3, t('progress.reply'))
     }
 
     const answerPayload = await acceptOfferPayload(text)
@@ -2305,10 +2330,10 @@ async function consumeLink () {
   startButton.disabled = true
 
   try {
-    await openProgress(1, 'starting your peer…')
+    await openProgress(1, t('progress.starting'))
     await createNode()
 
-    await openProgress(2, 'checking their invite…')
+    await openProgress(2, t('progress.checking'))
     // Step 3 is announced from inside handleReceivedPayload, which is where the
     // slow part actually starts - gathering candidates for the answer. Naming
     // it here would move the label seconds ahead of the work.

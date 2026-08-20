@@ -71,13 +71,26 @@ export default {
     how: 'Zeigen Sie den Code auf diesem Bildschirm der Person neben Ihnen, oder schicken Sie ihr den Link. Sie scannt oder tippt ihn an, zeigt Ihnen einen Code zurück — verbunden.',
     who: 'Wer diesen Code hat, kann sich mit Ihnen verbinden, bis er nach zehn Minuten verfällt. Zeigen Sie ihn der Person, die Sie meinen.'
   },
+  progress: {
+    // "Schritt 1 von 3" - die Zahlen stehen im Deutschen anders als eine
+    // Vorlage mit {n} es erzwingen wuerde, deshalb eine Funktion.
+    step: ({ step, text }) => `Schritt ${step} von 3 — ${text}`,
+    starting: 'Ihr Peer wird gestartet…',
+    checking: 'die Einladung wird geprüft…',
+    reply: 'Ihre Antwort entsteht — ein Netzweg wird gesucht…'
+  },
+  freshness: {
+    fresh: ({ minutes }) =>
+      `Diese Einladung bleibt noch etwa ${minutes} ${minutes === 1 ? 'Minute' : 'Minuten'} frisch.`,
+    stale: 'Diese Einladung ist vermutlich zu alt zum Verbinden — erzeugen Sie eine neue.'
+  },
   invite: {
     heading: 'Zeigen Sie das der anderen Person',
     scanHelp: 'Die Telefonkamera der anderen Person öffnet denselben Link — oder schicken Sie ihn ihr.',
     sendLink: 'Link senden…',
     scanReply: 'Seine Antwort scannen',
     pasteReply: 'Man hat mir einen Link geschickt',
-    linkSummary: 'Stattdessen den Link kopieren',
+    linkSummary: 'Oder als Link senden',
     newLink: 'Neuer Link',
     copy: 'Kopieren',
     copied: 'Kopiert',

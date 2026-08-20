@@ -29,6 +29,12 @@ const asPhone = page => page.addInitScript(() => {
   window.matchMedia = query => query.includes('hover: none')
     ? { matches: true, media: query, addEventListener () {}, removeEventListener () {} }
     : real(query)
+
+  // A phone also has a share sheet, and the page now hides "Send link…" where
+  // there is none - on a desktop it would only repeat the Copy button in the
+  // fold. Without this the simulation is a phone that cannot share, which is
+  // not a phone, and the tap these specs are about is not on screen to make.
+  navigator.share ??= async () => {}
 })
 
 test.describe('come straight back', () => {
@@ -53,7 +59,12 @@ test.describe('come straight back', () => {
   test('a desktop is not, and does not even carry the sentence', async ({ page }) => {
     await page.goto(APP)
     await createInvite(page)
-    await page.locator('#copy-payload').click()
+
+    // The Copy button in the fold, not the share one: a desktop has no share
+    // sheet, so the page does not offer that button there at all. This is the
+    // tap a desktop actually makes, and it warns on a phone.
+    await page.locator('.invite-link-fallback summary').click()
+    await page.locator('#copy-link').click()
 
     await expect(page.locator('#hurry-back')).toBeHidden()
 
@@ -69,6 +80,26 @@ test.describe('come straight back', () => {
   // the clipboard path, and a headless browser will not write to a clipboard
   // without permissions that vary by engine. The visible hint above is the
   // guarantee, and it needs no such machinery.
+})
+
+test.describe('every way out warns', () => {
+  test('the copy path warns too, where leaving costs something', async ({ context }) => {
+    const page = await context.newPage()
+
+    await asPhone(page)
+    await page.goto(APP)
+    await createInvite(page)
+
+    // A phone whose browser has no share sheet sees no "Send link…" at all, so
+    // the fold is the only way out - and it used to be the silent one.
+    await page.evaluate(() => { delete navigator.share })
+    await page.locator('.invite-link-fallback summary').click()
+    await page.locator('#copy-link').click()
+
+    await expect(page.locator('#hurry-back')).toBeVisible()
+
+    await page.close()
+  })
 })
 
 test.describe('what the warning is based on', () => {

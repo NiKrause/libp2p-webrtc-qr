@@ -81,13 +81,23 @@ export default {
     how: 'Show the code on this screen to the person next to you, or send them the link. They scan or tap it, show you a code back, and you are connected.',
     who: 'Whoever holds that code can connect to you until it expires, ten minutes later. Show it to the person you mean to.'
   },
+  progress: {
+    step: ({ step, text }) => `Step ${step} of 3 — ${text}`,
+    starting: 'starting your peer…',
+    checking: 'checking their invite…',
+    reply: 'building your reply — finding a network path…'
+  },
+  freshness: {
+    fresh: ({ minutes }) => `This invite stays fresh for about ${minutes} more minute(s).`,
+    stale: 'This invite is probably too old to connect - create a new one.'
+  },
   invite: {
     heading: 'Show this to the other person',
     scanHelp: 'Their phone camera opens the same link - or send it to them.',
     sendLink: 'Send link…',
     scanReply: 'Scan their reply',
     pasteReply: 'They sent a link',
-    linkSummary: 'Copy the link instead',
+    linkSummary: 'Or send it as a link',
     newLink: 'New link',
     copy: 'Copy',
     copied: 'Copied',
