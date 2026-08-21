@@ -83,7 +83,15 @@ export const QR_INTRO_STRINGS_DE = {
     'Im Mobilfunk verhindert Carrier-NAT eine Direktverbindung zu Gegenstellen außerhalb dieses Netzes meistens.',
     'Ein VPN verlegt beide Enden woandershin — das kann ein blockiertes Netz retten und ein funktionierendes zerstören.'
   ],
-  dontShow: 'Nicht mehr anzeigen'
+  dontShow: 'Nicht mehr anzeigen',
+  waysHeading: 'Wie das andere Gerät hereinkommt',
+  wayQr: 'Per Kamera: Du hältst einen Code hoch, das andere Gerät scannt ihn. Nichts verlässt dieses Netz.',
+  relayLabel: 'Über einen Relay verbinden',
+  relayHint: 'Für den Fall, dass das andere Gerät den Code nicht scannen kann — etwa über einen Messenger. Aus, solange du nicht danach fragst.',
+  relayChecking: 'Suche einen Relay, der antwortet…',
+  relayReachable: ({ count }) => `${count === 1 ? 'Ein bekannter Relay hat' : count + ' bekannte Relays haben'} geantwortet. Es wurde kein Verzeichnis gefragt.`,
+  relayDiscovered: ({ count }) => `${count === 1 ? 'Ein Relay' : count + ' Relays'} im Verzeichnis gefunden — die mitgelieferten schwiegen.`,
+  relayNone: 'Kein Relay hat geantwortet. Der Weg über den Code funktioniert weiter.'
 }
 
 /** @type {typeof import('./qr-peers.js').QR_PEERS_STRINGS} */

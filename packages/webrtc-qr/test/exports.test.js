@@ -46,7 +46,22 @@ test('the elements themselves and their strings are reachable', () => {
 test('the introduction policy is reachable without the element', () => {
   // An app writing its own introduction still wants the rule, and the rule is
   // the part that is easy to get wrong.
-  assert.equal(typeof elements.createIntroPolicy, 'function')
+  //
+  // The root is the half that matters, and it is the half this test used to
+  // omit: asserting only the barrel demonstrated "without the element" by way of
+  // the elements. It passed because of the two stubs at the top of this file -
+  // and a consumer prerendering a page has no such stubs, so the import that
+  // succeeds here throws there.
+  assert.equal(
+    typeof core.createIntroPolicy,
+    'function',
+    'createIntroPolicy must be exported from the package root'
+  )
+  assert.equal(
+    typeof elements.createIntroPolicy,
+    'function',
+    'createIntroPolicy must stay reachable from ./elements'
+  )
 })
 
 /**
@@ -68,5 +83,21 @@ test('surviving an app switch is reachable from the root', () => {
 test('the session and the format-aware parser are reachable from the root', () => {
   for (const name of ['QRSession', 'webRTCQR', 'parsePayload', 'decodePayload', 'describeIce']) {
     assert.equal(typeof core[name], 'function', `${name} must be exported`)
+  }
+})
+
+test('the measurement and the relay rule are reachable from the package root', () => {
+  // Both are DOM-free, and behind `./elements` they were only reachable through
+  // a bundle carrying a QR encoder, CBOR and a camera. A consumer that wants to
+  // decide something without drawing anything should not pay for a renderer —
+  // which is exactly the cost that made one consumer write a second, thinner
+  // probe of its own.
+  for (const name of ['probeNetwork', 'summariseNetwork', 'offNetworkBlocked', 'offNetworkRisk']) {
+    assert.equal(typeof core[name], 'function', `${name} must be exported from the package root`)
+  }
+
+  for (const name of ['findReachableRelays', 'readRelayOptIn', 'writeRelayOptIn']) {
+    assert.equal(typeof core[name], 'function', `${name} must be exported from the package root`)
+    assert.equal(typeof elements[name], 'function', `${name} must stay reachable from ./elements too`)
   }
 })

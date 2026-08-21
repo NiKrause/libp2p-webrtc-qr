@@ -1,4 +1,5 @@
 import { offNetworkRisk, probeNetwork, summariseNetwork } from './network.js'
+import { readRelayOptIn, writeRelayOptIn } from './relay-choice.js'
 import { mergeStrings, resolveText } from './strings.js'
 
 /**
@@ -26,6 +27,20 @@ import { mergeStrings, resolveText } from './strings.js'
  * layer: the verdict a first-time reader needs is the *fuller* one, since they
  * are the least equipped to interpret a thin one.
  *
+ * ## The second way in
+ *
+ * A scanned code needs the other person to be here. When they are not - the
+ * list is going to somebody two towns away over a messenger - the way in is a
+ * relay, and this element offers it as a choice rather than as a fact: set
+ * `relay` and a checkbox appears, **off**, with the consequence of ticking it
+ * written next to it. Nothing here dials anything; `relay.check` is the
+ * consumer's function, because only the app knows its addresses and its ping.
+ *
+ * Ticking it checks at once. An opt-in whose effect only shows at the next
+ * connection attempt leaves the person guessing, which is the state this
+ * replaces. A consumer that passes no `relay` gets the element it had before,
+ * unchanged - which is how an app with no relay at all adopts this dialog.
+ *
  * ## Custom properties
  *
  * `--qr-intro-background`, `--qr-intro-color`, `--qr-intro-border`,
@@ -49,7 +64,17 @@ export const QR_INTRO_STRINGS = {
     'On mobile data, carrier NAT usually blocks a direct connection to anyone outside that network.',
     'A VPN moves both ends somewhere else, which can fix a blocked network or break a working one.'
   ],
-  dontShow: 'Do not show this again'
+  dontShow: 'Do not show this again',
+  // The second way in. Shown only when a consumer passes `relay`.
+  waysHeading: 'How the other device gets in',
+  wayQr: 'By camera: you hold up a code, they scan it. Nothing leaves this network.',
+  relayLabel: 'Connect through a relay',
+  relayHint: 'For when the other device cannot scan your code - over a messenger, for instance. Off unless you ask for it.',
+  relayChecking: 'Looking for a relay that answers…',
+  // Functions, because these carry a number and word order is not universal.
+  relayReachable: ({ count }) => `${count} known relay${count === 1 ? '' : 's'} answered. No directory was queried.`,
+  relayDiscovered: ({ count }) => `${count} relay${count === 1 ? '' : 's'} found in the directory - the ones shipped with this app stayed silent.`,
+  relayNone: 'No relay answered. Scanning a code still works.'
 }
 
 const STYLE = `
@@ -89,6 +114,15 @@ const STYLE = `
   .tech ul { margin: 0; padding-left: 1.1rem; font-size: 0.88rem; color: var(--qr-intro-muted, #97a1b3); }
   .tech li + li { margin-top: 0.35rem; }
   .foot { display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem; font-size: 0.88rem; }
+  .ways h3 { margin: 0 0 0.35rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .ways { margin: 0.9rem 0; }
+  .way-qr { margin: 0 0 0.5rem; font-size: 0.88rem; color: var(--qr-intro-muted, #97a1b3); }
+  .relay { display: flex; align-items: start; gap: 0.5rem; font-size: 0.88rem; }
+  .relay-hint { display: block; margin-top: 0.15rem; color: var(--qr-intro-muted, #97a1b3); }
+  .relay-result { margin: 0.5rem 0 0; font-size: 0.88rem; }
+  .relay-result[data-state="checking"] { color: var(--qr-intro-muted, #97a1b3); }
+  .relay-result[data-state="baked"], .relay-result[data-state="aleph"] { color: var(--qr-intro-accent, #3edc97); }
+  .relay-result[data-state="none"] { color: #ffc24b; font-weight: 600; }
 `
 
 export class QrIntroElement extends HTMLElement {
@@ -97,6 +131,12 @@ export class QrIntroElement extends HTMLElement {
   #strings = { ...QR_INTRO_STRINGS }
   #probed = false
   #result = null
+  /** @type {{ check: (() => Promise<any>), storageKey?: string, storage?: Storage } | null} */
+  #relay = null
+  /** @type {'idle' | 'checking' | 'baked' | 'aleph' | 'none'} */
+  #relayState = 'idle'
+  #relayCount = 0
+  #relayChecking = false
   // Our own record of whether this is showing. `dialog.open` cannot be it: the
   // guard has to survive the moment between `dialog.close()` and the event it
   // may or may not fire.
@@ -172,7 +212,10 @@ export class QrIntroElement extends HTMLElement {
       __techHeading: techHeading,
       __techList: techList,
       __box: box,
-      __boxText: boxText
+      __boxText: boxText,
+      __foot: foot,
+      // The relay half is built on demand — see `#buildRelay`.
+      __ways: null
     })
 
     // Escape and the backdrop close a <dialog> without going through `close()`,
@@ -209,6 +252,159 @@ export class QrIntroElement extends HTMLElement {
     else this.removeAttribute('technical')
   }
 
+  /**
+   * The relay half, or `null` for the element as it was before it existed.
+   *
+   * `check` is the consumer's: only the app knows which addresses it shipped
+   * with, how to ping one, and whether it has a directory to fall back on.
+   * `relay-choice.js` carries the *rule* those functions are fed into, so the
+   * ordering is not re-decided per app.
+   *
+   * @type {{ check: () => Promise<{ source: string, addresses?: string[] }>, storageKey?: string, storage?: Storage } | null}
+   */
+  get relay () {
+    return this.#relay
+  }
+
+  set relay (value) {
+    this.#relay = value ?? null
+
+    if (this.#relay == null) {
+      // Removed rather than hidden. An element with no relay half has to be
+      // structurally what it was before one existed — see `#buildRelay`.
+      this.__ways?.remove()
+      this.__ways = null
+      this.#relayState = 'idle'
+      return
+    }
+
+    this.#buildRelay()
+    const stored = readRelayOptIn(this.#storage, this.#relay.storageKey)
+    this.__relayBox.checked = stored
+    // A remembered yes checks on the next open rather than now: this may be
+    // assigned before the dialog is ever shown, and a probe wave from a page
+    // load nobody has seen is exactly what the default-off promise is about.
+    if (!stored) this.#relayState = 'idle'
+
+    this.#paint()
+  }
+
+  /**
+   * Build the relay half, once, on first use.
+   *
+   * Built here rather than in the constructor for a reason that cost a CI run:
+   * it adds a second `<input type=checkbox>` to the shadow root, and both the
+   * demo's tests and the README's own advice reached the "do not show again"
+   * box with `shadowRoot.querySelector('input[type=checkbox]')`. A hidden
+   * second checkbox is still the first match, so an element nobody had
+   * configured a relay on silently stopped remembering dismissals.
+   *
+   * An element without `relay` therefore has no relay DOM at all, which is the
+   * only version of "unchanged for existing consumers" that is actually true.
+   * Where both do exist, `part` tells them apart: `dont-show`, `relay-opt-in`.
+   */
+  #buildRelay () {
+    if (this.__ways != null) return
+
+    const ways = document.createElement('div')
+    const waysHeading = document.createElement('h3')
+    const wayQr = document.createElement('p')
+    const relayLabel = document.createElement('label')
+    const relayBox = document.createElement('input')
+    const relayText = document.createElement('span')
+    const relayName = document.createElement('span')
+    const relayHint = document.createElement('span')
+    const relayResult = document.createElement('p')
+    const relaySlot = document.createElement('slot')
+
+    ways.className = 'ways'
+    wayQr.className = 'way-qr'
+    relayLabel.className = 'relay'
+    relayBox.type = 'checkbox'
+    relayBox.part = 'relay-opt-in'
+    relayHint.className = 'relay-hint'
+    relayResult.className = 'relay-result'
+    relayResult.setAttribute('aria-live', 'polite')
+    relayResult.hidden = true
+    // A named slot rather than a second string table: what an app wants to add
+    // here — what starting a relay costs, who runs theirs — is its own prose,
+    // the same argument as the story slot above.
+    relaySlot.name = 'relay'
+    relayText.append(relayName, relayHint)
+    relayLabel.append(relayBox, relayText)
+    ways.append(waysHeading, wayQr, relayLabel, relayResult, relaySlot)
+
+    relayBox.addEventListener('change', () => { void this.#onRelayToggle(relayBox.checked) })
+
+    // Before the footer, so the choice reads as part of the explanation rather
+    // than as an afterthought next to "do not show again".
+    this.__dialog.insertBefore(ways, this.__foot)
+
+    Object.assign(this, {
+      __ways: ways,
+      __waysHeading: waysHeading,
+      __wayQr: wayQr,
+      __relayBox: relayBox,
+      __relayName: relayName,
+      __relayHint: relayHint,
+      __relayResult: relayResult
+    })
+  }
+
+  /** Whether the relay box is ticked. `false` when there is no relay half. */
+  get relayOptIn () {
+    return this.__ways != null && this.__relayBox.checked === true
+  }
+
+  get #storage () {
+    if (this.#relay?.storage != null) return this.#relay.storage
+    try {
+      return globalThis.localStorage
+    } catch {
+      // Reading `localStorage` throws outright in a sandboxed frame.
+      return null
+    }
+  }
+
+  async #onRelayToggle (on) {
+    writeRelayOptIn(this.#storage, this.#relay?.storageKey, on)
+    this.dispatchEvent(new CustomEvent('relay-opt-in', { detail: { optIn: on } }))
+
+    if (!on) {
+      this.#relayState = 'idle'
+      this.#relayCount = 0
+      this.#paintRelay()
+      return
+    }
+
+    await this.#runRelayCheck()
+  }
+
+  async #runRelayCheck () {
+    if (this.#relay == null || this.#relayChecking) return
+
+    this.#relayChecking = true
+    this.#relayState = 'checking'
+    this.#paintRelay()
+
+    try {
+      const result = await this.#relay.check()
+      this.#relayState = /** @type {any} */ (result?.source ?? 'none')
+      this.#relayCount = result?.addresses?.length ?? 0
+      this.dispatchEvent(new CustomEvent('relay-check', { detail: result }))
+    } catch (error) {
+      // Nothing answered and nothing could be asked. For the person reading the
+      // line those are the same fact, so they get the same line - the
+      // distinction goes to the event, where a consumer can log it.
+      this.#relayState = 'none'
+      this.#relayCount = 0
+      this.dispatchEvent(new CustomEvent('relay-check', { detail: { source: 'none', error } }))
+    } finally {
+      this.#relayChecking = false
+      this.#paintRelay()
+    }
+  }
+
   attributeChangedCallback () {
     this.#paint()
   }
@@ -241,6 +437,34 @@ export class QrIntroElement extends HTMLElement {
     }))
 
     this.#paintVerdict()
+
+    if (this.__ways == null) return
+
+    this.__waysHeading.textContent = resolveText(s.waysHeading)
+    this.__wayQr.textContent = resolveText(s.wayQr)
+    this.__relayName.textContent = resolveText(s.relayLabel)
+    this.__relayHint.textContent = resolveText(s.relayHint)
+    this.#paintRelay()
+  }
+
+  #paintRelay () {
+    if (this.__ways == null) return
+
+    const s = this.#strings
+    const state = this.#relayState
+
+    this.__relayResult.hidden = state === 'idle'
+    if (state === 'idle') return
+
+    this.__relayResult.dataset.state = state
+    this.__relayResult.textContent =
+      state === 'checking'
+        ? resolveText(s.relayChecking)
+        : state === 'baked'
+          ? resolveText(s.relayReachable, { count: this.#relayCount })
+          : state === 'aleph'
+            ? resolveText(s.relayDiscovered, { count: this.#relayCount })
+            : resolveText(s.relayNone)
   }
 
   #paintVerdict () {
@@ -285,6 +509,11 @@ export class QrIntroElement extends HTMLElement {
 
     this.#paintVerdict()
     this.dispatchEvent(new CustomEvent('check', { detail: this.#result }))
+
+    // A remembered yes is checked here rather than on assignment, so the first
+    // outbound call of the session happens when somebody is looking at the
+    // answer.
+    if (this.relayOptIn && this.#relayState === 'idle') void this.#runRelayCheck()
 
     return this.#result
   }

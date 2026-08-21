@@ -45,7 +45,9 @@ test.describe('the introduction', () => {
 
     await page.evaluate(() => {
       const intro = document.getElementById('intro')
-      intro.shadowRoot.querySelector('input[type=checkbox]').checked = true
+      // By part. `input[type=checkbox]` is whichever comes first in the shadow
+      // root, and configuring a relay puts a second one there.
+      intro.shadowRoot.querySelector('input[part=dont-show]').checked = true
       intro.close()
     })
 

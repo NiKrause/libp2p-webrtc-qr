@@ -159,6 +159,40 @@ trägt die englischen Vorgaben, `QR_INTRO_STRINGS_DE` die deutschen.
 `QrIntroElement` ist für Framework-Hüllen und die Registrierung unter einem
 anderen Tag-Namen exportiert.
 
+### Einen Relay anbieten, ohne ihn zum Standard zu machen
+
+Ein gescannter Code setzt voraus, dass die andere Person hier ist. Geht die
+Liste über einen Messenger zwei Städte weiter, führt der Weg über einen Relay —
+diese Wahl trägt deshalb derselbe Dialog, **aus**, solange niemand danach fragt.
+
+```js
+import { findReachableRelays } from '@le-space/libp2p-webrtc-qr'
+
+intro.relay = {
+  check: () => findReachableRelays({ baked, probe, discover }),
+  storageKey: 'myapp.relayOptIn'
+}
+
+intro.addEventListener('relay-check', event => {
+  // { source: 'baked' | 'aleph' | 'none', addresses }
+})
+```
+
+Das Anhaken prüft **sofort**. Ein Opt-in, dessen Wirkung erst beim nächsten
+Verbindungsversuch sichtbar wird, lässt die Person raten — genau der Zustand,
+den das hier ersetzt. Ein gemerktes Ja wird bei `open()` geprüft und nicht bei
+der Zuweisung von `relay`, damit der erste Aufruf nach draußen dann geschieht,
+wenn jemand auf die Antwort schaut.
+
+Das Element wählt nichts: `check` gehört der App, denn nur sie kennt ihre
+mitgelieferten Adressen und ihren Ping. Bleibt `relay` ungesetzt, ist der
+Dialog genau der von vorher — so übernimmt ihn eine App ganz ohne Relay. Ohne
+`storageKey` hält die Wahl für die Sitzung.
+
+Eigene Prosa neben der Wahl kommt durch den Slot `relay` — was ein eigener
+Relay kostet, wer eueren betreibt. Das ist die Geschichte der App, dasselbe
+Argument wie beim Standard-Slot.
+
 ## Die Lage erkennen
 
 ```js

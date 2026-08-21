@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+const { resolveText } = await import('../src/elements/strings.js')
+
 // The English tables live inside the element modules, which extend HTMLElement
 // and register themselves - so reaching them in Node needs the stubs, and the
 // imports have to be dynamic because a static one would hoist above them.
@@ -85,4 +87,25 @@ test('the functions produce German, and place the numbers themselves', () => {
   assert.match(QR_SCANNER_STRINGS_DE.animated({ received: 3, total: 6 }), /Teil 3 von 6/)
   assert.match(QR_INVITE_STRINGS_DE.part({ slot: 2, total: 5 }), /Teil 2 von 5/)
   assert.match(QR_PEERS_STRINGS_DE.disconnectFrom({ peerId: '12D3Koo' }), /12D3Koo/)
+})
+
+test('the relay counts read correctly at one and at many, in both locales', () => {
+  // These are functions rather than templates because word order is not
+  // universal — and a function is exactly where an off-by-one plural hides:
+  // nothing fails, the line just reads wrong to the one reader who has one.
+  const cases = [
+    ['en', QR_INTRO_STRINGS],
+    ['de', QR_INTRO_STRINGS_DE]
+  ]
+
+  for (const [locale, table] of cases) {
+    for (const key of ['relayReachable', 'relayDiscovered']) {
+      const one = resolveText(table[key], { count: 1 })
+      const many = resolveText(table[key], { count: 4 })
+
+      assert.notEqual(one, many, `${locale}.${key} reads the same for 1 and 4`)
+      assert.match(many, /\b4\b/, `${locale}.${key} must name the count when there are several`)
+      assert.doesNotMatch(one, /\b1s\b|\b1 relays\b|1 Relays/, `${locale}.${key} pluralises a single relay`)
+    }
+  }
 })

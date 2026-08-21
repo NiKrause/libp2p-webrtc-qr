@@ -104,3 +104,40 @@ the same symptom.
 literals**: a reflexive candidate exists only for a family a STUN transaction
 actually used. Asking only IPv4-reachable servers is how a dual-stack network
 gets reported as IPv4-only.
+
+## Which relay to try first
+
+A scanned code needs the other person to be here. When they are not, the second
+way in is a relay — and the same decision then arises in every consumer: which
+addresses to try, in what order, and when a directory may be asked at all.
+
+```js
+import { findReachableRelays, readRelayOptIn, writeRelayOptIn } from '@le-space/libp2p-webrtc-qr'
+```
+
+| | |
+| --- | --- |
+| `findReachableRelays({ baked, probe, discover })` | `{ source: 'baked' \| 'aleph' \| 'none', addresses, askedAleph }` |
+| `readRelayOptIn(storage, key)` | a remembered choice, `false` when there is none |
+| `writeRelayOptIn(storage, key, value)` | whether it was actually stored |
+
+This is the rule, not the mechanism. `probe` and `discover` are supplied by the
+caller, so the module knows nothing about libp2p and nothing about any
+directory, and it can be tested without either.
+
+**Baked-in addresses are tried before discovery.** Not only because it is
+faster: it means an app contacts a directory exactly when the addresses it
+shipped with have gone quiet, and never at all in a room where the known relay
+is up. For applications whose case is that they need no server, that difference
+is the point rather than an optimisation.
+
+**What discovery returns is probed too.** A registration outlives the machine it
+describes — a public registry has no way to forget an orphan — so *discovered*
+is not *alive*. Returning an address nobody answered would move the failure to
+the first dial, where it reads as a bug in the connection rather than as an
+empty directory.
+
+Storage is passed in rather than reached for, and a caller that supplies no key
+gets no persistence: storing under a key the library invented would put its
+namespace in somebody else's origin. A blocked store reads as *off*, which is
+the safe direction — the choice then holds for the session and no longer.

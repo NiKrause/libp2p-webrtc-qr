@@ -106,3 +106,42 @@ demselben Symptom genannt werden.
 **IPv6-Literale**: einen Reflexivkandidaten gibt es nur für die Familie, die eine
 STUN-Transaktion tatsächlich benutzt hat. Nur IPv4-erreichbare Server zu fragen
 ist der Weg, auf dem ein Dual-Stack-Netz als reines IPv4 gemeldet wird.
+
+## Welcher Relay zuerst
+
+Ein gescannter Code setzt voraus, dass die andere Person hier ist. Ist sie es
+nicht, führt der zweite Weg über einen Relay — und dann stellt sich in jedem
+Konsumenten dieselbe Frage: welche Adressen zuerst, in welcher Reihenfolge, und
+wann überhaupt ein Verzeichnis gefragt werden darf.
+
+```js
+import { findReachableRelays, readRelayOptIn, writeRelayOptIn } from '@le-space/libp2p-webrtc-qr'
+```
+
+| | |
+| --- | --- |
+| `findReachableRelays({ baked, probe, discover })` | `{ source: 'baked' \| 'aleph' \| 'none', addresses, askedAleph }` |
+| `readRelayOptIn(storage, key)` | die gemerkte Wahl, `false` wenn keine vorliegt |
+| `writeRelayOptIn(storage, key, value)` | ob tatsächlich gespeichert wurde |
+
+Das ist die Regel, nicht der Mechanismus. `probe` und `discover` kommen vom
+Aufrufer; das Modul weiß nichts von libp2p und nichts von einem Verzeichnis und
+lässt sich ohne beides testen.
+
+**Eingebackene Adressen kommen vor der Suche.** Nicht nur, weil es schneller
+ist: So spricht eine App genau dann mit einem Verzeichnis, wenn die
+mitgelieferten Adressen verstummt sind — und in einem Raum, in dem der bekannte
+Relay läuft, überhaupt nicht. Für Anwendungen, deren Zusage lautet, ohne Server
+auszukommen, ist dieser Unterschied der Punkt und keine Optimierung.
+
+**Auch Gefundenes wird geprüft.** Eine Registrierung überlebt die Maschine, die
+sie beschreibt — ein öffentliches Verzeichnis kann eine Waise nicht vergessen —,
+*gefunden* heißt also nicht *lebendig*. Eine Adresse zurückzugeben, die niemand
+beantwortet hat, verschöbe den Fehler auf den ersten Verbindungsversuch, wo er
+wie ein Fehler der Verbindung aussieht statt wie ein leeres Verzeichnis.
+
+Der Speicher wird übergeben statt geholt, und wer keinen Schlüssel übergibt,
+bekommt keine Persistenz: unter einem selbst erfundenen Schlüssel zu speichern
+hieße, den eigenen Namensraum in fremdem Origin abzulegen. Ein blockierter
+Speicher liest sich als *aus* — die sichere Richtung; die Wahl hält dann für die
+Sitzung und nicht länger.

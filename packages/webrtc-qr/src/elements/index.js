@@ -30,6 +30,9 @@ export {
   QR_SCANNER_STRINGS_DE,
   QR_STATUS_STRINGS_DE
 } from './strings-de.js'
+// Also reachable from the package root, which is where a consumer that wants
+// the decision without the renderer should get them.
+export { findReachableRelays, readRelayOptIn, writeRelayOptIn } from './relay-choice.js'
 export {
   DEFAULT_RTC_CONFIGURATION,
   isGlobalUnicastV6,
