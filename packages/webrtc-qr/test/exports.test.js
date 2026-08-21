@@ -70,3 +70,19 @@ test('the session and the format-aware parser are reachable from the root', () =
     assert.equal(typeof core[name], 'function', `${name} must be exported`)
   }
 })
+
+test('the measurement and the relay rule are reachable from the package root', () => {
+  // Both are DOM-free, and behind `./elements` they were only reachable through
+  // a bundle carrying a QR encoder, CBOR and a camera. A consumer that wants to
+  // decide something without drawing anything should not pay for a renderer —
+  // which is exactly the cost that made one consumer write a second, thinner
+  // probe of its own.
+  for (const name of ['probeNetwork', 'summariseNetwork', 'offNetworkBlocked', 'offNetworkRisk']) {
+    assert.equal(typeof core[name], 'function', `${name} must be exported from the package root`)
+  }
+
+  for (const name of ['findReachableRelays', 'readRelayOptIn', 'writeRelayOptIn']) {
+    assert.equal(typeof core[name], 'function', `${name} must be exported from the package root`)
+    assert.equal(typeof elements[name], 'function', `${name} must stay reachable from ./elements too`)
+  }
+})

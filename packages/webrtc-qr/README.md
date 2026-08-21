@@ -292,11 +292,11 @@ in another.
 | | |
 | --- | --- |
 | attribute | `technical` — show the caveats list |
-| properties | `strings`, `technical`, `isOpen`, `result`, `rtcConfiguration` |
+| properties | `strings`, `technical`, `isOpen`, `result`, `rtcConfiguration`, `relay`, `relayOptIn` |
 | methods | `open()` → the measured result, `close()` |
-| events | `check` → the result, `close` → `{ remember }` |
-| slot | default — the app's own story |
-| strings | `title`, `close`, `checkHeading`, `checking`, `ok`, `unreliable`, `none`, `sameNetwork`, `technicalHeading`, `technical` (an array), `dontShow` |
+| events | `check` → the result, `relay-check` → what the relay check found, `relay-opt-in` → `{ optIn }`, `close` → `{ remember }` |
+| slots | default — the app's own story; `relay` — prose next to the relay choice |
+| strings | `title`, `close`, `checkHeading`, `checking`, `ok`, `unreliable`, `none`, `sameNetwork`, `technicalHeading`, `technical` (an array), `dontShow`, `waysHeading`, `wayQr`, `relayLabel`, `relayHint`, `relayChecking`, `relayReachable`, `relayDiscovered`, `relayNone` |
 
 Two halves. The **story** is yours and arrives through the slot — what your app
 is for, who the other person is. The **caveats** are the library's: whether a
@@ -314,6 +314,27 @@ knowing — somebody who **arrived by invite never sees it** (they came to accep
 something, and suppressing does not mark it seen), **blocked storage shows it**
 (seen twice beats never seen), and `forget()` exists because dismissing must not
 be a one-way door.
+
+**The second way in.** A scanned code needs the other person to be here. When
+they are not, the way in is a relay — and this element offers it as a choice
+rather than as a fact. Assign `relay` and a checkbox appears, **off**, with the
+consequence written next to it; leave it unassigned and the element is exactly
+what it was before.
+
+```js
+intro.relay = {
+  check: () => findReachableRelays({ baked, probe, discover }),
+  storageKey: 'myapp.relayOptIn'
+}
+```
+
+Ticking it checks **at once** — an opt-in whose effect only appears at the next
+connection attempt leaves the person guessing, which is the state it replaces.
+A remembered yes is checked on `open()`, not on assignment, so the first
+outbound call of a session happens while somebody is looking at the answer.
+Nothing here dials anything: `check` is yours, because only your app knows its
+addresses and its ping. Omit `storageKey` and the choice lasts the session —
+storing under a key the library invented would put its namespace in your origin.
 
 ### `<qr-peers>` — who is connected
 
@@ -366,11 +387,14 @@ your own wording over them and keep the rest.
 
 ## Network judgements
 
-Usable without any DOM.
+Usable without any DOM — and reachable from the **package root**, so deciding
+something does not cost you a renderer:
 
 ```js
-import { probeNetwork, summariseNetwork, offNetworkRisk } from '@le-space/libp2p-webrtc-qr/elements'
+import { probeNetwork, summariseNetwork, offNetworkRisk } from '@le-space/libp2p-webrtc-qr'
 ```
+
+They stay exported from `/elements` too, for consumers already importing that.
 
 | | returns |
 | --- | --- |
@@ -388,6 +412,25 @@ misses.
 `DEFAULT_RTC_CONFIGURATION` asks four STUN servers, two of them over IPv6
 literals: a reflexive candidate exists only for a family a STUN transaction
 actually used.
+
+### Which relay to try first
+
+```js
+import { findReachableRelays, readRelayOptIn, writeRelayOptIn } from '@le-space/libp2p-webrtc-qr'
+```
+
+| | |
+| --- | --- |
+| `findReachableRelays({ baked, probe, discover })` | `{ source: 'baked' \| 'aleph' \| 'none', addresses, askedAleph }` |
+| `readRelayOptIn(storage, key)` | a remembered choice, `false` when there is none |
+| `writeRelayOptIn(storage, key, value)` | whether it was actually stored |
+
+The rule, not the mechanism: `probe` and `discover` are yours, so this knows
+nothing about libp2p or any directory. Baked-in addresses are tried **before**
+discovery, which is not only about speed — it means your app contacts a
+directory exactly when the addresses it shipped with have gone quiet, and never
+in a room where the known relay is up. What discovery returns is probed too: a
+registration outlives the machine it describes, so *discovered* is not *alive*.
 
 ---
 

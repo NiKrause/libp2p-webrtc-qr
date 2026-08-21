@@ -152,6 +152,40 @@ Its text is translatable like every other element's: `QR_INTRO_STRINGS` holds th
 English defaults, `QR_INTRO_STRINGS_DE` the German. `QrIntroElement` is exported
 for framework wrappers and for registering under another tag name.
 
+### Offering a relay, without making it the default
+
+A scanned code needs the other person to be here. When the list is going to
+somebody two towns away over a messenger, the way in is a relay — so the same
+dialog carries that choice, **off** unless somebody asks for it.
+
+```js
+import { findReachableRelays } from '@le-space/libp2p-webrtc-qr'
+
+intro.relay = {
+  check: () => findReachableRelays({ baked, probe, discover }),
+  storageKey: 'myapp.relayOptIn'
+}
+
+intro.addEventListener('relay-check', event => {
+  // { source: 'baked' | 'aleph' | 'none', addresses }
+})
+```
+
+Ticking the box **checks at once**. An opt-in whose effect only appears at the
+next connection attempt leaves the person guessing, which is precisely the
+state this replaces. A remembered yes is checked on `open()` rather than when
+`relay` is assigned, so the first outbound call of a session happens while
+somebody is looking at the answer.
+
+The element dials nothing: `check` is the app's, because only the app knows
+which addresses it shipped with and how it pings one. Leave `relay` unset and
+the dialog is exactly what it was before — which is how an app with no relay at
+all adopts it. Omit `storageKey` and the choice lasts the session.
+
+Add prose of your own next to the choice through the `relay` slot — what
+starting a relay costs, who runs yours. That is your app's story, the same
+argument as the default slot.
+
 ## Detecting the situation
 
 ```js
