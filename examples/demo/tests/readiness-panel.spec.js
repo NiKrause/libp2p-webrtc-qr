@@ -118,3 +118,40 @@ test.describe('the readiness panel', () => {
     await expect(el.locator('.line:nth-child(3) .verdict')).toHaveText(/\w/)
   })
 })
+
+test.describe('the panel when the language changes under it', () => {
+  test('the measuring line follows, instead of staying behind in English', async ({ page }) => {
+    await page.goto('/?ice=host&view=technical&intro=off')
+    await page.waitForFunction(() => customElements.get('qr-status') != null)
+    await makeStatus(page)
+
+    // Everything here is synchronous and inside one evaluate, for the reason
+    // the test above gives: on a fast engine the probe can settle before a
+    // locator poll ever runs, and then this asserts nothing.
+    //
+    // A sentinel rather than the real German table: the element's contract is
+    // that an assigned `measuring` reaches the caption, and that holds whatever
+    // the words are. `test/strings-de.test.js` is what guards the table.
+    const seen = await page.evaluate(() => {
+      const el = document.getElementById('probe-under-test')
+      const caption = () => el.shadowRoot.querySelector('.probe-caption').textContent
+
+      const done = el.probe()
+      const before = caption()
+
+      // Mid-probe, which is the whole point: a probe takes STUN round trips,
+      // and that is long enough for somebody to reach the language switch.
+      el.strings = { measuring: 'Prüfe, was dieses Netz zulässt…' }
+      const after = caption()
+
+      return done.then(() => ({ before, after, settled: caption() }))
+    })
+
+    expect(seen.before).toContain('Checking')
+    expect(seen.after).toBe('Prüfe, was dieses Netz zulässt…')
+
+    // And it still clears when the probe ends - the fix writes the caption, so
+    // it could just as easily have left one behind.
+    expect(seen.settled).toBe('')
+  })
+})

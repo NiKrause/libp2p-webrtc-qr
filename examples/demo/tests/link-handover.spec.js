@@ -21,6 +21,15 @@ const invite = async page => {
 
 test.describe('the link beside the code', () => {
   test('the share button is absent where it would only duplicate Copy', async ({ page }) => {
+    // Taken away rather than assumed away. This used to assert that the engine
+    // had no `navigator.share` and then check the button - which passed for as
+    // long as no automation engine shipped the Web Share API, and stopped the
+    // day WebKit did. The subject is the branch, not the engine, so the branch
+    // is what the test arranges. Its sibling below forces the other direction
+    // the same way.
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'share', { value: undefined, configurable: true })
+    })
     await invite(page)
 
     // Without `navigator.share`, `shareOrCopy` falls back to the clipboard -
