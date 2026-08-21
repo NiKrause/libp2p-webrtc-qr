@@ -92,7 +92,11 @@ test.describe('qr-intro', () => {
       window.__intro.addEventListener('close', e => seen.push(e.detail.remember))
 
       window.__intro.close()
-      window.__intro.shadowRoot.querySelector('input[type=checkbox]').checked = true
+      // `part`, not `input[type=checkbox]`. With a relay configured there are
+      // two checkboxes in this shadow root, and the untargeted query takes
+      // whichever comes first in the DOM — which is how a hidden second box
+      // once made an element silently stop remembering dismissals.
+      window.__intro.shadowRoot.querySelector('input[part=dont-show]').checked = true
       await window.__intro.open()
       window.__intro.close()
 
@@ -110,5 +114,88 @@ test.describe('qr-intro', () => {
 
     await expect(inShadow(page, 'h2')).toHaveText('Bevor Sie anfangen')
     await expect(inShadow(page, '.tech')).toContainText('Telefon')
+  })
+
+  test('without a relay there is no relay half at all, not even a hidden one', async ({ page }) => {
+    await mount(page)
+
+    const shape = await page.evaluate(() => ({
+      checkboxes: window.__intro.shadowRoot.querySelectorAll('input[type=checkbox]').length,
+      first: window.__intro.shadowRoot.querySelector('input[type=checkbox]')?.part.value,
+      ways: window.__intro.shadowRoot.querySelector('.ways') != null,
+      optIn: window.__intro.relayOptIn
+    }))
+
+    // Hiding it was not enough and the difference cost a CI run: a hidden
+    // checkbox is still the first match for
+    // `querySelector('input[type=checkbox]')`, which is how both this file and
+    // the demo reached "do not show again". An element nobody configured a
+    // relay on has to be what it was before the relay half existed.
+    expect(shape).toEqual({ checkboxes: 1, first: 'dont-show', ways: false, optIn: false })
+  })
+
+  test('the relay half appears when configured, and asks nothing until ticked', async ({ page }) => {
+    await mount(page)
+
+    const before = await page.evaluate(async () => {
+      window.__checked = 0
+      window.__intro.relay = {
+        check: async () => { window.__checked++; return { source: 'baked', addresses: ['/relay'] } }
+      }
+      await window.__intro.open()
+
+      return {
+        checked: window.__checked,
+        optIn: window.__intro.relayOptIn,
+        resultShown: window.__intro.shadowRoot.querySelector('.relay-result').hidden === false
+      }
+    })
+
+    // Off is the promise, not a starting value: opening the dialog must not
+    // reach for a relay, and a verdict line before anything ran would read as
+    // a failed check rather than as a check that never happened.
+    expect(before).toEqual({ checked: 0, optIn: false, resultShown: false })
+
+    const after = await page.evaluate(async () => {
+      const box = window.__intro.shadowRoot.querySelector('input[part=relay-opt-in]')
+      box.checked = true
+      box.dispatchEvent(new Event('change'))
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      return {
+        checked: window.__checked,
+        state: window.__intro.shadowRoot.querySelector('.relay-result').dataset.state,
+        text: window.__intro.shadowRoot.querySelector('.relay-result').textContent
+      }
+    })
+
+    // Ticking it checks at once. An opt-in whose effect only shows at the next
+    // connection attempt leaves the person guessing.
+    expect(after.checked).toBe(1)
+    expect(after.state).toBe('baked')
+    expect(after.text).toContain('1 known relay')
+  })
+
+  test('a remembered yes is checked on open, not when the property is set', async ({ page }) => {
+    await mount(page)
+
+    const timeline = await page.evaluate(async () => {
+      localStorage.setItem('demo.relayOptIn', 'true')
+      window.__checked = 0
+      window.__intro.relay = {
+        check: async () => { window.__checked++; return { source: 'none', addresses: [] } },
+        storageKey: 'demo.relayOptIn'
+      }
+
+      const onAssign = window.__checked
+      await window.__intro.open()
+      await new Promise(resolve => setTimeout(resolve, 50))
+
+      return { onAssign, afterOpen: window.__checked, ticked: window.__intro.relayOptIn }
+    })
+
+    // Assignment can happen long before anybody sees the dialog. Probing then
+    // would spend the session's first outbound call on a page nobody looked at.
+    expect(timeline).toEqual({ onAssign: 0, afterOpen: 1, ticked: true })
   })
 })

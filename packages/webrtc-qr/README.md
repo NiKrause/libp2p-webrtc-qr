@@ -296,6 +296,7 @@ in another.
 | methods | `open()` → the measured result, `close()` |
 | events | `check` → the result, `relay-check` → what the relay check found, `relay-opt-in` → `{ optIn }`, `close` → `{ remember }` |
 | slots | default — the app's own story; `relay` — prose next to the relay choice |
+| parts | `dont-show`, `relay-opt-in` — reach a checkbox by its part, never by `input[type=checkbox]`: with a relay configured there are two |
 | strings | `title`, `close`, `checkHeading`, `checking`, `ok`, `unreliable`, `none`, `sameNetwork`, `technicalHeading`, `technical` (an array), `dontShow`, `waysHeading`, `wayQr`, `relayLabel`, `relayHint`, `relayChecking`, `relayReachable`, `relayDiscovered`, `relayNone` |
 
 Two halves. The **story** is yours and arrives through the slot — what your app

@@ -187,39 +187,6 @@ export class QrIntroElement extends HTMLElement {
     tech.className = 'tech'
     tech.append(techHeading, techList)
 
-    // The second way in. Built always, shown only when `relay` is set - an
-    // element that rebuilt its shadow root on a property assignment would lose
-    // whatever the consumer had already put in the slots.
-    const ways = document.createElement('div')
-    const waysHeading = document.createElement('h3')
-    const wayQr = document.createElement('p')
-    const relayLabel = document.createElement('label')
-    const relayBox = document.createElement('input')
-    const relayText = document.createElement('span')
-    const relayName = document.createElement('span')
-    const relayHint = document.createElement('span')
-    const relayResult = document.createElement('p')
-    const relaySlot = document.createElement('slot')
-
-    ways.className = 'ways'
-    wayQr.className = 'way-qr'
-    relayLabel.className = 'relay'
-    relayBox.type = 'checkbox'
-    relayBox.part = 'relay-opt-in'
-    relayHint.className = 'relay-hint'
-    relayResult.className = 'relay-result'
-    relayResult.setAttribute('aria-live', 'polite')
-    relayResult.hidden = true
-    // A named slot rather than a second string table: what an app wants to add
-    // here - what starting a relay costs, who runs theirs - is its own prose,
-    // the same argument as the story slot above.
-    relaySlot.name = 'relay'
-    relayText.append(relayName, relayHint)
-    relayLabel.append(relayBox, relayText)
-    ways.append(waysHeading, wayQr, relayLabel, relayResult, relaySlot)
-
-    relayBox.addEventListener('change', () => { void this.#onRelayToggle(relayBox.checked) })
-
     const foot = document.createElement('div')
     const label = document.createElement('label')
     const box = document.createElement('input')
@@ -231,7 +198,7 @@ export class QrIntroElement extends HTMLElement {
     label.append(box, boxText)
     foot.append(label)
 
-    dialog.append(head, story, check, ways, tech, foot)
+    dialog.append(head, story, check, tech, foot)
     root.append(style, dialog)
 
     Object.assign(this, {
@@ -246,13 +213,9 @@ export class QrIntroElement extends HTMLElement {
       __techList: techList,
       __box: box,
       __boxText: boxText,
-      __ways: ways,
-      __waysHeading: waysHeading,
-      __wayQr: wayQr,
-      __relayBox: relayBox,
-      __relayName: relayName,
-      __relayHint: relayHint,
-      __relayResult: relayResult
+      __foot: foot,
+      // The relay half is built on demand — see `#buildRelay`.
+      __ways: null
     })
 
     // Escape and the backdrop close a <dialog> without going through `close()`,
@@ -305,20 +268,92 @@ export class QrIntroElement extends HTMLElement {
 
   set relay (value) {
     this.#relay = value ?? null
-    if (this.#relay != null) {
-      const stored = readRelayOptIn(this.#storage, this.#relay.storageKey)
-      this.__relayBox.checked = stored
-      // A remembered yes checks on the next open rather than now: this may be
-      // assigned before the dialog is ever shown, and a probe wave from a page
-      // load nobody has seen is exactly what the default-off promise is about.
-      if (!stored) this.#relayState = 'idle'
+
+    if (this.#relay == null) {
+      // Removed rather than hidden. An element with no relay half has to be
+      // structurally what it was before one existed — see `#buildRelay`.
+      this.__ways?.remove()
+      this.__ways = null
+      this.#relayState = 'idle'
+      return
     }
+
+    this.#buildRelay()
+    const stored = readRelayOptIn(this.#storage, this.#relay.storageKey)
+    this.__relayBox.checked = stored
+    // A remembered yes checks on the next open rather than now: this may be
+    // assigned before the dialog is ever shown, and a probe wave from a page
+    // load nobody has seen is exactly what the default-off promise is about.
+    if (!stored) this.#relayState = 'idle'
+
     this.#paint()
+  }
+
+  /**
+   * Build the relay half, once, on first use.
+   *
+   * Built here rather than in the constructor for a reason that cost a CI run:
+   * it adds a second `<input type=checkbox>` to the shadow root, and both the
+   * demo's tests and the README's own advice reached the "do not show again"
+   * box with `shadowRoot.querySelector('input[type=checkbox]')`. A hidden
+   * second checkbox is still the first match, so an element nobody had
+   * configured a relay on silently stopped remembering dismissals.
+   *
+   * An element without `relay` therefore has no relay DOM at all, which is the
+   * only version of "unchanged for existing consumers" that is actually true.
+   * Where both do exist, `part` tells them apart: `dont-show`, `relay-opt-in`.
+   */
+  #buildRelay () {
+    if (this.__ways != null) return
+
+    const ways = document.createElement('div')
+    const waysHeading = document.createElement('h3')
+    const wayQr = document.createElement('p')
+    const relayLabel = document.createElement('label')
+    const relayBox = document.createElement('input')
+    const relayText = document.createElement('span')
+    const relayName = document.createElement('span')
+    const relayHint = document.createElement('span')
+    const relayResult = document.createElement('p')
+    const relaySlot = document.createElement('slot')
+
+    ways.className = 'ways'
+    wayQr.className = 'way-qr'
+    relayLabel.className = 'relay'
+    relayBox.type = 'checkbox'
+    relayBox.part = 'relay-opt-in'
+    relayHint.className = 'relay-hint'
+    relayResult.className = 'relay-result'
+    relayResult.setAttribute('aria-live', 'polite')
+    relayResult.hidden = true
+    // A named slot rather than a second string table: what an app wants to add
+    // here — what starting a relay costs, who runs theirs — is its own prose,
+    // the same argument as the story slot above.
+    relaySlot.name = 'relay'
+    relayText.append(relayName, relayHint)
+    relayLabel.append(relayBox, relayText)
+    ways.append(waysHeading, wayQr, relayLabel, relayResult, relaySlot)
+
+    relayBox.addEventListener('change', () => { void this.#onRelayToggle(relayBox.checked) })
+
+    // Before the footer, so the choice reads as part of the explanation rather
+    // than as an afterthought next to "do not show again".
+    this.__dialog.insertBefore(ways, this.__foot)
+
+    Object.assign(this, {
+      __ways: ways,
+      __waysHeading: waysHeading,
+      __wayQr: wayQr,
+      __relayBox: relayBox,
+      __relayName: relayName,
+      __relayHint: relayHint,
+      __relayResult: relayResult
+    })
   }
 
   /** Whether the relay box is ticked. `false` when there is no relay half. */
   get relayOptIn () {
-    return this.#relay != null && this.__relayBox.checked
+    return this.__ways != null && this.__relayBox.checked === true
   }
 
   get #storage () {
@@ -401,17 +436,20 @@ export class QrIntroElement extends HTMLElement {
       return li
     }))
 
+    this.#paintVerdict()
+
+    if (this.__ways == null) return
+
     this.__waysHeading.textContent = resolveText(s.waysHeading)
     this.__wayQr.textContent = resolveText(s.wayQr)
     this.__relayName.textContent = resolveText(s.relayLabel)
     this.__relayHint.textContent = resolveText(s.relayHint)
-    this.__ways.hidden = this.#relay == null
-
-    this.#paintVerdict()
     this.#paintRelay()
   }
 
   #paintRelay () {
+    if (this.__ways == null) return
+
     const s = this.#strings
     const state = this.#relayState
 
