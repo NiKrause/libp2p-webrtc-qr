@@ -46,3 +46,11 @@ export {
   summariseNetwork
 } from './elements/network.js'
 export { findReachableRelays, readRelayOptIn, writeRelayOptIn } from './elements/relay-choice.js'
+
+// `intro-policy.js` completes the set, and it is the one that was asked for by
+// name. Its own doc block says it is kept apart from the element so that an app
+// writing its own introduction can still have the rule - and until now that app
+// could not: reaching it meant importing the barrel, which declares five classes
+// extending `HTMLElement` at module scope and therefore throws the moment a
+// prerendering build evaluates it. The module itself imports nothing.
+export { createIntroPolicy } from './elements/intro-policy.js'

@@ -46,7 +46,22 @@ test('the elements themselves and their strings are reachable', () => {
 test('the introduction policy is reachable without the element', () => {
   // An app writing its own introduction still wants the rule, and the rule is
   // the part that is easy to get wrong.
-  assert.equal(typeof elements.createIntroPolicy, 'function')
+  //
+  // The root is the half that matters, and it is the half this test used to
+  // omit: asserting only the barrel demonstrated "without the element" by way of
+  // the elements. It passed because of the two stubs at the top of this file -
+  // and a consumer prerendering a page has no such stubs, so the import that
+  // succeeds here throws there.
+  assert.equal(
+    typeof core.createIntroPolicy,
+    'function',
+    'createIntroPolicy must be exported from the package root'
+  )
+  assert.equal(
+    typeof elements.createIntroPolicy,
+    'function',
+    'createIntroPolicy must stay reachable from ./elements'
+  )
 })
 
 /**
