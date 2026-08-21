@@ -338,6 +338,16 @@ export class QrStatusElement extends HTMLElement {
     // next probe is the kind of half-applied that costs an afternoon.
     this.#build()
     if (this.#result != null) this.#paint(this.#result)
+
+    // The caption is written once, when the probe starts, and not touched
+    // again until it ends - so a table assigned mid-probe left that one line in
+    // the old language while everything around it changed. A probe takes STUN
+    // round trips, which is long enough for somebody to reach the language
+    // switch, and the line sits in the middle of the panel.
+    //
+    // `#build()` above only replaces the row list, so these nodes and their
+    // hidden state survive it.
+    if (this.__probe?.hidden === false) this.#setProbing(true)
   }
 
   /**

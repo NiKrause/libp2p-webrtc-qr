@@ -10,19 +10,34 @@ export default defineConfig({
   // do not reproduce anywhere else.
   workers: process.env.CI ? 1 : undefined,
   /**
-   * Two retries on CI, and this is not sweeping anything under a rug.
+   * Retries everywhere, and this is not sweeping anything under a rug.
    *
    * Playwright reports a test that needed one as **flaky**, not as passed, so
    * the instability stays on the summary where it can be seen accumulating.
-   * What changes is that one starved handshake on a shared two-core runner
-   * stops failing a whole run - which is what has been happening: the same
-   * bitswap test, only in Firefox, only on CI, never twice with the same
-   * symptom, passing on its own every time.
+   * What changes is that one starved handshake stops failing a whole run.
+   *
+   * It was CI-only until the same thing was measured on a 16-core laptop: five
+   * large runs produced five *different* failing WebKit tests - keep-alive,
+   * installable, link-handover, hurry-back - and every one of them passed on
+   * its own, one of them eighteen times in a row. The distribution is the
+   * finding. A run that reds a different random test each time is not reporting
+   * four bugs, and treating it as though it were trains everybody to re-run
+   * without reading.
+   *
+   * Fewer workers is not the lever - that was measured too. Capping local runs
+   * to four made the suite *slower* (7.7 min against 6.9) and still failed two.
+   * These specs each drive two or three real browser peers through a WebRTC
+   * handshake, and it is the browsers competing for the machine that starves
+   * them, not the count of test files in flight.
+   *
+   * One retry locally rather than two: enough to absorb a starved handshake,
+   * few enough that something genuinely broken still goes red rather than
+   * grinding through three attempts.
    *
    * A test that starts needing its retries regularly is a bug report, not a
    * reason to raise this number.
    */
-  retries: process.env.CI ? 2 : 0,
+  retries: process.env.CI ? 2 : 1,
   timeout: 120000,
   expect: {
     timeout: 15000

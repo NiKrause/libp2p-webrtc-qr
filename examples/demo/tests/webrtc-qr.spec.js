@@ -64,6 +64,21 @@ async function replyLinkOf (page) {
   return page.locator('#invite-link').inputValue()
 }
 
+/**
+ * Wait for ICE to actually finish.
+ *
+ * Its own deadline rather than the config's 15s default, because this is the
+ * one assertion in these specs that waits on a real peer connection - candidate
+ * gathering, connectivity checks and a DTLS handshake - while every other wait
+ * in the same tests already carries an explicit 20-30s. Alone it settles in
+ * about four seconds; in a full run, with several engines' browsers competing
+ * for the machine, it has been measured at nearly eighteen. That is the machine
+ * being busy, not the transport being broken, and a default meant for finding a
+ * mistyped locator should not be what decides it.
+ */
+const expectConnected = page =>
+  expect(page.locator('#status')).toContainText('Connected', { timeout: 45000 })
+
 async function connectPeers (offerer, answerer) {
   const invite = await createInvite(offerer)
 
@@ -71,7 +86,7 @@ async function connectPeers (offerer, answerer) {
   const reply = await replyLinkOf(answerer)
 
   await useLink(offerer, reply)
-  await expect(offerer.locator('#status')).toContainText('Connected')
+  await expectConnected(offerer)
 
   // Not `toBe(1)`: a peer that already has connections gains one more, and
   // pinning the count to one is what made this helper two-peer-only.
@@ -651,7 +666,7 @@ test.describe('signed QR WebRTC signaling', () => {
       const reply = await replyLinkOf(answerer)
 
       await useLink(offerer, reply)
-      await expect(offerer.locator('#status')).toContainText('Connected')
+      await expectConnected(offerer)
 
       // Nothing left to show: the code was only ever a means to this.
       await expect(invite).toBeHidden()
@@ -1032,7 +1047,7 @@ test.describe('signed QR WebRTC signaling', () => {
       await bob.waitForTimeout(500)
 
       await useLink(alice, reply)
-      await expect(alice.locator('#status')).toContainText('Connected')
+      await expectConnected(alice)
       await expect.poll(() => bob.evaluate(() => window.__libp2pQrTest.getPeers().length), {
         timeout: 20000
       }).toBe(1)
@@ -1067,7 +1082,7 @@ test.describe('signed QR WebRTC signaling', () => {
       expect(reply).toMatch(/#r=/)
 
       await useLink(offerer, reply)
-      await expect(offerer.locator('#status')).toContainText('Connected')
+      await expectConnected(offerer)
 
       expect(pageErrors).toEqual([])
     } finally {
@@ -1159,7 +1174,7 @@ test.describe('signed QR WebRTC signaling', () => {
       await expect(answerer.locator('#status')).not.toContainText('expired')
 
       await useLink(offerer, await replyLinkOf(answerer))
-      await expect(offerer.locator('#status')).toContainText('Connected')
+      await expectConnected(offerer)
 
       expect(pageErrors).toEqual([])
     } finally {
