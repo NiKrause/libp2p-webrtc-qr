@@ -159,6 +159,35 @@ trägt die englischen Vorgaben, `QR_INTRO_STRINGS_DE` die deutschen.
 `QrIntroElement` ist für Framework-Hüllen und die Registrierung unter einem
 anderen Tag-Namen exportiert.
 
+### Platz für die eigene Umrahmung der App
+
+Eine Einführung gehört selten allein der Bibliothek. Die erste App, die dieses
+Element übernimmt, trägt neben ihrem Titel einen Sprach- und einen
+Ansichtsumschalter, einen ausdrücklichen Schließen-Knopf und — in der
+technischen Ansicht — ein Urteil mit einem Link darin sowie darunter eine Reihe
+`qr-status`-Chips. Nichts davon ist Sache des Transports, und ohne einen Ort
+dafür hätte die Übernahme des Elements bedeutet, alle vier zu streichen.
+
+```html
+<qr-intro>
+  <p>Wofür diese App da ist.</p>
+  <language-switcher slot="header"></language-switcher>
+  <p slot="advice">Im selben Netz klappt es. Fürs Internet <a href="…">ein VPN</a>.</p>
+  <button slot="footer">Schließen</button>
+</qr-intro>
+```
+
+`advice` sitzt unmittelbar unter dem Urteil, und genau darauf kommt es an: Ein
+Rat unter einem Urteil, aus dem er nicht folgt, ist ein Rat für eine andere
+Lage. Es gibt ihn, weil die String-Tabellen bewusst kein Markup tragen können —
+sie werden mit `resolveText` gelesen und in `textContent` geschrieben, was die
+Interpolationsgewohnheit von einer Stelle fernhält, auf die später ein
+nutzereingegebener String zeigt. Ein Rat, der einen Link braucht, ist Markup,
+das die App schreibt.
+
+Ungefüllte Slots kosten nichts: keine Lücke, kein leerer Knoten, von dem ein
+Stylesheet wissen müsste.
+
 ### Einen Relay anbieten, ohne ihn zum Standard zu machen
 
 Ein gescannter Code setzt voraus, dass die andere Person hier ist. Geht die

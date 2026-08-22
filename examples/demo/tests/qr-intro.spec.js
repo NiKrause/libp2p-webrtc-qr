@@ -116,6 +116,56 @@ test.describe('qr-intro', () => {
     await expect(inShadow(page, '.tech')).toContainText('Telefon')
   })
 
+  test('the host can put its own chrome in the dialog', async ({ page }) => {
+    await mount(page)
+
+    const placed = await page.evaluate(async () => {
+      const put = (name, tag, text) => {
+        const node = document.createElement(tag)
+        node.slot = name
+        node.textContent = text
+        node.dataset.probe = name
+        window.__intro.append(node)
+      }
+
+      put('header', 'button', 'Deutsch')
+      put('advice', 'a', 'What to do about it')
+      put('footer', 'button', 'Close')
+      await window.__intro.open()
+
+      // Where each one landed, by the shadow container it is assigned into.
+      // Placement is the whole point: advice under a verdict it does not
+      // follow is advice for a different situation.
+      return [...window.__intro.querySelectorAll('[data-probe]')].map(node => ({
+        slot: node.dataset.probe,
+        into: node.assignedSlot?.parentElement?.className
+      }))
+    })
+
+    expect(placed).toEqual([
+      { slot: 'header', into: 'head' },
+      { slot: 'advice', into: 'check' },
+      { slot: 'footer', into: 'foot' }
+    ])
+  })
+
+  test('an app that fills none of them gets the dialog it had', async ({ page }) => {
+    await mount(page)
+
+    const empty = await page.evaluate(async () => {
+      await window.__intro.open()
+      const root = window.__intro.shadowRoot
+
+      return [...root.querySelectorAll('slot[name]')].every(
+        slot => slot.assignedNodes().length === 0
+      )
+    })
+
+    // A seam nobody uses has to cost nothing — no stray gap, no empty node
+    // that a stylesheet then has to know about.
+    expect(empty).toBe(true)
+  })
+
   test('without a relay there is no relay half at all, not even a hidden one', async ({ page }) => {
     await mount(page)
 

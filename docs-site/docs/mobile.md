@@ -152,6 +152,34 @@ Its text is translatable like every other element's: `QR_INTRO_STRINGS` holds th
 English defaults, `QR_INTRO_STRINGS_DE` the German. `QrIntroElement` is exported
 for framework wrappers and for registering under another tag name.
 
+### Room for the app's own chrome
+
+An introduction is rarely only the library's. The first app to adopt this
+element carries a language switch and a view switch beside its title, an
+explicit Close button, and — in its technical view — a verdict with a link in
+it and a row of `qr-status` chips beneath. None of that is the transport's
+business, and without somewhere to put it, adopting the element would have
+meant deleting all four.
+
+```html
+<qr-intro>
+  <p>What this app is for.</p>
+  <language-switcher slot="header"></language-switcher>
+  <p slot="advice">Same network works. For the internet, <a href="…">a VPN</a>.</p>
+  <button slot="footer">Close</button>
+</qr-intro>
+```
+
+`advice` sits directly under the verdict, and the placement is the point:
+advice under a verdict it does not follow is advice for a different situation.
+It exists because the string tables deliberately cannot hold markup — they are
+read with `resolveText` and written to `textContent`, which is what keeps an
+interpolation habit out of a place that later gets pointed at a user-supplied
+string. Advice that needs a link is markup the host writes.
+
+Unfilled slots cost nothing: no gap, no empty node for a stylesheet to know
+about.
+
 ### Offering a relay, without making it the default
 
 A scanned code needs the other person to be here. When the list is going to
