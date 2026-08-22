@@ -214,45 +214,45 @@ code {
   height: 17px;
 }
 
-/* The language control wears the same pill as its neighbours, with the browser
-   chrome taken off the <select> so it reads as one of them rather than as a
-   form field that wandered into the header. */
-.nav-locale {
-  padding: 0;
-  cursor: pointer;
-}
-
-.nav-locale select {
-  appearance: none;
+/* The view switch wears the same pill as its neighbours, with the browser's own
+   button chrome taken off so it reads as one of them rather than as a form
+   control that wandered into the header. */
+.nav-toggle {
   background: transparent;
-  border: 0;
-  color: inherit;
   font: inherit;
-  padding: 7px 14px;
-  border-radius: 999px;
+  font-size: 0.86rem;
   cursor: pointer;
 }
 
-/* Native pickers render their own list, which does not inherit the page's
-   palette - so the options need a background of their own or they are white
-   text on white in dark mode. */
-.nav-locale option {
-  background: var(--ls-card);
-  color: var(--ls-text);
+.nav-flags {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
-/* A label a screen reader needs and the eye does not: the visible value of the
-   control already says which language is selected. */
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
+/* Dimmed rather than hidden: both flags stay visible so the choice is legible
+   as a choice, and the pressed one is the bright one. No pill around them - a
+   flag is already a shape, and a border would make the pair read as one control
+   with two halves rather than as two answers to the same question. */
+.nav-flag {
   border: 0;
+  background: transparent;
+  padding: 4px 5px;
+  font-size: 1.05rem;
+  line-height: 1;
+  border-radius: 8px;
+  cursor: pointer;
+  opacity: 0.4;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.nav-flag[aria-pressed="true"] {
+  opacity: 1;
+}
+
+.nav-flag:hover {
+  opacity: 0.85;
+  background: var(--ls-card);
 }
 
 /* ---------- layout ---------- */
@@ -662,12 +662,12 @@ button.is-busy::before {
     display: none;
   }
 
-  /* The two <select> controls carry their value as visible text, which is the
-     point of using one - so they cannot lose their label the way the icon links
-     do. On a 390px phone the row was 31px too wide and pushed the whole page
-     sideways, so they give up padding instead. */
-  .nav-locale select,
-  .nav-view select {
+  /* The view switch carries its own word, which is the point of it - so it
+     cannot lose its label the way the icon links do. On a 390px phone the row
+     was 31px too wide and pushed the whole page sideways, so it gives up
+     padding instead. The flags need none: they are the same width in every
+     language. */
+  .nav-toggle {
     padding: 7px 8px;
     font-size: 0.8rem;
   }
@@ -678,9 +678,9 @@ button.is-busy::before {
 
   /* Their labels are hidden above, so the padding was sized for text that is no
      longer there - an icon in a 14px-per-side pill.
-     `a.nav-link` and not `.nav-link`: the two <select> wrappers carry that class
-     too, and padding them again on top of the padding their select already has
-     made the row *wider* rather than narrower. */
+     `a.nav-link` and not `.nav-link`: the view switch carries that class too and
+     keeps its word on a phone, so it wants the padding the rule above gives it
+     rather than this one. */
   a.nav-link {
     padding: 7px 10px;
   }

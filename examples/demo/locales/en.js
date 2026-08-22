@@ -49,12 +49,10 @@ export default {
     received: 'Received files'
   },
   view: {
-    label: 'View',
     simple: 'Simple',
     technical: 'Technical'
   },
   language: {
-    label: 'Language',
     en: 'English',
     de: 'Deutsch'
   },

@@ -22,13 +22,14 @@ test.describe('language', () => {
   test('starts in English and says so in the document', async ({ page }) => {
     await open(page)
 
-    await expect(page.locator('#locale')).toHaveValue('en')
+    await expect(page.locator('#locale-en')).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.locator('#locale-de')).toHaveAttribute('aria-pressed', 'false')
     await expect(page.locator('html')).toHaveAttribute('lang', 'en')
   })
 
   test('German reaches inside the elements, not just the page around them', async ({ page }) => {
     await open(page)
-    await page.locator('#locale').selectOption('de')
+    await page.locator('#locale-de').click()
 
     // The readiness panel is a custom element with a shadow root, so this is the
     // library's own text rather than anything this page wrote.
@@ -41,23 +42,23 @@ test.describe('language', () => {
 
   test('the choice survives a reload', async ({ page }) => {
     await open(page)
-    await page.locator('#locale').selectOption('de')
+    await page.locator('#locale-de').click()
 
     await page.reload()
-    await page.waitForSelector('#locale')
+    await page.waitForSelector('#locale-de')
 
     // Reaching for the switch is a decision, and making somebody repeat it on
     // every visit is how a language switch becomes a thing nobody uses.
-    await expect(page.locator('#locale')).toHaveValue('de')
+    await expect(page.locator('#locale-de')).toHaveAttribute('aria-pressed', 'true')
     await expect(page.locator('html')).toHaveAttribute('lang', 'de')
   })
 
   test('switching back to English restores the English text', async ({ page }) => {
     await open(page)
-    await page.locator('#locale').selectOption('de')
+    await page.locator('#locale-de').click()
     await expect(page.locator('#network-state')).toContainText('Ergebnis')
 
-    await page.locator('#locale').selectOption('en')
+    await page.locator('#locale-en').click()
 
     // `mergeStrings` folds over defaults rather than replacing them, so a switch
     // back has to put every entry back - not merely stop overriding.

@@ -115,7 +115,7 @@ test.describe('the link beside the code', () => {
 
   test('the button speaks the chosen language', async ({ page }) => {
     await page.goto('/?ice=host&view=technical&intro=off')
-    await page.locator('#locale').selectOption('de')
+    await page.locator('#locale-de').click()
     await page.locator('#start-client').click()
     await page.waitForFunction(() => document.getElementById('peer-id').textContent !== 'not started')
     await page.locator('#create-offer').click()

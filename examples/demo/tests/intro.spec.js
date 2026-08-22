@@ -60,7 +60,7 @@ test.describe('the introduction', () => {
     await expect(page.locator('qr-intro .tech')).toBeHidden()
 
     await page.evaluate(() => document.getElementById('intro').close())
-    await page.locator('#view-mode').selectOption('technical')
+    await page.locator('#view-mode').click()
     await page.evaluate(() => document.getElementById('intro').open())
 
     await expect(page.locator('qr-intro .tech')).toBeVisible()
@@ -69,8 +69,8 @@ test.describe('the introduction', () => {
   test('speaks the chosen language, story and caveats alike', async ({ page }) => {
     await open(page)
     await page.evaluate(() => document.getElementById('intro').close())
-    await page.locator('#locale').selectOption('de')
-    await page.locator('#view-mode').selectOption('technical')
+    await page.locator('#locale-de').click()
+    await page.locator('#view-mode').click()
     await page.evaluate(() => document.getElementById('intro').open())
 
     // The story is this demo's, the heading is the library's - both have to turn.

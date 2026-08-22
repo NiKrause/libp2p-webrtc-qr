@@ -31,7 +31,7 @@ test.describe('simple and technical', () => {
   test('starts simple, with the technical panels away', async ({ page }) => {
     await open(page)
 
-    await expect(page.locator('#view-mode')).toHaveValue('simple')
+    await expect(page.locator('html')).toHaveAttribute('data-view', 'simple')
     await expect(page.locator('#step-start')).toBeHidden()
     // The thing somebody came to do is still there.
     await expect(page.locator('#create-offer')).toBeVisible()
@@ -39,7 +39,7 @@ test.describe('simple and technical', () => {
 
   test('the technical view brings them back rather than adding something new', async ({ page }) => {
     await open(page)
-    await page.locator('#view-mode').selectOption('technical')
+    await page.locator('#view-mode').click()
 
     await expect(page.locator('#step-start')).toBeVisible()
     await expect(page.locator('#peer-id')).toBeVisible()
@@ -47,18 +47,23 @@ test.describe('simple and technical', () => {
 
   test('the choice survives a reload', async ({ page }) => {
     await open(page)
-    await page.locator('#view-mode').selectOption('technical')
+    await page.locator('#view-mode').click()
     await page.reload()
 
-    await expect(page.locator('#view-mode')).toHaveValue('technical')
+    await expect(page.locator('html')).toHaveAttribute('data-view', 'technical')
     await expect(page.locator('#step-start')).toBeVisible()
   })
 
-  test('the switch speaks the chosen language', async ({ page }) => {
+  test('the switch speaks the chosen language, and names where it goes', async ({ page }) => {
     await open(page)
-    await page.locator('#locale').selectOption('de')
+    await page.locator('#locale-de').click()
 
-    await expect(page.locator('#view-mode option').first()).toHaveText('Einfach')
+    // Simple is the view it is in, so "Technisch" is the offer. A switch
+    // labelled with its current state reads as a claim instead.
+    await expect(page.locator('#view-mode')).toHaveText('Technisch')
+
+    await page.locator('#view-mode').click()
+    await expect(page.locator('#view-mode')).toHaveText('Einfach')
   })
 
   test('the simple view starts the peer from the button it does show', async ({ page }) => {
@@ -88,7 +93,13 @@ test.describe('simple and technical', () => {
     const trace = page.locator('#chat-log div[data-view="technical"]')
     await expect(trace.first()).toBeVisible()
 
-    await page.locator('#view-mode').selectOption('simple')
+    // The invite is a modal and the header is behind it, so this is the path a
+    // person has: close the box, then reach the switch. The old `selectOption`
+    // hid that by never being a pointer - it set the control through a dialog
+    // that would have swallowed the click.
+    await page.locator('#invite-box .modal-close').click()
+
+    await page.locator('#view-mode').click()
     await expect(trace.first()).toBeHidden()
   })
 })

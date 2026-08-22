@@ -39,12 +39,10 @@ export default {
     received: 'Empfangene Dateien'
   },
   view: {
-    label: 'Ansicht',
     simple: 'Einfach',
     technical: 'Technisch'
   },
   language: {
-    label: 'Sprache',
     en: 'English',
     de: 'Deutsch'
   },

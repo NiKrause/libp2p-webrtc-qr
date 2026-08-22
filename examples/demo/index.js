@@ -49,19 +49,35 @@ function applyLocale (next) {
   peerListEl.strings = strings.peers
 
   document.documentElement.lang = locale()
-  localeEl.value = locale()
-  document.getElementById('locale-label').textContent = t('language.label')
-  document.getElementById('view-label').textContent = t('view.label')
-  viewModeEl.options[0].textContent = t('view.simple')
-  viewModeEl.options[1].textContent = t('view.technical')
 
-  // Everything that names a key in the markup.
+  // `aria-pressed` rather than a class, because that is what a screen reader
+  // reads out; the dimming in the stylesheet follows from it.
+  for (const [code, button] of Object.entries(localeButtons)) {
+    button.setAttribute('aria-pressed', String(code === locale()))
+  }
+
+  writeViewLabel()
+
+  // Everything that names a key in the markup - the flags' `aria-label` among
+  // them, so the language names come from the catalogue like every other word.
   translateDocument()
 
   // The copy button carries its own state in its label, so it is not repainted
   // by anything else and has to be told the language changed.
   resetCopied()
 }
+
+/**
+ * Name the view the switch goes to, not the one it is in.
+ *
+ * A control labelled with its current state reads as a claim rather than an
+ * offer. The label is one of the page's words *and* one of its states, so both
+ * passes end here rather than each writing their own version of it.
+ */
+function writeViewLabel () {
+  viewModeEl.textContent = isSimple() ? t('view.technical') : t('view.simple')
+}
+
 import { fromString, toString } from 'uint8arrays'
 import {
   QRSession,
@@ -175,7 +191,7 @@ const browserWarningEl = document.getElementById('browser-warning')
 const createOfferAgainButton = document.getElementById('create-offer-again')
 const handoffBannerEl = document.getElementById('handoff-banner')
 const peerListEl = document.getElementById('peer-list')
-const localeEl = document.getElementById('locale')
+const localeButtons = { de: document.getElementById('locale-de'), en: document.getElementById('locale-en') }
 const viewModeEl = document.getElementById('view-mode')
 const introEl = document.getElementById('intro')
 const peerCountEl = document.getElementById('peer-count')
@@ -192,10 +208,14 @@ applyLocale(initialLocale())
 // half the page disappear a moment after it settled.
 applyViewMode()
 introEl.technical = !isSimple()
-viewModeEl.value = isSimple() ? 'simple' : 'technical'
-viewModeEl.addEventListener('change', event => {
-  applyViewMode(event.target.value === 'simple')
+// After the mode is read, not before: `applyLocale` above ran while the module
+// still held its default, so the label it wrote was for the wrong half.
+writeViewLabel()
+// A toggle takes no value from its event - it flips whatever is current.
+viewModeEl.addEventListener('click', () => {
+  applyViewMode(!isSimple())
   introEl.technical = !isSimple()
+  writeViewLabel()
   // The controls depend on the mode now - the invite button is enabled in the
   // simple view before anything has started, because there it does the starting.
   updateControls()
@@ -204,7 +224,9 @@ viewModeEl.addEventListener('change', event => {
 
 // Rendered text is refreshed by the elements themselves - they re-render when
 // `strings` is assigned - so a switch costs nothing beyond the assignment.
-localeEl.addEventListener('change', event => applyLocale(event.target.value))
+for (const [code, button] of Object.entries(localeButtons)) {
+  button.addEventListener('click', () => applyLocale(code))
+}
 
 const qrCanvas = document.createElement('canvas')
 const qrCanvasContext = qrCanvas.getContext('2d', { willReadFrequently: true })

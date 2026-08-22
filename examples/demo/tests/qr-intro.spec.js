@@ -16,7 +16,7 @@ const mount = async (page, { locale = 'en', technical = false } = {}) => {
 
   // Through the app's own switch, so `elementStrings()` below returns the
   // tables for that language rather than whatever the default happened to be.
-  if (locale !== 'en') await page.locator('#locale').selectOption(locale)
+  if (locale !== 'en') await page.locator(`#locale-${locale}`).click()
 
   return page.evaluate(({ locale, technical }) => {
     const intro = document.createElement('qr-intro')

@@ -78,32 +78,30 @@
 
         <div class="nav-links">
           <!--
-            The language control, first in the row because somebody who cannot
-            read the page cannot look for it anywhere else. A <select> rather
-            than two links: it is one control with the current value showing,
-            it needs no extra markup per language added later, and every mobile
-            browser gives it a native picker without any code from us.
-          -->
-          <!--
-            Simple or technical. Beside the language control because both answer
-            "who is reading this", and both belong where somebody looks for a
-            setting rather than buried in the page they are trying to read.
-          -->
-          <label class="nav-link nav-view">
-            <span class="visually-hidden" id="view-label">View</span>
-            <select id="view-mode" aria-labelledby="view-label">
-              <option value="simple">Simple</option>
-              <option value="technical">Technical</option>
-            </select>
-          </label>
+            Simple or technical, and which language. First in the row because
+            somebody who cannot read the page cannot look for the switch
+            anywhere else, and because both answer "who is reading this" rather
+            than belonging to any one panel below.
 
-          <label class="nav-link nav-locale">
-            <span class="visually-hidden" id="locale-label">Language</span>
-            <select id="locale" aria-labelledby="locale-label">
-              <option value="en">English</option>
-              <option value="de">Deutsch</option>
-            </select>
-          </label>
+            Flags rather than a dropdown, and a button rather than a select: two
+            options do not need a menu, and a flag is recognisable before any of
+            the surrounding words are. The same shapes ablage and simple-todo
+            use, so somebody moving between the three recognises the controls.
+
+            The button names the view it *switches to*, not the one it is in - a
+            control labelled with its current state reads as a claim rather than
+            an offer. Its text is written by `applyLocale` rather than carrying a
+            `data-i18n` key, because which key it wants depends on the mode.
+
+            The flags carry `aria-label` with the language name. A flag is a
+            country, not a language, and a screen reader announces neither.
+          -->
+          <button id="view-mode" class="nav-link nav-toggle" type="button">Technical</button>
+
+          <div class="nav-flags">
+            <button id="locale-de" class="nav-flag" type="button" lang="de" data-i18n-attr="aria-label:language.de" aria-label="Deutsch">&#127465;&#127466;</button>
+            <button id="locale-en" class="nav-flag" type="button" lang="en" data-i18n-attr="aria-label:language.en" aria-label="English">&#127468;&#127463;</button>
+          </div>
 
           <!-- Labelled explicitly: the visible span is hidden on phones, which
                removes it from the accessibility tree along with the name. -->
