@@ -42,6 +42,8 @@ export {
   isGlobalUnicastV6,
   offNetworkBlocked,
   offNetworkRisk,
+  probeBrowser,
+  probeCamera,
   probeNetwork,
   summariseNetwork
 } from './elements/network.js'

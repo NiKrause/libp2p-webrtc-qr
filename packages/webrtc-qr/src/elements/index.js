@@ -41,6 +41,8 @@ export {
   // reading an attribute off the element, which is not an API.
   offNetworkBlocked,
   offNetworkRisk,
+  probeBrowser,
+  probeCamera,
   probeNetwork,
   summariseNetwork
 } from './network.js'

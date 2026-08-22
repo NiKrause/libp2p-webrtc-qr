@@ -416,6 +416,8 @@ They stay exported from `/elements` too, for consumers already importing that.
 | `offNetworkRisk(result)` | `'blocked'` \| `'unreliable'` \| `null` |
 | `offNetworkBlocked(result)` | narrow: `blocked` only |
 | `isGlobalUnicastV6(address)` | is this address routable |
+| `probeBrowser()` | `{ state, text }` — whether this browser has WebRTC and can open a data channel at all |
+| `probeCamera()` | `{ state, text }` — camera availability, read from the Permissions API without prompting |
 
 States: `open`, `relay`, `symmetric`, `blocked`.
 `offNetworkRisk` is the one to gate a connect control on — `unreliable` is the
