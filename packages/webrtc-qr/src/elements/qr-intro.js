@@ -27,6 +27,24 @@ import { mergeStrings, resolveText } from './strings.js'
  * layer: the verdict a first-time reader needs is the *fuller* one, since they
  * are the least equipped to interpret a thin one.
  *
+ * ## Room for the host's own chrome
+ *
+ * The first app to adopt this could not: its dialog carries a language switch
+ * and a view switch beside the title, an explicit Close button, and — in its
+ * technical view — a verdict with a link in it and a row of `qr-status` chips
+ * under it. None of that is the transport's business, and none of it had
+ * anywhere to go, so adopting the element would have meant deleting all four.
+ *
+ * Three named slots fix that without the element learning anything about any
+ * app: `header` beside the title, `advice` directly under the verdict, and
+ * `footer` beside "do not show again". They stay empty for everyone else.
+ *
+ * `advice` is the one that mattered most. A string table cannot hold a link —
+ * the tables are read with `resolveText` and written to `textContent`, which is
+ * deliberate, because an interpolation habit here is the one that later gets
+ * pointed at a user-supplied string. So advice that needs markup is markup the
+ * host writes, placed where advice belongs: after the verdict it follows from.
+ *
  * ## The second way in
  *
  * A scanned code needs the other person to be here. When they are not - the
@@ -113,7 +131,14 @@ const STYLE = `
   .tech h3 { margin: 0 0 0.35rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
   .tech ul { margin: 0; padding-left: 1.1rem; font-size: 0.88rem; color: var(--qr-intro-muted, #97a1b3); }
   .tech li + li { margin-top: 0.35rem; }
-  .foot { display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem; font-size: 0.88rem; }
+  .foot {
+    display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem; font-size: 0.88rem;
+    /* Wraps rather than overflowing: a translated label and a button do not
+       fit on one line on a phone, and space-between keeps the button on the
+       right, where a dialog's action belongs. */
+    flex-wrap: wrap; justify-content: space-between;
+  }
+  .foot label { display: flex; align-items: center; gap: 0.5rem; }
   .ways h3 { margin: 0 0 0.35rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
   .ways { margin: 0.9rem 0; }
   .way-qr { margin: 0 0 0.5rem; font-size: 0.88rem; color: var(--qr-intro-muted, #97a1b3); }
@@ -159,7 +184,12 @@ export class QrIntroElement extends HTMLElement {
     close.className = 'close'
     close.type = 'button'
     close.addEventListener('click', () => this.close())
-    head.append(heading, close)
+    // Between the title and the close button: an app's language switch belongs
+    // in the first thing it shows somebody, not two screens away in a header
+    // they cannot read yet.
+    const headerSlot = document.createElement('slot')
+    headerSlot.name = 'header'
+    head.append(heading, headerSlot, close)
 
     // The app's own story. A slot rather than a string, because it is prose with
     // structure - paragraphs, a link, sometimes a list - and a table of strings
@@ -178,7 +208,11 @@ export class QrIntroElement extends HTMLElement {
     verdict.className = 'verdict'
     verdict.setAttribute('aria-live', 'polite')
     same.className = 'same'
-    check.append(checkHeading, verdict, same)
+    // Under the verdict, above `sameNetwork`: advice is only worth giving when
+    // it applies, and it applies to the verdict directly above it.
+    const adviceSlot = document.createElement('slot')
+    adviceSlot.name = 'advice'
+    check.append(checkHeading, verdict, adviceSlot, same)
 
     const tech = document.createElement('div')
     const techHeading = document.createElement('h3')
@@ -196,7 +230,12 @@ export class QrIntroElement extends HTMLElement {
     box.type = 'checkbox'
     box.part = 'dont-show'
     label.append(box, boxText)
-    foot.append(label)
+    // Beside "do not show again", where a dialog's own actions live. The × in
+    // the corner is a close, not a confirmation, and an app whose introduction
+    // ends in a decision needs somewhere to put the button for it.
+    const footerSlot = document.createElement('slot')
+    footerSlot.name = 'footer'
+    foot.append(label, footerSlot)
 
     dialog.append(head, story, check, tech, foot)
     root.append(style, dialog)

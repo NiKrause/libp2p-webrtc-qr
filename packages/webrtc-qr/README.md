@@ -295,7 +295,7 @@ in another.
 | properties | `strings`, `technical`, `isOpen`, `result`, `rtcConfiguration`, `relay`, `relayOptIn` |
 | methods | `open()` → the measured result, `close()` |
 | events | `check` → the result, `relay-check` → what the relay check found, `relay-opt-in` → `{ optIn }`, `close` → `{ remember }` |
-| slots | default — the app's own story; `relay` — prose next to the relay choice |
+| slots | default — the app's own story; `header` — beside the title; `advice` — under the verdict; `footer` — beside "do not show again"; `relay` — prose next to the relay choice |
 | parts | `dont-show`, `relay-opt-in` — reach a checkbox by its part, never by `input[type=checkbox]`: with a relay configured there are two |
 | strings | `title`, `close`, `checkHeading`, `checking`, `ok`, `unreliable`, `none`, `sameNetwork`, `technicalHeading`, `technical` (an array), `dontShow`, `waysHeading`, `wayQr`, `relayLabel`, `relayHint`, `relayChecking`, `relayReachable`, `relayDiscovered`, `relayNone` |
 
@@ -315,6 +315,18 @@ knowing — somebody who **arrived by invite never sees it** (they came to accep
 something, and suppressing does not mark it seen), **blocked storage shows it**
 (seen twice beats never seen), and `forget()` exists because dismissing must not
 be a one-way door.
+
+**Room for your own chrome.** An app's introduction is usually not only the
+library's: a language switch beside the title, an explicit Close button, a
+verdict that needs a link in it. `header`, `footer` and `advice` are where
+those go, and they stay empty for anyone who does not fill them.
+
+`advice` sits directly under the verdict, because advice is only worth giving
+when it applies and it applies to the line above it. It exists because the
+string tables deliberately cannot hold markup — they are read with
+`resolveText` and written to `textContent`, and an interpolation habit there is
+the one that later gets pointed at a user-supplied string. Advice that needs a
+link is markup you write.
 
 **The second way in.** A scanned code needs the other person to be here. When
 they are not, the way in is a relay — and this element offers it as a choice
