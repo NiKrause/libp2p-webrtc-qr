@@ -689,6 +689,43 @@ implies they were covered.
 
 ---
 
+## 15. Hold the line through the app switch that sending the link requires
+
+**Tracked in [#86](https://github.com/NiKrause/libp2p-webrtc-qr/issues/86).**
+
+**Done.** To send an invite you leave the app - that is the flow, not a misuse of
+it. Android Chromium freezes a backgrounded page within seconds and closes the
+`RTCPeerConnection` with it, without firing an event, so the carrier that is
+easiest to use was the one the platform broke. `createKeepAlive` holds an
+`AudioContext` open for the window between "payload produced" and "connected",
+on whichever side is currently waiting: a page that is playing audio is not a
+page Chromium freezes.
+
+It ships in the package rather than in the demo, because the demo was not going
+to be the only consumer that needed it - simple-todo and yoga-p2p both hit this,
+and all three would have copied the same trick with the same three pitfalls.
+
+**Audible by default, and the issue asked for the opposite.** Silence was to be
+production and sound a debug flag; it shipped the other way round, for two
+reasons found on the way. A stream a browser judges inaudible stops counting as
+playback, which costs a running audio graph and freezes the page anyway - so the
+buffer is one least-significant bit rather than zeros, and letting it be heard is
+the honest version of that. And the media notification Android shows for a
+playing page is, with `mediaSession` metadata set, a labelled one-tap way back
+into the app - which addresses the actual complaint, that people take a while to
+come back. `silent: true` is there for anyone who needs it, with that caveat
+written down.
+
+Not a wake lock, and the two get confused: a wake lock holds the screen, not the
+page, and the browser drops it the moment the page is hidden.
+
+What is still open is the measurement, not the mechanism. Item 0 and
+[#65](https://github.com/NiKrause/libp2p-webrtc-qr/issues/65) both turn on
+whether an app survives being backgrounded on a real phone, and nothing has yet
+put two of them through a messenger again to see.
+
+---
+
 ## Not planned
 
 - **Replacing WebRTC.** The point of this project is that libp2p can use a
