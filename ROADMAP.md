@@ -726,6 +726,53 @@ put two of them through a messenger again to see.
 
 ---
 
+## 16. Carry the answer back as sound
+
+**Tracked in [#110](https://github.com/NiKrause/libp2p-webrtc-qr/issues/110),
+decided in [#3](https://github.com/NiKrause/libp2p-webrtc-qr/issues/3).**
+
+**Half done: the package carries it, nobody can press it yet.**
+
+The handshake is symmetric and the hardware is not. Two phones are fine - each
+has a camera and a screen, so each can show a code and read one. A laptop and a
+phone are not: the laptop shows the offer, the phone scans it, and then the phone
+has to hold its answer up to a webcam that is badly angled, poor, or absent. In
+practice people fall back to copy and paste, which is the case this project
+exists to make effortless. So: QR out, sound home. The idea is
+[vbocan/webrtc-oob-pairing](https://github.com/vbocan/webrtc-oob-pairing)'s, and
+item 3 of that evaluation was whether to take it seriously. This is the answer.
+
+`encodeToAudio` and `createAudioReceiver` ship in the package, with the framing
+exported beside them and a loopback round trip under test. The codec is
+[ggwave](https://github.com/ggerganov/ggwave), MIT, an optional peer dependency
+loaded with `await import()` when somebody opens the channel - nobody who only
+wants the transport pays 150 KB of WebAssembly for a feature they never open.
+
+**The numbers are why the design looks the way it does.** At 48 kHz, one 140-byte
+transmission takes 13.5 s on `normal`, 9.3 s on `fast` and 5.0 s on `fastest`. A
+compact (v3) answer is around 207 bytes - two transmissions, 8 to 14 seconds. A
+full (v2) answer is around 758 bytes: six transmissions and half a minute, which
+is not a thing anybody holds a phone still for. **So this carrier sets the compact
+format rather than following the invite's**, which couples it to item 1 and to
+the defect that keeps v3 opt-in, [#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83).
+It ships experimental and says so, rather than quietly producing a format with a
+known failure under load.
+
+The other measurement decided the framing. ggwave carries **at most 140 bytes per
+transmission and truncates anything longer silently** - a valid waveform that
+decodes cleanly to the first 140 bytes, with the loss reported only on stdout. A
+half-answer that verifies as a half-answer is the worst outcome this carrier has,
+so payloads are framed and chunked here and a frame that would reach the limit
+throws.
+
+What is missing is the half a person meets: a listening element that asks for the
+microphone and says "2 of 3", a play button in the invite dialog that names the
+wait instead of spinning, and German for both. And one thing no test can supply -
+a laptop speaker into a phone microphone across a real room, which is where the
+default protocol will be decided.
+
+---
+
 ## Not planned
 
 - **Replacing WebRTC.** The point of this project is that libp2p can use a

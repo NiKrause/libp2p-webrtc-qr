@@ -179,6 +179,9 @@ importers:
       esbuild:
         specifier: ^0.25.0
         version: 0.25.12
+      ggwave:
+        specifier: ^0.4.0
+        version: 0.4.0
       jsqr:
         specifier: ^1.4.0
         version: 1.4.0
@@ -1532,6 +1535,9 @@ packages:
   get-proto@1.0.1:
     resolution: {integrity: sha512-sTSfBjoXBp89JvIKIefqw7U2CCebsc74kiY6awiGogKtoSGbgjYE/G/+l9sF3MWFPNc9IcoOC4ODfKHfxFmp0g==}
     engines: {node: '>= 0.4'}
+
+  ggwave@0.4.0:
+    resolution: {integrity: sha512-+sKq0aIEVJ7zHj4Vw+Sj/RPa91xp76ihaG5gsOKZ8ojM5+uUu3NFzAspozwBx/zeaThxP5VeIkA2bbsfWpUd2g==}
 
   github-from-package@0.0.0:
     resolution: {integrity: sha512-SyHy3T1v2NUXn29OsWdxmK6RwHD+vkj3v8en8AOBZ1wBQ/hCAQ5bAQTD02kW4W9tUp/3Qh6J8r9EvntiyCmOOw==}
@@ -4756,6 +4762,8 @@ snapshots:
     dependencies:
       dunder-proto: 1.0.1
       es-object-atoms: 1.1.2
+
+  ggwave@0.4.0: {}
 
   github-from-package@0.0.0: {}
 

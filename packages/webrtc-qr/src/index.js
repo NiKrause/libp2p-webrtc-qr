@@ -1,6 +1,19 @@
 export { webRTCQR, createWebRTCUpgradeContext } from './transport.js'
 export { QRSession, describeIce } from './session.js'
 export { createKeepAlive } from './keep-alive.js'
+export {
+  AUDIO_CHUNK_LIMIT,
+  AUDIO_DEFAULT_PROTOCOL,
+  AUDIO_HEADER_LENGTH,
+  AUDIO_PROTOCOLS,
+  AUDIO_TRANSMISSION_LIMIT,
+  createAudioReceiver,
+  encodeToAudio,
+  frameForAudio,
+  loadAudioCodec,
+  parseAudioFrame,
+  resetAudioCodec
+} from './audio.js'
 export { createWakeLock } from './wake-lock.js'
 export { BROWSERS_THAT_HOLD, leavingSuspendsUs, pendingConnections, stateOf } from './suspension.js'
 export {

@@ -6,7 +6,7 @@ export default {
       type: 'category',
       label: 'Using it',
       collapsed: false,
-      items: ['session', 'payloads', 'transport']
+      items: ['session', 'payloads', 'transport', 'audio']
     },
     {
       type: 'category',

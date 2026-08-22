@@ -103,6 +103,54 @@ await keepAlive.stop()
 | --- | --- |
 | `track` | URL of an audio file to loop. Without one it runs near-silent. |
 | `silent` | Run inaudibly even with a `track`. |
+
+## The answer, carried back as sound
+
+A laptop and a phone cannot do the handshake the way two phones can: the laptop
+shows the offer, the phone scans it, and then the phone has to hold *its* answer
+up to a webcam that is badly angled, poor, or missing. So the answer can travel
+back as an audible chirp instead — QR out, sound home. The idea is
+[vbocan/webrtc-oob-pairing](https://github.com/vbocan/webrtc-oob-pairing)'s.
+
+Carrier, not format: the same signed bytes, authenticated by the same signature.
+
+```js
+import { createAudioReceiver, encodeToAudio } from '@le-space/libp2p-webrtc-qr'
+
+// On the phone, playing the answer.
+const { frames, seconds } = await encodeToAudio(answer, { sampleRate: context.sampleRate })
+
+// On the laptop, listening. `push` answers null until the payload is whole.
+const receiver = await createAudioReceiver({ sampleRate: context.sampleRate })
+const payload = receiver.push(microphoneSamples)
+```
+
+Measured at 48 kHz, one 140-byte transmission takes 13.5s on `normal`, 9.3s on
+`fast` (the default) and 5.0s on `fastest`. A compact answer is about 207 bytes,
+so two transmissions: **8 to 14 seconds** depending on the protocol. The full
+format is six transmissions and half a minute, which is why this carrier wants
+the compact one.
+
+The codec carries **140 bytes per transmission and truncates anything longer
+without failing** — so payloads are framed and chunked here, and a frame that
+would reach the limit throws instead. `AUDIO_TRANSMISSION_LIMIT`,
+`AUDIO_HEADER_LENGTH` and `AUDIO_CHUNK_LIMIT` are the numbers behind that.
+
+[ggwave](https://github.com/ggerganov/ggwave) is an **optional peer
+dependency**, loaded with `await import()` when the channel is opened. Install it
+to use sound; everything else works without it, and the error says so.
+
+| | |
+| --- | --- |
+| `encodeToAudio(text, options)` | waveforms to play, one per transmission, plus `seconds` |
+| `createAudioReceiver(options)` | `push(samples)` until it returns a payload; `missing()`, `reset()`, `close()` |
+| `frameForAudio(text)` | the framing on its own, for another sound library |
+| `parseAudioFrame(frame)` | and its inverse, which refuses what is not a frame |
+| `loadAudioCodec()` | warm the codec before a gesture. `resetAudioCodec()` forgets it |
+| `AUDIO_PROTOCOLS` | `normal`, `fast`, `fastest`. `AUDIO_DEFAULT_PROTOCOL` is `fast` |
+
+The round trip is tested as a loopback, which proves the framing and not a room.
+A laptop speaker into a phone microphone at conversational distance is hand work.
 | `volume` | `0..1`, applied to `track`. Default `0.35`. |
 | `metadata` | Shown in the platform's media notification. |
 
