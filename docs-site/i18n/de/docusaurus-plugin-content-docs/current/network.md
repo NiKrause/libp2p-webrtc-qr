@@ -17,6 +17,8 @@ import { probeNetwork, summariseNetwork, offNetworkRisk } from '@le-space/libp2p
 | `offNetworkRisk(result)` | `'blocked'` \| `'unreliable'` \| `null` |
 | `offNetworkBlocked(result)` | eng: nur `blocked` |
 | `isGlobalUnicastV6(address)` | ist diese Adresse routbar |
+| `probeBrowser()` | `{ state, text }` — ob dieser Browser überhaupt WebRTC hat und einen Datenkanal öffnen kann |
+| `probeCamera()` | `{ state, text }` — Kameraverfügbarkeit, über die Permissions-API gelesen, ohne zu fragen |
 
 Zustände: `open`, `relay`, `symmetric`, `blocked`.
 

@@ -92,7 +92,13 @@ test('the measurement and the relay rule are reachable from the package root', (
   // decide something without drawing anything should not pay for a renderer —
   // which is exactly the cost that made one consumer write a second, thinner
   // probe of its own.
-  for (const name of ['probeNetwork', 'summariseNetwork', 'offNetworkBlocked', 'offNetworkRisk']) {
+  // `probeBrowser` and `probeCamera` are here for a reason of their own: they
+  // were reachable from neither entry point, only from inside `qr-status`. A
+  // consumer drawing its own panel could fill the network rows from
+  // `renderResult` and had no way to fill a browser or a camera row - so it
+  // either dropped them or paid for a second probe.
+  for (const name of ['probeNetwork', 'summariseNetwork', 'offNetworkBlocked', 'offNetworkRisk',
+    'probeBrowser', 'probeCamera']) {
     assert.equal(typeof core[name], 'function', `${name} must be exported from the package root`)
   }
 
