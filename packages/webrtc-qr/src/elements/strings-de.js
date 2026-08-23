@@ -105,3 +105,17 @@ export const QR_PEERS_STRINGS_DE = {
   disconnect: 'Trennen',
   disconnectFrom: ({ peerId }) => `Verbindung zu ${peerId} trennen`
 }
+
+/** @type {typeof import('./qr-listen.js').QR_LISTEN_STRINGS} */
+export const QR_LISTEN_STRINGS_DE = {
+  label: 'Auf die Antwort horchen',
+  close: 'Schließen',
+  unsupported: 'Dieser Browser kann kein Mikrofon öffnen',
+  noAudio: 'Das Audiosystem ist nicht gestartet. Vielleicht hat dieses Gerät keine Tonausgabe, die der Browser nutzen kann.',
+  starting: 'Mikrofon wird geöffnet…',
+  listening: 'Ich höre zu. Halten Sie die Geräte nah zusammen und spielen Sie den Ton auf dem anderen ab.',
+  quiet: 'Noch nichts gehört. Spielt das andere Gerät, und ist es laut genug?',
+  progress: ({ received, total }) => `${received} von ${total} Teilen gehört. Weiterspielen lassen.`,
+  rejected: 'Das ist nicht die Antwort, auf die dieser Bildschirm wartet.',
+  denied: 'Das Mikrofon wurde abgelehnt. Der Code und der Link funktionieren beide weiterhin.'
+}

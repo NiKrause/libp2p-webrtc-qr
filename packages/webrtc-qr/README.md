@@ -131,6 +131,12 @@ so two transmissions: **8 to 14 seconds** depending on the protocol. The full
 format is six transmissions and half a minute, which is why this carrier wants
 the compact one.
 
+**The codec is silent at 44.1 kHz** — measured: 16000, 24000, 32000, 48000 and
+96000 carry a payload, the 44.1 family encodes a waveform that decodes to
+nothing. A browser's default rate follows the output device, so both ends ask for
+`AUDIO_SAMPLE_RATE` rather than accepting what they are given, and the two
+functions refuse a rate they cannot carry instead of producing silence.
+
 The codec carries **140 bytes per transmission and truncates anything longer
 without failing** — so payloads are framed and chunked here, and a frame that
 would reach the limit throws instead. `AUDIO_TRANSMISSION_LIMIT`,
@@ -143,11 +149,12 @@ to use sound; everything else works without it, and the error says so.
 | | |
 | --- | --- |
 | `encodeToAudio(text, options)` | waveforms to play, one per transmission, plus `seconds` |
-| `createAudioReceiver(options)` | `push(samples)` until it returns a payload; `missing()`, `reset()`, `close()` |
+| `createAudioReceiver(options)` | `push(samples)` until it returns a payload; `total()`, `missing()`, `reset()`, `close()` |
 | `frameForAudio(text)` | the framing on its own, for another sound library |
 | `parseAudioFrame(frame)` | and its inverse, which refuses what is not a frame |
 | `loadAudioCodec()` | warm the codec before a gesture. `resetAudioCodec()` forgets it |
 | `AUDIO_PROTOCOLS` | `normal`, `fast`, `fastest`. `AUDIO_DEFAULT_PROTOCOL` is `fast` |
+| `AUDIO_SAMPLE_RATE` | the rate to ask an `AudioContext` for, because the default may be one that carries nothing |
 
 The round trip is tested as a loopback, which proves the framing and not a room.
 A laptop speaker into a phone microphone at conversational distance is hand work.
@@ -281,11 +288,11 @@ request, having no screen to keep awake.
 import '@le-space/libp2p-webrtc-qr/elements'
 ```
 
-Registers four custom elements. All are theme-able through CSS custom properties
+Registers six custom elements. All are theme-able through CSS custom properties
 and translatable through `strings`.
 
-The classes — `QrInviteElement`, `QrScannerElement`, `QrStatusElement`,
-`QrPeersElement`, `QrIntroElement` — are exported for framework wrappers and for
+The classes — `QrInviteElement`, `QrScannerElement`, `QrListenElement`,
+`QrStatusElement`, `QrPeersElement`, `QrIntroElement` — are exported for framework wrappers and for
 registering under a different tag name; importing the module is enough for
 normal use.
 
@@ -315,6 +322,24 @@ are what to log when a code will not scan.
 `validate` decides whether a scanned code is the one this screen wants —
 returning `{ ok: false, reason }` keeps the camera running with the reason shown.
 The element releases the camera on every way out, including removal from the DOM.
+
+### `<qr-listen>` — microphone, decoding, reassembly
+
+| | |
+| --- | --- |
+| attribute | `label` |
+| properties | `label`, `strings`, `validate`, `createReceiver`, `isOpen` |
+| methods | `open()`, `close()` |
+| events | `payload` → `{ text }`, `close`, `error` → `{ error }` |
+| strings | `label`, `close`, `unsupported`, `noAudio`, `starting`, `listening`, `quiet`, `progress({ received, total })`, `rejected`, `denied` |
+
+The other half of `<qr-scanner>`: it hears an answer played as sound instead of
+held up to a camera, which is the case a laptop and a phone cannot do otherwise.
+`validate` works the same way, and the microphone is released on every way out.
+
+It asks for the microphone with `echoCancellation`, `noiseSuppression` and
+`autoGainControl` **off** — all three are tuned for speech and hostile to this,
+and noise suppression in particular is built to remove exactly this kind of tone.
 
 ### `<qr-status>` — what this network will allow
 
@@ -426,12 +451,12 @@ Values are strings, or functions where a count is involved
 does not fix its word order onto a consumer. `mergeStrings` and `resolveText` are
 exported for anyone building on top.
 
-Defaults: `QR_INVITE_STRINGS`, `QR_SCANNER_STRINGS`, `QR_STATUS_STRINGS`,
-`QR_PEERS_STRINGS`, `QR_INTRO_STRINGS`.
+Defaults: `QR_INVITE_STRINGS`, `QR_SCANNER_STRINGS`, `QR_LISTEN_STRINGS`,
+`QR_STATUS_STRINGS`, `QR_PEERS_STRINGS`, `QR_INTRO_STRINGS`.
 
 **German ships with the package**: `QR_INVITE_STRINGS_DE`,
-`QR_SCANNER_STRINGS_DE`, `QR_STATUS_STRINGS_DE`, `QR_PEERS_STRINGS_DE`,
-`QR_INTRO_STRINGS_DE`. Two
+`QR_SCANNER_STRINGS_DE`, `QR_LISTEN_STRINGS_DE`, `QR_STATUS_STRINGS_DE`,
+`QR_PEERS_STRINGS_DE`, `QR_INTRO_STRINGS_DE`. Two
 consumers were translating the same three dozen labels by hand from the same
 defaults, which is the same work twice and two chances to fall behind when a
 string is added here.

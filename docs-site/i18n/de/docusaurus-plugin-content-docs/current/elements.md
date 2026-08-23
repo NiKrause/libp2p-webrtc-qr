@@ -8,11 +8,11 @@ sidebar_label: Elemente
 import '@le-space/libp2p-webrtc-qr/elements'
 ```
 
-Registriert vier Custom Elements. Alle sind über CSS-Custom-Properties gestaltbar
+Registriert sechs Custom Elements. Alle sind über CSS-Custom-Properties gestaltbar
 und über `strings` übersetzbar.
 
-Die Klassen — `QrInviteElement`, `QrScannerElement`, `QrStatusElement`,
-`QrPeersElement` — sind für Framework-Hüllen und für die Registrierung unter
+Die Klassen — `QrInviteElement`, `QrScannerElement`, `QrListenElement`, `QrStatusElement`,
+`QrPeersElement`, `QrIntroElement` — sind für Framework-Hüllen und für die Registrierung unter
 einem anderen Tag-Namen exportiert; für den Normalfall genügt der Import des
 Moduls.
 
@@ -46,6 +46,45 @@ Grund an.
 
 Das Element gibt die Kamera auf **jedem** Weg hinaus frei, auch bei Entfernung
 aus dem DOM.
+
+## `<qr-listen>` — Mikrofon, Dekodierung, Zusammensetzung
+
+| | |
+| --- | --- |
+| Attribut | `label` |
+| Eigenschaften | `label`, `strings`, `validate`, `createReceiver`, `isOpen` |
+| Methoden | `open()`, `close()` |
+| Ereignisse | `payload` → `{ text }`, `close`, `error` → `{ error }` |
+| Strings | `label`, `close`, `unsupported`, `noAudio`, `starting`, `listening`, `quiet`, `progress({ received, total })`, `rejected`, `denied` |
+
+Die andere Hälfte von `<qr-scanner>` und von derselben Bauart: das Element
+besitzt das Gerät, die Dekodierung und die Zusammensetzung, und `validate`
+entscheidet, ob das Gehörte die Nutzlast ist, auf die dieser Bildschirm wartet.
+`{ ok: false, reason }` lässt das Mikrofon offen und zeigt den Grund.
+
+`createReceiver` wird übergeben statt importiert: der Codec läge sonst im
+Elemente-Bundle für jede Seite, auch für die, die nie ein Mikrofon öffnen, und
+ggwaves WebAssembly-Glue nennt Nodes `path` und `fs`, die kein Browser-Bundle
+auflöst. Eine Zeile an der Aufrufstelle hält die optionale Abhängigkeit optional:
+
+```js
+import { createAudioReceiver } from '@le-space/libp2p-webrtc-qr'
+
+listen.createReceiver = createAudioReceiver
+```
+
+Es fordert das Mikrofon mit `echoCancellation`, `noiseSuppression` und
+`autoGainControl` **aus** an. Alle drei sind auf Sprache abgestimmt und hier
+schädlich: die Rauschunterdrückung ist gebaut, um genau solche gleichmäßigen Töne
+zu entfernen, die Echokompensation zieht ab, was die Lautsprecher spielen, und
+die Pegelregelung verwischt die Symbolgrenzen mitten in der Übertragung.
+
+Die Pegelanzeige ist keine Dekoration — wer zwei Geräte aneinanderhält, hat sonst
+kein Mittel, ein abgelehntes Mikrofon von einem stillen Raum zu unterscheiden.
+Das Mikrofon wird auf **jedem** Weg hinaus freigegeben, auch beim Entfernen aus
+dem DOM.
+
+Zum Träger selbst siehe [Ton](/audio).
 
 ## `<qr-status>` — was dieses Netz zulässt
 
@@ -91,8 +130,8 @@ Werte sind Zeichenketten — oder **Funktionen**, wo eine Zahl im Spiel ist
 (`stillLooking({ attempts })`, `animated({ received, total })`). Das Paket zwingt
 einem Verbraucher seine Wortstellung nicht auf.
 
-Vorgaben: `QR_INVITE_STRINGS`, `QR_SCANNER_STRINGS`, `QR_STATUS_STRINGS`,
-`QR_PEERS_STRINGS`. `mergeStrings` und `resolveText` sind für alle exportiert,
+Vorgaben: `QR_INVITE_STRINGS`, `QR_SCANNER_STRINGS`, `QR_LISTEN_STRINGS`,
+`QR_STATUS_STRINGS`, `QR_PEERS_STRINGS`. `mergeStrings` und `resolveText` sind für alle exportiert,
 die darauf aufbauen.
 
 ## QR-Rahmung

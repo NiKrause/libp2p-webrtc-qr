@@ -13,12 +13,14 @@ globalThis.customElements ??= { define () {}, get () { return undefined } }
 
 const { QR_INTRO_STRINGS } = await import('../src/elements/qr-intro.js')
 const { QR_INVITE_STRINGS } = await import('../src/elements/qr-invite.js')
+const { QR_LISTEN_STRINGS } = await import('../src/elements/qr-listen.js')
 const { QR_PEERS_STRINGS } = await import('../src/elements/qr-peers.js')
 const { QR_SCANNER_STRINGS } = await import('../src/elements/qr-scanner.js')
 const { QR_STATUS_STRINGS } = await import('../src/elements/qr-status.js')
 const {
   QR_INTRO_STRINGS_DE,
   QR_INVITE_STRINGS_DE,
+  QR_LISTEN_STRINGS_DE,
   QR_PEERS_STRINGS_DE,
   QR_SCANNER_STRINGS_DE,
   QR_STATUS_STRINGS_DE
@@ -39,7 +41,8 @@ const PAIRS = [
   ['scanner', QR_SCANNER_STRINGS, QR_SCANNER_STRINGS_DE],
   ['invite', QR_INVITE_STRINGS, QR_INVITE_STRINGS_DE],
   ['peers', QR_PEERS_STRINGS, QR_PEERS_STRINGS_DE],
-  ['intro', QR_INTRO_STRINGS, QR_INTRO_STRINGS_DE]
+  ['intro', QR_INTRO_STRINGS, QR_INTRO_STRINGS_DE],
+  ['listen', QR_LISTEN_STRINGS, QR_LISTEN_STRINGS_DE]
 ]
 
 for (const [name, en, de] of PAIRS) {

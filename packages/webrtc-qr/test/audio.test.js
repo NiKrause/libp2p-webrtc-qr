@@ -4,6 +4,7 @@ import { describe, it } from 'node:test'
 import {
   AUDIO_CHUNK_LIMIT,
   AUDIO_HEADER_LENGTH,
+  AUDIO_SAMPLE_RATE,
   AUDIO_TRANSMISSION_LIMIT,
   createAudioReceiver,
   encodeToAudio,
@@ -126,6 +127,80 @@ describe('a payload carried over sound', () => {
       assert.equal(feed(receiver, [frames[1]]), COMPACT_SIZED)
     } finally {
       receiver.close()
+    }
+  })
+})
+
+describe('the sample rate it can be carried at', () => {
+  /**
+   * Found by CI and worth the whole story.
+   *
+   * The e2e passed on a laptop and decoded nothing in the container three runs
+   * running, which read as a container problem: no sound card, no audio. It was
+   * not. The container's `AudioContext` comes up at **44.1 kHz**, and at 44.1 kHz
+   * this codec encodes a waveform that decodes to nothing - no error on either
+   * side, just silence that verifies as silence.
+   *
+   * That is a browser bug waiting to happen, not a CI one. A browser's default
+   * rate follows the output device, and 44.1 kHz is what a great many of them
+   * report. Every transfer on those machines would have failed the same way,
+   * and the first report would have been "it doesn't work" with nothing else in
+   * it.
+   */
+  const MEASURED = {
+    8000: false,
+    11025: false,
+    16000: true,
+    22050: false,
+    24000: true,
+    32000: true,
+    44100: false,
+    48000: true,
+    96000: true
+  }
+
+  it('asks for a rate it was measured to survive', () => {
+    assert.equal(MEASURED[AUDIO_SAMPLE_RATE], true)
+  })
+
+  it('refuses a rate that would encode to silence, rather than encoding to silence', async () => {
+    // The failure this replaces is the worst kind available: a payload that
+    // travels, arrives, and decodes to nothing at either end.
+    await assert.rejects(
+      () => encodeToAudio(COMPACT_SIZED, { sampleRate: 44100 }),
+      /cannot use 44100 Hz/
+    )
+
+    await assert.rejects(
+      () => createAudioReceiver({ sampleRate: 44100 }),
+      /cannot use 44100 Hz/
+    )
+  })
+
+  it('agrees with the measurement in both directions', async () => {
+    for (const [rate, carries] of Object.entries(MEASURED)) {
+      const attempt = encodeToAudio('q3:short', { sampleRate: Number(rate) })
+
+      if (carries) {
+        await attempt
+      } else {
+        await assert.rejects(() => attempt, new RegExp(`cannot use ${rate} Hz`), `${rate} Hz`)
+      }
+    }
+  })
+
+  it('carries a payload at every rate it accepts', async () => {
+    // Not only that the guard agrees with a table: that the rates the guard
+    // lets through actually work, which is the claim the table is making.
+    for (const rate of Object.keys(MEASURED).filter(rate => MEASURED[rate]).map(Number)) {
+      const { frames } = await encodeToAudio('q3:short', { protocol: 'fastest', sampleRate: rate })
+      const receiver = await createAudioReceiver({ sampleRate: rate })
+
+      try {
+        assert.equal(feed(receiver, frames), 'q3:short', `${rate} Hz`)
+      } finally {
+        receiver.close()
+      }
     }
   })
 })

@@ -11,6 +11,7 @@
 import './buffer-shim.js'
 
 export { QrIntroElement, QR_INTRO_STRINGS } from './qr-intro.js'
+export { QrListenElement, QR_LISTEN_STRINGS } from './qr-listen.js'
 export { createIntroPolicy } from './intro-policy.js'
 export { QrInviteElement, QR_INVITE_STRINGS } from './qr-invite.js'
 export { QrPeersElement, QR_PEERS_STRINGS } from './qr-peers.js'
@@ -21,10 +22,11 @@ export { QrStatusElement, QR_STATUS_STRINGS } from './qr-status.js'
 // does - useful when the translations live in a store rather than in one
 // literal at the call site.
 export { mergeStrings, resolveText } from './strings.js'
-// German defaults for all four, so the same three dozen labels are not
+// German defaults for all of them, so the same three dozen labels are not
 // translated once per consumer. See strings-de.js.
 export {
   QR_INTRO_STRINGS_DE,
+  QR_LISTEN_STRINGS_DE,
   QR_INVITE_STRINGS_DE,
   QR_PEERS_STRINGS_DE,
   QR_SCANNER_STRINGS_DE,

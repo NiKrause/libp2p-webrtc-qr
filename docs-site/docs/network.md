@@ -64,8 +64,8 @@ status.strings = QR_STATUS_STRINGS_DE                      // all of it
 status.strings = { ...QR_STATUS_STRINGS_DE, blocked: '—' } // with your own voice
 ```
 
-`QR_STATUS_STRINGS_DE`, `QR_SCANNER_STRINGS_DE`, `QR_INVITE_STRINGS_DE` and
-`QR_PEERS_STRINGS_DE` are defaults for a locale, not a finished translation of
+`QR_STATUS_STRINGS_DE`, `QR_SCANNER_STRINGS_DE`, `QR_INVITE_STRINGS_DE`,
+`QR_LISTEN_STRINGS_DE` and `QR_PEERS_STRINGS_DE` are defaults for a locale, not a finished translation of
 your app.
 
 A second locale rots differently from a README: a missing German key is

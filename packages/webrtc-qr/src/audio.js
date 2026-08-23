@@ -54,6 +54,12 @@
  * have their build fail because a package they do not use is missing.
  */
 
+import { AUDIO_SAMPLE_RATE, assertRate } from './audio-rate.js'
+
+// Re-exported so the rate stays part of this module's public face: a consumer
+// asking an AudioContext for it should not have to know it lives next door.
+export { AUDIO_SAMPLE_RATE }
+
 /**
  * 140 bytes is the transmission limit, three of them are ours.
  *
@@ -186,11 +192,14 @@ export function parseAudioFrame (frame) {
  * @param {string} text the payload, compact format
  * @param {object} [options]
  * @param {'normal'|'fast'|'fastest'} [options.protocol]
- * @param {number} [options.sampleRate] must match the AudioContext that plays it
+ * @param {number} [options.sampleRate] must match the AudioContext that plays it,
+ *   and must be one the codec can carry - see `AUDIO_SAMPLE_RATE`
  * @param {number} [options.volume] ggwave's own 0-100 scale
  * @returns {Promise<{ frames: Float32Array[], seconds: number }>}
  */
-export async function encodeToAudio (text, { protocol = AUDIO_DEFAULT_PROTOCOL, sampleRate = 48000, volume = 15 } = {}) {
+export async function encodeToAudio (text, { protocol = AUDIO_DEFAULT_PROTOCOL, sampleRate = AUDIO_SAMPLE_RATE, volume = 15 } = {}) {
+  assertRate(sampleRate)
+
   const codec = await loadAudioCodec()
   const parameters = codec.getDefaultParameters()
   parameters.sampleRateInp = sampleRate
@@ -227,10 +236,13 @@ export async function encodeToAudio (text, { protocol = AUDIO_DEFAULT_PROTOCOL, 
  * error - so a repeat is ignored rather than restarting anything.
  *
  * @param {object} [options]
- * @param {number} [options.sampleRate] the AudioContext's rate, not the codec's
- * @returns {Promise<{ push: (samples: Float32Array) => string | null, missing: () => number[], reset: () => void, close: () => void }>}
+ * @param {number} [options.sampleRate] the AudioContext's rate, which has to be
+ *   one the codec can carry - see `AUDIO_SAMPLE_RATE`
+ * @returns {Promise<{ push: (samples: Float32Array) => string | null, total: () => number, missing: () => number[], reset: () => void, close: () => void }>}
  */
-export async function createAudioReceiver ({ sampleRate = 48000 } = {}) {
+export async function createAudioReceiver ({ sampleRate = AUDIO_SAMPLE_RATE } = {}) {
+  assertRate(sampleRate)
+
   const codec = await loadAudioCodec()
   const parameters = codec.getDefaultParameters()
   parameters.sampleRateInp = sampleRate
@@ -276,6 +288,16 @@ export async function createAudioReceiver ({ sampleRate = 48000 } = {}) {
       received.set(frame.index, frame.body)
 
       return assemble()
+    },
+
+    /**
+     * How many transmissions this payload is in total, or 0 before the first
+     * one has landed. With `missing()` that is the whole of a "2 of 3" readout,
+     * and a caller reconstructing it from the missing indices alone gets it
+     * wrong the moment the gap is not at the end.
+     */
+    total () {
+      return expected ?? 0
     },
 
     /** Which chunks are still outstanding, so a UI can say "2 of 3". */

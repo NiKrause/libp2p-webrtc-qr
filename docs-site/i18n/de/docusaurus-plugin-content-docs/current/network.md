@@ -65,8 +65,8 @@ status.strings = QR_STATUS_STRINGS_DE                      // alles
 status.strings = { ...QR_STATUS_STRINGS_DE, blocked: '—' } // mit eigener Stimme
 ```
 
-`QR_STATUS_STRINGS_DE`, `QR_SCANNER_STRINGS_DE`, `QR_INVITE_STRINGS_DE` und
-`QR_PEERS_STRINGS_DE` sind Vorgaben für eine Sprache, keine fertige Übersetzung
+`QR_STATUS_STRINGS_DE`, `QR_SCANNER_STRINGS_DE`, `QR_INVITE_STRINGS_DE`,
+`QR_LISTEN_STRINGS_DE` und `QR_PEERS_STRINGS_DE` sind Vorgaben für eine Sprache, keine fertige Übersetzung
 Ihrer App.
 
 Eine zweite Sprache verrottet anders als ein README: ein fehlender deutscher

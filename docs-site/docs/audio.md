@@ -43,6 +43,30 @@ compact format rather than the invite's own.
 the fastest protocol packs its symbols closest together, which is also what makes
 it the first to fail against an echo or a fan.
 
+## The rate both ends have to agree on
+
+**The codec is silent at 44.1 kHz.** Measured across the rates a browser comes up
+at: 16000, 24000, 32000, 48000 and 96000 carry a payload and back; 8000, 11025,
+22050, 44100 and 88200 encode a waveform that decodes to nothing — with no error
+from the codec in either direction.
+
+That is not a laboratory curiosity. A browser's default rate follows the output
+device, and 44.1 kHz is what a great many of them report, so on those machines
+every transfer would have failed silently. Both ends therefore **ask** for a rate
+rather than accepting the one they are given:
+
+```js
+import { AUDIO_SAMPLE_RATE } from '@le-space/libp2p-webrtc-qr'
+
+const context = new AudioContext({ sampleRate: AUDIO_SAMPLE_RATE })
+```
+
+The browser resamples between that and the hardware, which browsers are good at.
+`encodeToAudio` and `createAudioReceiver` refuse a rate they cannot carry, with a
+message that names the fix — failing loudly beats carrying silence.
+
+`<qr-listen>` asks for it on its own.
+
 ## The limit that does not announce itself
 
 The codec carries **at most 140 bytes per transmission and silently truncates
@@ -105,9 +129,10 @@ if (payload != null) {
 
 Chunks may arrive in any order and more than once — somebody playing the sound
 again because the first attempt was drowned out is the ordinary case, not an
-error — so a repeat is ignored rather than restarting anything. `missing()`
-returns the transmissions still outstanding, which is what a "2 of 3" readout is
-made from. `reset()` forgets a half-received payload; `close()` releases the
+error — so a repeat is ignored rather than restarting anything. `missing()` returns the transmissions still outstanding and `total()` how many
+there are altogether - the two halves of a "2 of 3" readout. Both are needed: a
+caller deriving the total from the missing indices alone gets it wrong the moment
+the gap is not at the end. `reset()` forgets a half-received payload; `close()` releases the
 codec.
 
 ## The dependency

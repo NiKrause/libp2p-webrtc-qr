@@ -88,6 +88,9 @@ export default {
     sendLink: 'Link senden…',
     scanReply: 'Seine Antwort scannen',
     pasteReply: 'Man hat mir einen Link geschickt',
+    listen: 'Auf die Antwort horchen',
+    play: ({ seconds }) => `Als Ton abspielen (etwa ${seconds}s)`,
+    playing: ({ part, total }) => `Spielt Teil ${part} von ${total}…`,
     linkSummary: 'Oder als Link senden',
     newLink: 'Neuer Link',
     copy: 'Kopieren',
@@ -110,6 +113,8 @@ export default {
     unreachable: ({ peerId }) => `${peerId} war über niemanden erreichbar, der noch verbunden ist — unten neu verbinden.`,
     startFailed: ({ reason }) => `Start fehlgeschlagen: ${reason}`,
     cameraFailed: ({ reason }) => `Kamera fehlgeschlagen: ${reason}`,
-    qrFailed: ({ reason }) => `QR-Verarbeitung fehlgeschlagen: ${reason}`
+    qrFailed: ({ reason }) => `QR-Verarbeitung fehlgeschlagen: ${reason}`,
+    listenFailed: ({ reason }) => `Mikrofon fehlgeschlagen: ${reason}`,
+    audioFailed: ({ reason }) => `Abspielen der Antwort fehlgeschlagen: ${reason}`
   }
 }

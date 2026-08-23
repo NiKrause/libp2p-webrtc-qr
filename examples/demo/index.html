@@ -359,6 +359,11 @@
 
     <qr-scanner id="scan-modal"></qr-scanner>
 
+    <!-- The microphone half of the same idea. It is handed its codec in
+         index.js rather than importing one, so a page that never opens it
+         carries no WebAssembly. -->
+    <qr-listen id="listen-modal"></qr-listen>
+
     <dialog id="invite-box" class="modal" aria-labelledby="invite-modal-title">
       <div class="modal-head">
         <h3 id="invite-modal-title" data-i18n="invite.heading">Show this to the other person</h3>
@@ -374,6 +379,19 @@
         <button id="copy-payload" class="primary" data-i18n="invite.sendLink">Send link…</button>
         <button id="scan-reply" data-i18n="invite.scanReply">Scan their reply</button>
         <button id="paste-reply" data-i18n="invite.pasteReply">They sent a link</button>
+        <!--
+          The third way a reply can arrive, and the only one that works when the
+          other device has no camera worth pointing at this screen. Beside the
+          other two because it answers the same question: the reply is over
+          there, how does it get here.
+
+          Its twin is `play-answer`, shown on the *answering* side of the same
+          dialog - one of the two is always hidden, because a side that is
+          showing an offer has nothing to play and a side showing an answer has
+          nothing to listen for.
+        -->
+        <button id="listen-reply" data-i18n="invite.listen">Listen for their reply</button>
+        <button id="play-answer" hidden>Play it as sound</button>
       </div>
       <!--
         Shown only where leaving actually costs something. A phone suspends this

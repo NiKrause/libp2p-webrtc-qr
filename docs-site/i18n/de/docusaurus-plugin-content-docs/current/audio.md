@@ -46,6 +46,31 @@ Träger das kompakte Format will statt des Formats der Einladung.
 einen Raum: das schnellste Protokoll packt seine Symbole am dichtesten, und genau
 das lässt es als erstes an einem Echo oder einem Lüfter scheitern.
 
+## Die Rate, auf die sich beide Seiten einigen müssen
+
+**Der Codec ist bei 44,1 kHz stumm.** Gemessen über die Raten, mit denen Browser
+tatsächlich starten: 16000, 24000, 32000, 48000 und 96000 tragen eine Nutzlast
+hin und zurück; 8000, 11025, 22050, 44100 und 88200 kodieren eine Wellenform, die
+zu nichts dekodiert — ohne Fehlermeldung in beide Richtungen.
+
+Das ist keine Laborkuriosität. Die Vorgaberate eines Browsers folgt dem
+Ausgabegerät, und 44,1 kHz meldet ein großer Teil von ihnen; auf diesen Rechnern
+wäre jede Übertragung stillschweigend gescheitert. Beide Seiten **fordern** die
+Rate deshalb an, statt die vorgefundene zu nehmen:
+
+```js
+import { AUDIO_SAMPLE_RATE } from '@le-space/libp2p-webrtc-qr'
+
+const context = new AudioContext({ sampleRate: AUDIO_SAMPLE_RATE })
+```
+
+Der Browser rechnet zwischen ihr und der Hardware um, worin Browser gut sind.
+`encodeToAudio` und `createAudioReceiver` verweigern eine Rate, die sie nicht
+tragen können, mit einer Meldung, die den Ausweg nennt — lautes Scheitern ist
+besser als getragene Stille.
+
+`<qr-listen>` fordert sie von sich aus an.
+
 ## Die Grenze, die sich nicht meldet
 
 Der Codec trägt **höchstens 140 Byte pro Sendung und kürzt alles Längere
@@ -111,8 +136,10 @@ if (payload != null) {
 Stücke dürfen in beliebiger Reihenfolge und mehrfach ankommen — dass jemand den
 Ton noch einmal abspielt, weil der erste Versuch übertönt wurde, ist der
 Normalfall und kein Fehler. Eine Wiederholung wird deshalb ignoriert und setzt
-nichts zurück. `missing()` nennt die noch ausstehenden Sendungen, woraus eine
-Anzeige „2 von 3" wird. `reset()` vergisst eine halb empfangene Nutzlast,
+nichts zurück. `missing()` nennt die noch ausstehenden Sendungen und `total()`, wie viele es
+insgesamt sind — die beiden Hälften einer Anzeige „2 von 3". Beide werden
+gebraucht: wer die Gesamtzahl allein aus den fehlenden Indizes ableitet, liegt
+falsch, sobald die Lücke nicht am Ende ist. `reset()` vergisst eine halb empfangene Nutzlast,
 `close()` gibt den Codec frei.
 
 ## Die Abhängigkeit

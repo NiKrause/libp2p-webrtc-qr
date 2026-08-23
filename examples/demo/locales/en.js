@@ -95,6 +95,9 @@ export default {
     sendLink: 'Send link…',
     scanReply: 'Scan their reply',
     pasteReply: 'They sent a link',
+    listen: 'Listen for their reply',
+    play: ({ seconds }) => `Play it as sound (about ${seconds}s)`,
+    playing: ({ part, total }) => `Playing part ${part} of ${total}…`,
     linkSummary: 'Or send it as a link',
     newLink: 'New link',
     copy: 'Copy',
@@ -117,6 +120,8 @@ export default {
     unreachable: ({ peerId }) => `Could not reach ${peerId} through anyone still connected - reconnect below.`,
     startFailed: ({ reason }) => `Start failed: ${reason}`,
     cameraFailed: ({ reason }) => `Camera failed: ${reason}`,
-    qrFailed: ({ reason }) => `QR processing failed: ${reason}`
+    qrFailed: ({ reason }) => `QR processing failed: ${reason}`,
+    listenFailed: ({ reason }) => `Microphone failed: ${reason}`,
+    audioFailed: ({ reason }) => `Playing the answer failed: ${reason}`
   }
 }
