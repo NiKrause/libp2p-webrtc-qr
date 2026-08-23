@@ -221,6 +221,8 @@ export class QrListenElement extends HTMLElement {
   #receiver = null
   #session = 0
   #quietTimer = null
+  /** Whether a payload has already been handed over in this session. */
+  #delivered = false
   #strings = { ...QR_LISTEN_STRINGS }
 
   constructor () {
@@ -325,6 +327,7 @@ export class QrListenElement extends HTMLElement {
 
     const session = ++this.#session
 
+    this.#delivered = false
     this.#status.textContent = resolveText(this.#strings.starting)
     this.#level.style.width = '0'
 
@@ -475,6 +478,16 @@ export class QrListenElement extends HTMLElement {
       return
     }
 
+    // Claimed before the await below, not after it. `close()` bumps the
+    // generation, but it only runs once the event has been dispatched - so a
+    // second complete decode arriving while `validate` was in flight passed the
+    // same guards and dispatched the payload twice. Once every chunk is in hand
+    // any further frame re-completes the payload, so a replayed sound was
+    // enough, and the host then applied one answer to a session that had
+    // already accepted it.
+    if (this.#delivered) return
+    this.#delivered = true
+
     if (typeof this.validate === 'function') {
       let verdict
 
@@ -489,8 +502,13 @@ export class QrListenElement extends HTMLElement {
       if (verdict != null && verdict.ok === false) {
         // Keep listening. Somebody who played the wrong sound can play the
         // right one without reopening anything.
+        this.#delivered = false
         this.#receiver.reset()
-        this.#status.textContent = resolveText(verdict.reason) ?? resolveText(this.#strings.rejected)
+        // `||`, not `??`: `resolveText` returns an empty string for a missing
+        // value rather than null, so `??` never reached the default and a
+        // verdict without a reason blanked the status line instead of
+        // explaining itself.
+        this.#status.textContent = resolveText(verdict.reason) || resolveText(this.#strings.rejected)
         this.#armQuiet()
         return
       }

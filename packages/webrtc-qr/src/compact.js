@@ -262,6 +262,17 @@ export function extractCompact (sdp) {
       }
     })
 
+  // Skipping one candidate costs one path. Skipping the last one costs the
+  // connection - and silently, because what comes out still encodes, signs,
+  // renders as a QR code and verifies on the far side, describing no transport
+  // address at all. ICE then never leaves `checking` and nothing says why.
+  if (candidates.length === 0 && sdp.includes('a=candidate:')) {
+    throw new Error(
+      'None of this SDP\'s ICE candidates can be packed into a compact payload. ' +
+      'Send the full format instead - an invite with no candidates cannot connect.'
+    )
+  }
+
   return { fingerprint: fingerprintToBytes(fingerprint), candidates }
 }
 

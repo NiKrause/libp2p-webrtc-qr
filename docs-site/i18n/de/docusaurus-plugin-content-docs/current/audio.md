@@ -80,11 +80,23 @@ halbe Antwort verifiziert, ist das Schlimmste, was dieser Träger zu bieten hat.
 Deshalb wird hier gerahmt und zerlegt, und ein Rahmen, der die Grenze erreichen
 würde, wirft stattdessen.
 
-Der Rahmenkopf ist `<Index><Anzahl>:` — je eine Ziffer, also höchstens neun
-Sendungen, was über allem liegt, was dieses Projekt erzeugt.
-`AUDIO_TRANSMISSION_LIMIT`, `AUDIO_HEADER_LENGTH` und `AUDIO_CHUNK_LIMIT` sind
-exportiert, damit ein Konsument, der seine eigene Nutzlast bemisst, die Zahl
-lesen kann statt sie abzuschreiben.
+Der Rahmenkopf ist `<Index><Anzahl><Id><Id><Id>:` — je eine Ziffer für Position
+und Anzahl, also höchstens neun Sendungen, dann drei Zeichen, die benennen, um
+*welche* Nutzlast es sich handelt. `AUDIO_TRANSMISSION_LIMIT`,
+`AUDIO_HEADER_LENGTH` und `AUDIO_CHUNK_LIMIT` sind exportiert, damit ein
+Konsument, der seine eigene Nutzlast bemisst, die Zahl lesen kann statt sie
+abzuschreiben.
+
+**Beide Hälften des Kopfes verdienen ihre Bytes.** Die Grenze ist eine
+*Byte*-Zahl, und die Aufteilung zählt Bytes, keine Zeichen: `String.length` zählt
+UTF-16-Einheiten, weshalb eine Nutzlast mit irgendetwas außerhalb von ASCII in
+Stücke geschnitten wurde, die hier richtig aussahen und drüben abgeschnitten
+ankamen. Und die Id trennt eine Nutzlast von der anderen — hört man Teil 1 der
+einen und Teil 2 der anderen Antwort, setzt der Empfänger ohne sie etwas
+zusammen, das es nie gab, und meldet es als vollständig. Zwei Antworten sind sehr
+oft gleich lang, die Anzahl konnte sie also nie unterscheiden. Die Id wird aus
+der Nutzlast abgeleitet, sodass ein zweites Abspielen derselben Antwort die
+Lücken des ersten füllt, statt von vorn zu beginnen.
 
 ## Senden
 

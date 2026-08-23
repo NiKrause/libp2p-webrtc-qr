@@ -75,11 +75,21 @@ with the loss reported only on stdout. A half-answer that verifies as a
 half-answer is the worst outcome this carrier has, so payloads are framed and
 chunked here, and a frame that would reach the limit throws instead.
 
-The frame header is `<index><total>:` — one digit each, so at most nine
-transmissions, which is past anything this project produces.
-`AUDIO_TRANSMISSION_LIMIT`, `AUDIO_HEADER_LENGTH` and `AUDIO_CHUNK_LIMIT` are
-exported because a consumer sizing its own payload should read the number rather
-than copy it.
+The frame header is `<index><total><id><id><id>:` — a digit each for the position
+and the count, so at most nine transmissions, then three characters naming which
+payload this is. `AUDIO_TRANSMISSION_LIMIT`, `AUDIO_HEADER_LENGTH` and
+`AUDIO_CHUNK_LIMIT` are exported because a consumer sizing its own payload should
+read the number rather than copy it.
+
+**Both halves of the header earn their bytes.** The limit is a *byte* count and
+the chunking measures bytes, not characters: `String.length` counts UTF-16 code
+units, so a payload with anything outside ASCII was cut into pieces that looked
+right and arrived truncated. And the id separates one payload from another — hear
+chunk 1 of one answer and chunk 2 of another, and without it the receiver
+assembles something that never existed and reports it as intact. Two answers are
+very often the same length, so the chunk count could never tell them apart. The
+id is derived from the payload, so replaying the same answer fills the gaps in
+the first attempt rather than starting again.
 
 ## Sending
 
