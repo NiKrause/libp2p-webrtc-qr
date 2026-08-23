@@ -63,6 +63,32 @@ bauartbedingt außerhalb des Netzes. Ein in einen Messenger eingefügter Link is
 es nicht: wer die Nachricht lesen kann, kann das Angebot lesen. Die Signatur
 verhindert Manipulation, nicht Mitlesen.
 
+## Was ein Dritter trotzdem erfährt
+
+„Kein Relay, kein Signalisierungsserver" ist eine Aussage über die
+**Signalisierung**, und sie stimmt: nichts zwischen den beiden Peers hält das
+Angebot, die Antwort oder ein Byte dessen, was folgt. Sie ist keine Aussage
+darüber, dass niemand außerhalb des Raums etwas mitbekommt.
+
+`DEFAULT_RTC_CONFIGURATION` fragt vier STUN-Server — zwei von Cloudflare, zwei
+von Google —, und ein reflexiver Kandidat existiert nur, weil einer davon
+geantwortet hat. Das Sammeln von Kandidaten teilt diesen Betreibern also **die
+öffentliche IP-Adresse desjenigen mit, der sammelt**, bei jeder Einladung und
+jeder Antwort. Das ist gewöhnliches WebRTC und keine Erfindung dieses Projekts —
+es ist der Preis dafür, ohne Relay über zwei Netze hinweg zu verbinden.
+
+Daraus folgen drei Dinge, keines davon eine Codeänderung:
+
+- `rtcConfiguration` ersetzt die Liste, durch einen eigenen STUN-Server oder
+  durch keinen.
+- Ohne einen werden nur Host-Kandidaten gesammelt: dasselbe Netz funktioniert,
+  über das Internet hinweg nicht.
+- `?ice=host` tut in der Demo genau das, weshalb die Testsuite läuft, ohne
+  jemanden zu kontaktieren.
+
+Aufgeschrieben, weil die Startseite *nichts in der Mitte* sagt und wer das
+wörtlich nimmt, in genau diesem einen Punkt irrt.
+
 ## Dieser Kanal ist beobachtbar
 
 „Kein Server beteiligt" heißt nicht „im Netz unsichtbar". Die

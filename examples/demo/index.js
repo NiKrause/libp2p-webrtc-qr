@@ -1131,7 +1131,18 @@ async function receiveFile (announcement) {
 }
 
 function renderReceivedFile (announcement, bytes) {
-  const url = URL.createObjectURL(new Blob([bytes], { type: announcement.mime }))
+  // Not `announcement.mime`, though the sender took the trouble to send one.
+  //
+  // A received file is being *saved*, not rendered, so honouring a peer's
+  // chosen type buys the person nothing - and the blob URL lives on this
+  // origin, where `text/html` from somebody else is the one thing it must never
+  // be. `download` makes an ordinary click save rather than navigate, which is
+  // the mitigation that was doing the work here on its own; it is not a
+  // guarantee, because middle-click and "open in new tab" have bypassed it on
+  // blob URLs in shipped engines. The peer already controls the bytes and the
+  // name, which is inherent to sending a file. The type is the part that does
+  // not have to be theirs.
+  const url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }))
   const row = document.createElement('div')
   row.className = 'received-file'
 
