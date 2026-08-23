@@ -105,9 +105,10 @@ if (payload != null) {
 
 Chunks may arrive in any order and more than once — somebody playing the sound
 again because the first attempt was drowned out is the ordinary case, not an
-error — so a repeat is ignored rather than restarting anything. `missing()`
-returns the transmissions still outstanding, which is what a "2 of 3" readout is
-made from. `reset()` forgets a half-received payload; `close()` releases the
+error — so a repeat is ignored rather than restarting anything. `missing()` returns the transmissions still outstanding and `total()` how many
+there are altogether - the two halves of a "2 of 3" readout. Both are needed: a
+caller deriving the total from the missing indices alone gets it wrong the moment
+the gap is not at the end. `reset()` forgets a half-received payload; `close()` releases the
 codec.
 
 ## The dependency

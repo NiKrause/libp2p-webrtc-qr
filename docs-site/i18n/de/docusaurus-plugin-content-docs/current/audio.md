@@ -111,8 +111,10 @@ if (payload != null) {
 Stücke dürfen in beliebiger Reihenfolge und mehrfach ankommen — dass jemand den
 Ton noch einmal abspielt, weil der erste Versuch übertönt wurde, ist der
 Normalfall und kein Fehler. Eine Wiederholung wird deshalb ignoriert und setzt
-nichts zurück. `missing()` nennt die noch ausstehenden Sendungen, woraus eine
-Anzeige „2 von 3" wird. `reset()` vergisst eine halb empfangene Nutzlast,
+nichts zurück. `missing()` nennt die noch ausstehenden Sendungen und `total()`, wie viele es
+insgesamt sind — die beiden Hälften einer Anzeige „2 von 3". Beide werden
+gebraucht: wer die Gesamtzahl allein aus den fehlenden Indizes ableitet, liegt
+falsch, sobald die Lücke nicht am Ende ist. `reset()` vergisst eine halb empfangene Nutzlast,
 `close()` gibt den Codec frei.
 
 ## Die Abhängigkeit

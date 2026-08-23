@@ -228,7 +228,7 @@ export async function encodeToAudio (text, { protocol = AUDIO_DEFAULT_PROTOCOL, 
  *
  * @param {object} [options]
  * @param {number} [options.sampleRate] the AudioContext's rate, not the codec's
- * @returns {Promise<{ push: (samples: Float32Array) => string | null, missing: () => number[], reset: () => void, close: () => void }>}
+ * @returns {Promise<{ push: (samples: Float32Array) => string | null, total: () => number, missing: () => number[], reset: () => void, close: () => void }>}
  */
 export async function createAudioReceiver ({ sampleRate = 48000 } = {}) {
   const codec = await loadAudioCodec()
@@ -276,6 +276,16 @@ export async function createAudioReceiver ({ sampleRate = 48000 } = {}) {
       received.set(frame.index, frame.body)
 
       return assemble()
+    },
+
+    /**
+     * How many transmissions this payload is in total, or 0 before the first
+     * one has landed. With `missing()` that is the whole of a "2 of 3" readout,
+     * and a caller reconstructing it from the missing indices alone gets it
+     * wrong the moment the gap is not at the end.
+     */
+    total () {
+      return expected ?? 0
     },
 
     /** Which chunks are still outstanding, so a UI can say "2 of 3". */

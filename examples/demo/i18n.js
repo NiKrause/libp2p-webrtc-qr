@@ -15,6 +15,8 @@
 import {
   QR_INTRO_STRINGS,
   QR_INTRO_STRINGS_DE,
+  QR_LISTEN_STRINGS,
+  QR_LISTEN_STRINGS_DE,
   QR_INVITE_STRINGS,
   QR_INVITE_STRINGS_DE,
   QR_PEERS_STRINGS,
@@ -38,6 +40,7 @@ const ELEMENTS = {
   en: {
     intro: QR_INTRO_STRINGS,
     invite: QR_INVITE_STRINGS,
+    listen: QR_LISTEN_STRINGS,
     peers: QR_PEERS_STRINGS,
     scanner: QR_SCANNER_STRINGS,
     status: QR_STATUS_STRINGS
@@ -45,6 +48,7 @@ const ELEMENTS = {
   de: {
     intro: QR_INTRO_STRINGS_DE,
     invite: QR_INVITE_STRINGS_DE,
+    listen: QR_LISTEN_STRINGS_DE,
     peers: QR_PEERS_STRINGS_DE,
     scanner: QR_SCANNER_STRINGS_DE,
     status: QR_STATUS_STRINGS_DE

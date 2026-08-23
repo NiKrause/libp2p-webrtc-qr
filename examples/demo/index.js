@@ -45,6 +45,7 @@ function applyLocale (next) {
   qrImage.strings = strings.invite
   introEl.strings = strings.intro
   scanModalEl.strings = strings.scanner
+  listenModalEl.strings = strings.listen
   networkStateEl.strings = strings.status
   peerListEl.strings = strings.peers
 
@@ -57,6 +58,10 @@ function applyLocale (next) {
   }
 
   writeViewLabel()
+  // The play button's label carries a number and is written from here, so the
+  // pass that writes the language writes it too - the same trap the copy button
+  // is in, one control over.
+  labelPlayButton()
 
   // Everything that names a key in the markup - the flags' `aria-label` among
   // them, so the language names come from the catalogue like every other word.
@@ -82,9 +87,12 @@ import { fromString, toString } from 'uint8arrays'
 import {
   QRSession,
   compress,
+  createAudioReceiver,
   createWebRTCUpgradeContext,
   decodePayload,
   encodeSignedPayload,
+  encodeToAudio,
+  frameForAudio,
   parsePayload,
   createKeepAlive,
   createWakeLock,
@@ -174,8 +182,11 @@ const fileInput = document.getElementById('file-input')
 const receivedFilesEl = document.getElementById('received-files')
 const inviteBoxEl = document.getElementById('invite-box')
 const scanModalEl = document.getElementById('scan-modal')
+const listenModalEl = document.getElementById('listen-modal')
 const scanReplyButton = document.getElementById('scan-reply')
 const pasteReplyButton = document.getElementById('paste-reply')
+const listenReplyButton = document.getElementById('listen-reply')
+const playAnswerButton = document.getElementById('play-answer')
 const pasteFallbackEl = document.querySelector('.paste-fallback')
 const inviteLinkEl = document.getElementById('invite-link')
 const copyLinkEl = document.getElementById('copy-link')
@@ -185,6 +196,8 @@ const copyLinkEl = document.getElementById('copy-link')
 // minified it reads as "Cannot access 'w5' before initialization" and takes the
 // whole app down before libp2p ever starts.
 let copiedTimer = null
+// What the dialog is currently showing, for the button that plays it as sound.
+let outboundPayload = null
 const inviteFreshnessEl = document.getElementById('invite-freshness')
 const hurryBackEl = document.getElementById('hurry-back')
 const browserWarningEl = document.getElementById('browser-warning')
@@ -1674,6 +1687,14 @@ async function renderOutbound (payload, kind) {
   const waitingForReply = kind === QR_TYPE_OFFER
   scanReplyButton.hidden = !waitingForReply
   pasteReplyButton.hidden = !waitingForReply
+  listenReplyButton.hidden = !waitingForReply
+
+  // The answering side is the one with something to play. The offer stays a
+  // code or a link: the side that shows it has a screen by definition, and at
+  // a thousand characters it would be half a minute of noise.
+  outboundPayload = payload
+  playAnswerButton.hidden = waitingForReply
+  labelPlayButton()
   openModal(inviteBoxEl)
   startInviteCountdown()
 
@@ -1891,6 +1912,123 @@ scanReplyButton.addEventListener('click', () => {
 pasteReplyButton.addEventListener('click', () => {
   closeModal(inviteBoxEl)
   revealPasteField()
+})
+
+// ---- the reply, carried as sound -------------------------------------------
+
+/**
+ * The codec is handed to the element rather than imported by it.
+ *
+ * `<qr-listen>` deliberately does not import `createAudioReceiver`: it would
+ * then be in the elements bundle for everybody, including every page that never
+ * opens a microphone, and ggwave's WebAssembly glue names Node's `path` and
+ * `fs` - which no browser bundle resolves. This one line is the price of that,
+ * and it is the same seam `strings` and `validate` are.
+ */
+listenModalEl.createReceiver = createAudioReceiver
+listenModalEl.validate = async text => classifyScanned(text, QR_TYPE_ANSWER)
+
+listenModalEl.addEventListener('payload', async event => {
+  setStatus(t('status.verifying'))
+
+  try {
+    const classified = await classifyScanned(event.detail.text, QR_TYPE_ANSWER)
+
+    await handleReceivedPayload(classified.payloadText, QR_TYPE_ANSWER)
+    updateControls()
+  } catch (error) {
+    setStatus(t('status.qrFailed', { reason: error.message }))
+    appendLog(`Audio reply failed: ${error.message}`)
+  }
+})
+
+listenReplyButton.addEventListener('click', () => {
+  closeModal(inviteBoxEl)
+
+  listenModalEl.open().catch(error => {
+    setStatus(t('status.listenFailed', { reason: error.message }))
+    appendLog(`Microphone failed: ${error.message}`)
+    refreshWakeLock()
+  })
+
+  // Same reason as the scanner: hold the screen from the moment the dialog is
+  // up, not from the moment something has arrived. Somebody holding two devices
+  // together is not touching either of them.
+  refreshWakeLock()
+})
+
+/**
+ * How long this payload will take to play, without loading the codec to ask.
+ *
+ * Measured at 48 kHz: one full transmission of 140 bytes is 9.3 seconds on the
+ * default protocol. The label rounds it, because the number is a promise about
+ * how long to stand there rather than a specification.
+ */
+const SECONDS_PER_TRANSMISSION = 9.3
+
+function labelPlayButton () {
+  if (playAnswerButton.hidden || outboundPayload == null) return
+
+  let transmissions
+
+  try {
+    transmissions = frameForAudio(outboundPayload).length
+  } catch {
+    // Longer than the framing can number. Nothing to offer, so offer nothing
+    // rather than a button that throws when pressed.
+    playAnswerButton.hidden = true
+    return
+  }
+
+  playAnswerButton.textContent = t('invite.play', {
+    seconds: Math.round(transmissions * SECONDS_PER_TRANSMISSION)
+  })
+}
+
+async function playThrough (context, samples) {
+  const buffer = context.createBuffer(1, samples.length, context.sampleRate)
+
+  buffer.copyToChannel(samples, 0)
+
+  const source = context.createBufferSource()
+
+  source.buffer = buffer
+  source.connect(context.destination)
+
+  await new Promise(resolve => {
+    source.onended = resolve
+    source.start()
+  })
+}
+
+playAnswerButton.addEventListener('click', async () => {
+  if (outboundPayload == null) return
+
+  // Built inside the click: an AudioContext starts suspended under the autoplay
+  // policy, and this is the only gesture there will be.
+  const context = new AudioContext()
+
+  playAnswerButton.disabled = true
+
+  try {
+    const { frames } = await encodeToAudio(outboundPayload, { sampleRate: context.sampleRate })
+
+    for (const [index, samples] of frames.entries()) {
+      // One buffer at a time, and the label says which: two minutes of silence
+      // followed by success is indistinguishable from two minutes of nothing.
+      playAnswerButton.textContent = t('invite.playing', { part: index + 1, total: frames.length })
+      await playThrough(context, samples)
+    }
+
+    appendLog(`Played the answer as sound: ${frames.length} transmissions.`)
+  } catch (error) {
+    setStatus(t('status.audioFailed', { reason: error.message }))
+    appendLog(`Playing the answer failed: ${error.message}`)
+  } finally {
+    playAnswerButton.disabled = false
+    labelPlayButton()
+    context.close().catch(() => {})
+  }
 })
 
 function revealPasteField () {
@@ -2173,6 +2311,9 @@ window.__libp2pQrTest = {
   // The tables for the current locale, so a spec can hand the shipped German to
   // an element rather than retyping it and proving only that it retyped it.
   elementStrings,
+  // The codec, so a spec can mount its own <qr-listen> against a fake capture
+  // device without the demo's own answer validation standing in front of it.
+  createAudioReceiver,
   wakeLockState: () => ({ supported: wakeLock.supported, wanted: wakeLock.wanted, held: wakeLock.held }),
   /**
    * Whether the keep-alive is running, and whether it got the real recording or
