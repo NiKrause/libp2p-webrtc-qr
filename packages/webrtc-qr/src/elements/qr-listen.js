@@ -1,3 +1,4 @@
+import { AUDIO_SAMPLE_RATE } from '../audio-rate.js'
 import { mergeStrings, resolveText } from './strings.js'
 
 /**
@@ -355,7 +356,19 @@ export class QrListenElement extends HTMLElement {
   }
 
   async #listen (session) {
-    const context = new AudioContext()
+    // Asked for, not accepted. A browser's default rate follows the output
+    // device and 44.1 kHz is what a great many of them report - a rate this
+    // codec encodes at and decodes nothing from, without failing either way.
+    // The browser resamples between this and the hardware, which it is good at.
+    let context
+
+    try {
+      context = new AudioContext({ sampleRate: AUDIO_SAMPLE_RATE })
+    } catch {
+      // An engine too old for the option. The receiver below refuses a rate it
+      // cannot carry, so this fails with a sentence rather than with silence.
+      context = new AudioContext()
+    }
 
     // The codec is told the context's own rate rather than assuming 48 kHz: a
     // context that came up at 44.1 and a decoder expecting 48 hear different

@@ -131,6 +131,12 @@ so two transmissions: **8 to 14 seconds** depending on the protocol. The full
 format is six transmissions and half a minute, which is why this carrier wants
 the compact one.
 
+**The codec is silent at 44.1 kHz** — measured: 16000, 24000, 32000, 48000 and
+96000 carry a payload, the 44.1 family encodes a waveform that decodes to
+nothing. A browser's default rate follows the output device, so both ends ask for
+`AUDIO_SAMPLE_RATE` rather than accepting what they are given, and the two
+functions refuse a rate they cannot carry instead of producing silence.
+
 The codec carries **140 bytes per transmission and truncates anything longer
 without failing** — so payloads are framed and chunked here, and a frame that
 would reach the limit throws instead. `AUDIO_TRANSMISSION_LIMIT`,
@@ -148,6 +154,7 @@ to use sound; everything else works without it, and the error says so.
 | `parseAudioFrame(frame)` | and its inverse, which refuses what is not a frame |
 | `loadAudioCodec()` | warm the codec before a gesture. `resetAudioCodec()` forgets it |
 | `AUDIO_PROTOCOLS` | `normal`, `fast`, `fastest`. `AUDIO_DEFAULT_PROTOCOL` is `fast` |
+| `AUDIO_SAMPLE_RATE` | the rate to ask an `AudioContext` for, because the default may be one that carries nothing |
 
 The round trip is tested as a loopback, which proves the framing and not a room.
 A laptop speaker into a phone microphone at conversational distance is hand work.

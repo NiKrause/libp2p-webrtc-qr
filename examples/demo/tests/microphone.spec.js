@@ -21,75 +21,19 @@ import { expect, test } from '@playwright/test'
  * `getUserMedia` would have returned. Everything the element does with it is
  * unchanged, it runs on all three engines, and it needs no hardware.
  *
- * **And it still cannot run on CI**, which is worth writing down rather than
- * quietly working around. The E2E job runs inside
- * `mcr.microsoft.com/playwright:v1.61.1-noble`, a container with no sound card,
- * and there a `MediaStream` round trip carries nothing: Chromium and WebKit
- * render the graph and deliver silence, Firefox hangs on it until the test times
- * out. Nothing in this repository can fix that from inside the page. So the test
- * measures whether audio works at all before asserting anything, and skips where
- * it does not - which is honest about the coverage rather than red about the
- * weather. It runs on every developer's machine and in any job with a sound
- * device.
+ * **CI found a real bug here, twice over.** The first version handed Chromium a
+ * WAV as its capture device and the container had no device to play it through.
+ * The second made the sound in the page and still decoded nothing - which read
+ * as the container having no audio at all, and was not: its `AudioContext` comes
+ * up at 44.1 kHz, and at 44.1 kHz the codec encodes a waveform that decodes to
+ * silence. Both ends now ask for a rate the codec survives. See
+ * `audio-rate.js` for the measurement.
  *
  * What none of this proves is a room - a laptop speaker into a phone microphone
  * at conversational distance, with an echo and a fan. That is a measurement and
  * it is hand work. See #110.
  */
 
-/**
- * Does a `MediaStream` round trip carry a signal on this machine?
- *
- * Exactly the path the element depends on - a destination node, its stream, a
- * source node reading it back - and nothing else, so a false here means the
- * platform and not the element. Bounded, because the failure mode on one engine
- * is a hang rather than silence.
- */
-const audioPipelineWorks = page => page.evaluate(async () => {
-  const bounded = (promise, ms) => Promise.race([
-    promise,
-    new Promise(resolve => setTimeout(() => resolve('timeout'), ms))
-  ])
-
-  try {
-    const context = new AudioContext()
-
-    if (await bounded(context.resume().then(() => 'ok'), 3000) !== 'ok') return false
-
-    const oscillator = context.createOscillator()
-    const destination = context.createMediaStreamDestination()
-
-    oscillator.connect(destination)
-    oscillator.start()
-
-    const analyser = context.createAnalyser()
-    context.createMediaStreamSource(destination.stream).connect(analyser)
-
-    const samples = new Float32Array(analyser.fftSize)
-    const heard = await new Promise(resolve => {
-      const deadline = performance.now() + 3000
-      const tick = () => {
-        analyser.getFloatTimeDomainData(samples)
-        if (samples.some(value => Math.abs(value) > 0.01)) return resolve(true)
-        if (performance.now() > deadline) return resolve(false)
-        setTimeout(tick, 50)
-      }
-
-      tick()
-    })
-
-    oscillator.stop()
-    await context.close()
-
-    return heard
-  } catch {
-    return false
-  }
-})
-
-// Short on purpose. This asserts that sound gets from a stream into the element,
-// not that ggwave can carry 207 bytes - the unit tests do that in milliseconds,
-// and every byte here is real time a test spends waiting for audio to play.
 const PAYLOAD = 'q3:heard-through-a-microphone'
 
 test.describe('a payload heard through a microphone', () => {
@@ -102,23 +46,16 @@ test.describe('a payload heard through a microphone', () => {
     await page.goto('/?ice=host&intro=off')
     await page.waitForFunction(() => typeof window.__libp2pQrTest?.encodeToAudio === 'function')
 
-    // Bounded from out here as well as from inside. One engine's answer to a
-    // missing sound card is to hang rather than to return silence, and a probe
-    // that hangs is the failure it was written to avoid.
-    const audioWorks = await Promise.race([
-      audioPipelineWorks(page).catch(() => false),
-      new Promise(resolve => setTimeout(() => resolve(false), 15000))
-    ])
-
-    test.skip(!audioWorks, 'no working audio on this platform - see the note above')
-
     const heard = await page.evaluate(async payload => {
       const { createAudioReceiver, encodeToAudio } = window.__libp2pQrTest
 
       // The stream the element will be given, playing the payload on a loop:
       // the element starts listening a moment after this starts, and a loop
       // means the transmission it half-missed comes round again.
-      const context = new AudioContext()
+      // The same rate the element asks for, and for the same reason: a default
+      // context follows the output device, and at 44.1 kHz this encodes to
+      // something that decodes to nothing.
+      const context = new AudioContext({ sampleRate: window.__libp2pQrTest.AUDIO_SAMPLE_RATE })
       if (context.state === 'suspended') await context.resume()
 
       const { frames } = await encodeToAudio(payload, { protocol: 'fastest', sampleRate: context.sampleRate })

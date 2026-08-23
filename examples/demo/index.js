@@ -90,6 +90,7 @@ import {
   createAudioReceiver,
   createWebRTCUpgradeContext,
   decodePayload,
+  AUDIO_SAMPLE_RATE,
   encodeSignedPayload,
   encodeToAudio,
   frameForAudio,
@@ -2005,8 +2006,10 @@ playAnswerButton.addEventListener('click', async () => {
   if (outboundPayload == null) return
 
   // Built inside the click: an AudioContext starts suspended under the autoplay
-  // policy, and this is the only gesture there will be.
-  const context = new AudioContext()
+  // policy, and this is the only gesture there will be. The rate is asked for
+  // rather than accepted - a context that follows the output device lands on
+  // 44.1 kHz often enough, and the codec is silent there.
+  const context = new AudioContext({ sampleRate: AUDIO_SAMPLE_RATE })
 
   playAnswerButton.disabled = true
 
@@ -2315,6 +2318,7 @@ window.__libp2pQrTest = {
   // without the demo's own answer validation standing in front of it.
   createAudioReceiver,
   encodeToAudio,
+  AUDIO_SAMPLE_RATE,
   wakeLockState: () => ({ supported: wakeLock.supported, wanted: wakeLock.wanted, held: wakeLock.held }),
   /**
    * Whether the keep-alive is running, and whether it got the real recording or
