@@ -1751,7 +1751,10 @@ function updateControls () {
   createOfferAgainButton.disabled = !started
   scanOfferButton.disabled = !started
   scanAnswerButton.disabled = !started || session.offers.size === 0
-  processPayloadButton.disabled = !started || payloadFrom(payloadDisplay.value).length === 0
+  // The same shape as `create-offer` above, and for the same reason: in the
+  // simple view step 1 is not on screen, so a peer that has not started cannot
+  // be started by pressing anything else. `useIncoming` starts one.
+  processPayloadButton.disabled = (!started && !isSimple()) || payloadFrom(payloadDisplay.value).length === 0
   copyPayloadButton.disabled = inviteLinkEl.value.length === 0
 }
 
@@ -2036,9 +2039,20 @@ function revealPasteField () {
 }
 
 async function useIncoming (text) {
-  setButtonBusy(processPayloadButton, 'Connecting…')
+  setButtonBusy(processPayloadButton, node == null ? t('invite.starting') : 'Connecting…')
 
   try {
+    // Nobody who pastes a reply has necessarily started a peer. Somebody who
+    // came back to a tab the phone discarded while they were in a messenger has
+    // certainly not - the page reloaded, and that is the case this whole flow
+    // exists for. Opening a link in the URL bar starts one on the way past;
+    // pasting the same link had no equivalent, and left the person on a screen
+    // with a disabled button and nothing else to press.
+    if (node == null) {
+      await createNode()
+      setButtonBusy(processPayloadButton, 'Connecting…')
+    }
+
     await handleReceivedPayload(text)
   } catch (error) {
     setStatus(explain(error))
