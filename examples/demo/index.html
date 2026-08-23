@@ -357,6 +357,21 @@
       </p>
     </qr-intro>
 
+    <!--
+      The big version of a thumbnail, and the arrow keys between them.
+
+      A plain <dialog>, so Escape and the backdrop close it without any code of
+      ours, and focus goes back where it came from. The caption is under the
+      picture rather than over it: the name is what somebody checks *after*
+      recognising the image, not before.
+    -->
+    <dialog id="preview" class="preview" aria-labelledby="preview-name">
+      <button class="modal-close" data-close-modal type="button" aria-label="Close">×</button>
+      <div class="preview-stage" id="preview-stage"></div>
+      <p class="preview-name" id="preview-name"></p>
+      <p class="preview-position" id="preview-position"></p>
+    </dialog>
+
     <qr-scanner id="scan-modal"></qr-scanner>
 
     <!-- The microphone half of the same idea. It is handed its codec in

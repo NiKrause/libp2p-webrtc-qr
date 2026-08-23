@@ -48,6 +48,10 @@ export default {
     send: 'Send a file',
     received: 'Received files'
   },
+  preview: {
+    open: ({ name }) => `Show ${name}`,
+    position: ({ index, total }) => `${index} of ${total}`
+  },
   view: {
     simple: 'Simple',
     technical: 'Technical'

@@ -38,6 +38,10 @@ export default {
     send: 'Eine Datei schicken',
     received: 'Empfangene Dateien'
   },
+  preview: {
+    open: ({ name }) => `${name} anzeigen`,
+    position: ({ index, total }) => `${index} von ${total}`
+  },
   view: {
     simple: 'Einfach',
     technical: 'Technisch'

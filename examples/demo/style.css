@@ -1360,3 +1360,109 @@ button.is-busy::before {
   background: var(--ls-card);
   color: var(--ls-text);
 }
+
+/* ---------- previews of received files ---------- */
+
+/* The row becomes two columns once there is a picture to put beside the name.
+   Without one it stays exactly as it was: a file this page cannot recognise
+   should not leave a hole where a thumbnail would have been. */
+.received-file.has-preview {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+
+.received-file-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.thumb {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--ls-bg-3);
+  border-radius: var(--ls-radius-sm);
+  background: var(--ls-bg-2);
+  overflow: hidden;
+  cursor: pointer;
+  /* The transform below scales this box, and a scaled box that is still in the
+     flow would push the rows under it around. */
+  position: relative;
+  z-index: 1;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, z-index 0s;
+}
+
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.thumb.is-video {
+  color: var(--ls-text-dim);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+/* Bigger under the pointer, and only where there is one.
+   `hover: hover` keeps this off touch screens, where every tap would trigger it
+   and nothing would ever put it back. On a phone the tap opens the dialog,
+   which is the whole feature rather than a preview of it. */
+@media (hover: hover) and (pointer: fine) {
+  .thumb:hover,
+  .thumb:focus-visible {
+    transform: scale(4.5);
+    transform-origin: left center;
+    z-index: 5;
+    box-shadow: 0 8px 24px rgb(0 0 0 / 0.28);
+  }
+}
+
+.preview {
+  max-width: min(92vw, 900px);
+  max-height: 92dvh;
+  padding: 16px;
+  border: 1px solid var(--ls-bg-3);
+  border-radius: var(--ls-radius);
+  background: var(--ls-bg-1);
+  color: var(--ls-text);
+}
+
+.preview::backdrop {
+  background: rgb(0 0 0 / 0.72);
+}
+
+.preview .modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.preview-stage img,
+.preview-stage video {
+  display: block;
+  max-width: 100%;
+  /* Room for the caption and the counter under it, so a tall picture does not
+     push its own name off the bottom of the dialog. */
+  max-height: calc(92dvh - 96px);
+  margin: 0 auto;
+  border-radius: var(--ls-radius-sm);
+}
+
+.preview-name {
+  margin: 12px 0 0;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.preview-position {
+  margin: 2px 0 0;
+  font-family: var(--ls-font-mono);
+  font-size: 0.72rem;
+  color: var(--ls-text-faint);
+}
