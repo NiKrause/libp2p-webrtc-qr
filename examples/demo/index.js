@@ -675,9 +675,24 @@ const keepAlive = createKeepAlive({
 })
 
 /**
- * Must be called from inside the gesture, before any await: `AudioContext`
- * starts suspended under the autoplay policy, and a resume outside a gesture is
- * refused. By the time ICE has gathered there is no gesture left to spend.
+ * Started by the gesture that takes the link out of the page - the share button
+ * and the Copy button, which are the same two places that say "come straight
+ * back". Not by the button that creates the invite.
+ *
+ * **This is later than is comfortable, and deliberately so.** The earlier wiring
+ * spent the create-invite click, which is the safest possible moment for the
+ * autoplay policy and meant Mozart playing while somebody was only holding a
+ * code up to a camera - a flow that never leaves the app at all, on a desktop
+ * that never suspends anything. Nobody wants a minute of opera to show a QR
+ * code.
+ *
+ * What it costs is margin. The audio now starts in the same gesture that hands
+ * the page to a messenger, so a browser that has not yet counted this page as
+ * playing media may freeze it anyway. Whether it wins that race is the open
+ * experiment in AGENTS.md, and it is now the thing that experiment measures.
+ *
+ * Still inside a gesture and before any await, which is the part that is not
+ * negotiable: an `AudioContext` resumed outside one is refused outright.
  */
 /**
  * Stop once the code is off the screen - which is both endings at once, because
@@ -715,25 +730,6 @@ function startKeepAlive () {
       : 'Keep-alive audio could not start; leaving the app will likely end the invite.')
   }).catch(() => {})
 }
-
-/**
- * The answering side never gets the gesture the offering side does.
- *
- * Opening an invite link auto-starts the node and renders the reply without
- * anyone pressing anything - and that person has the harder job, because they
- * are the one who has to leave for a messenger twice. So take the next touch
- * they make, whatever it is, while a code is still on screen.
- *
- * Passive and once-only: it stops listening as soon as audio is running, and it
- * never interferes with what the touch was actually for.
- */
-document.addEventListener('pointerdown', () => {
-  if (keepAlive.running || !inviteBoxEl.open) {
-    return
-  }
-
-  startKeepAlive()
-}, { capture: true, passive: true })
 
 function renderPeers () {
   // One of the places the wake lock is kept in step - see refreshWakeLock.
@@ -1591,6 +1587,10 @@ inviteLinkEl.addEventListener('focus', () => inviteLinkEl.select())
  * and reached for a button marked "Copy" asked for the clipboard.
  */
 async function copyInviteLink () {
+  // Synchronously, before the await below: this is inside the click, and a
+  // click is the only moment the autoplay policy will let audio start.
+  startKeepAlive()
+
   // The same warning the share button gives, for the same reason: copying a
   // link is what somebody does immediately before leaving for a messenger. On a
   // phone whose browser has no share sheet this is the *only* way out, and
@@ -1821,11 +1821,6 @@ resetIdentityButton.addEventListener('click', () => {
 })
 
 async function createInvite (button) {
-  // First, and synchronously: this runs inside the click that called it, which
-  // is the only moment the autoplay policy will let audio start. Everything
-  // below awaits.
-  startKeepAlive()
-
   // Step 1 is technical - "start a browser peer" is not a thing anybody set out
   // to do - so in the simple view it is not on screen to press. The button that
   // *is* pressed does it instead, which is also the honest order: nobody wants
@@ -2070,6 +2065,10 @@ payloadDisplay.addEventListener('paste', event => {
 })
 
 copyPayloadButton.addEventListener('click', async () => {
+  // Synchronously, before the share sheet and before any await: inside the
+  // click is the only moment the autoplay policy will let audio start.
+  startKeepAlive()
+
   // Said *before* the messenger takes the screen. Once it has, this page is
   // suspended and anything written here is unreadable until it is too late to
   // act on - which is what made the old on-return warning a post-mortem.

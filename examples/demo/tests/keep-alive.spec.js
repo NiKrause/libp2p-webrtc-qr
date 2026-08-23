@@ -37,13 +37,54 @@ test.describe('keep-alive audio', () => {
     expect((await keepAlive(page)).wanted).toBe(false)
   })
 
-  test('is wanted while an invite waits, and given up when it closes', async ({ page }) => {
+  test('is not wanted merely because a code is on screen', async ({ page }) => {
     await startPeer(page)
     await page.locator('#create-offer').click()
     await expect(page.locator('#invite-box')).toBeVisible({ timeout: 60000 })
 
-    // The window the whole feature exists for: a code on screen, nobody has
-    // replied, and the next thing this person does is leave for a messenger.
+    // Holding a code up to somebody's camera never leaves the app, and that is
+    // the flow this page is named after. It used to start on this click, which
+    // meant a minute of opera to show a QR code.
+    expect((await keepAlive(page)).wanted).toBe(false)
+  })
+
+  test('is wanted from the gesture that takes the link away', async ({ page }) => {
+    // The share sheet is what a phone offers; forced on here rather than waited
+    // for, because whether the engine has one is not the subject.
+    await page.addInitScript(() => { navigator.share = async () => {} })
+    await startPeer(page)
+    await page.locator('#create-offer').click()
+    await expect(page.locator('#invite-box')).toBeVisible({ timeout: 60000 })
+
+    await page.locator('#copy-payload').click()
+
+    // Inside that click, and nowhere later: an AudioContext resumed outside a
+    // gesture is refused, so there is no second chance after the await.
+    expect((await keepAlive(page)).wanted).toBe(true)
+  })
+
+  test('and from the Copy button, which is the other way out', async ({ page, context, browserName }) => {
+    test.skip(browserName !== 'chromium', 'clipboard permissions are Chromium-only in Playwright')
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+
+    await startPeer(page)
+    await page.locator('#create-offer').click()
+    await expect(page.locator('#invite-box')).toBeVisible({ timeout: 60000 })
+
+    // On a phone whose browser has no share sheet this is the only way out, so
+    // it has to arm the same protection the share button does.
+    await page.locator('.invite-link-fallback summary').click()
+    await page.locator('#copy-link').click()
+
+    expect((await keepAlive(page)).wanted).toBe(true)
+  })
+
+  test('is given up when the code leaves the screen', async ({ page }) => {
+    await page.addInitScript(() => { navigator.share = async () => {} })
+    await startPeer(page)
+    await page.locator('#create-offer').click()
+    await expect(page.locator('#invite-box')).toBeVisible({ timeout: 60000 })
+    await page.locator('#copy-payload').click()
     expect((await keepAlive(page)).wanted).toBe(true)
 
     await page.locator('#invite-box [data-close-modal]').first().click()
@@ -52,17 +93,5 @@ test.describe('keep-alive audio', () => {
     // Audio still playing afterwards holds the CPU awake for nothing and tells
     // the user the app is working on something it finished.
     expect((await keepAlive(page)).wanted).toBe(false)
-  })
-
-  test('is wanted from the gesture, before the invite appears', async ({ page }) => {
-    await startPeer(page)
-
-    // The distinction is the whole reason this is wired where it is: an
-    // AudioContext resumed outside a user gesture is refused, and by the time
-    // ICE has gathered and the box is visible there is no gesture left. So the
-    // attempt has to happen before the invite shows, not after.
-    await page.locator('#create-offer').click()
-    expect((await keepAlive(page)).wanted).toBe(true)
-    await expect(page.locator('#invite-box')).toBeVisible({ timeout: 60000 })
   })
 })
