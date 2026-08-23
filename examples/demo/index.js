@@ -594,6 +594,12 @@ function attachChatStream (stream, peerId, message) {
   // Whatever was on screen was there to get to this point.
   closeModal(inviteBoxEl)
   scanModalEl.close()
+  // The microphone belongs in this list for the same reason the camera does,
+  // and it was left out when it was added. A reply can arrive by a route this
+  // page is not watching - a link opened in a second tab and handed over, or
+  // pasted - and the dialog listening for a sound would then stay open with a
+  // live track and its recording indicator on, after the connection was up.
+  listenModalEl.close()
   appendLog(message)
 
   // Both directions, so a mesh closes itself no matter who joined last.
@@ -642,7 +648,12 @@ function attachChatStream (stream, peerId, message) {
  * `sync` re-checks page visibility itself, so this is only about intent.
  */
 function wantWakeLock () {
-  return scanModalEl.isOpen || inviteBoxEl.open || chatStreams.size > 0
+  // Listening belongs here for exactly the reason the paragraph above gives for
+  // scanning: two devices held together, neither of them touched, for the eight
+  // to fourteen seconds a payload takes as sound. Without it the handler that
+  // opens the microphone was *releasing* the lock - it closes the invite dialog
+  // first, and nothing else here was true yet.
+  return scanModalEl.isOpen || listenModalEl.isOpen || inviteBoxEl.open || chatStreams.size > 0
 }
 
 const wakeLock = createWakeLock()
@@ -773,6 +784,21 @@ function envelope (payload) {
  */
 const meshAttempts = new Set()
 
+/**
+ * How long an unanswered mesh handshake blocks a second try.
+ *
+ * Every other way out of `meshConnect` clears its entry: the peer connects, the
+ * send fails, the relay reports it cannot forward, or an answer comes back. The
+ * one path with nothing to clear it is the quiet one - the relay forwards, and
+ * the target never replies because its phone is asleep. Without an expiry that
+ * peer is refused for the life of the page, silently, including after it comes
+ * back and is announced again.
+ *
+ * Long enough that a slow handshake is not cut off, short enough that somebody
+ * who reconnects is not locked out for the rest of the session.
+ */
+const MESH_ATTEMPT_TIMEOUT = 45000
+
 /** Remaining peers to try as a route back to a peer we lost, in order. */
 const resumeRoutes = new Map()
 
@@ -811,6 +837,8 @@ async function meshConnect (target, via) {
   }
 
   meshAttempts.add(target)
+  // Deleting an entry that is already gone is free; leaving one behind is not.
+  setTimeout(() => meshAttempts.delete(target), MESH_ATTEMPT_TIMEOUT)
   appendLog(`Reaching ${shortPeer(target)} through ${shortPeer(via)}…`)
 
   try {
@@ -1219,11 +1247,26 @@ scanModalEl.addEventListener('close', () => {
   refreshWakeLock()
 })
 
+// The same for the microphone, and it was missing: the element releases the
+// track by itself, but nothing told the wake lock that the reason it was being
+// held had gone away. The intent then outlived the dialog, and the screen stayed
+// lit until something else happened to re-state it.
+listenModalEl.addEventListener('close', () => {
+  refreshWakeLock()
+})
+
 // Escape or the backdrop closes a <dialog> natively, without going through
 // closeModal, so the native event is where "invite no longer shown" is caught.
 // Covers a dialog dismissed by the platform - Escape, or the backdrop - which
 // never goes through closeModal.
 inviteBoxEl.addEventListener('close', () => {
+  // Fires for Escape, the close button, and `closeModal` alike - so the
+  // countdown stops in one place rather than at each of the ways out, which is
+  // how the scanner releases its camera two files over. It used to be cleared
+  // only by the *next* invite, so a page that connected once kept a tick every
+  // fifteen seconds for the rest of its life, recomputing a freshness label for
+  // an element nobody could see.
+  clearInterval(inviteCountdown)
   refreshWakeLock()
   refreshKeepAlive()
 })

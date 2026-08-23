@@ -78,4 +78,44 @@ test.describe('wake lock while scanning', () => {
       await browser.close()
     }
   })
+
+  test('is wanted while the microphone listens, and dropped when it closes', async ({ browserName, baseURL }) => {
+    test.skip(browserName !== 'chromium', 'only Chromium can be given a fake capture device')
+
+    // The case the scanner test above is about, one sense over - and the one
+    // the predicate had never heard of. Listening for a reply is the *least*
+    // interactive moment in the whole flow: two devices held together for eight
+    // to fourteen seconds with nobody touching either. A screen that sleeps
+    // there loses the transmission.
+    //
+    // Worse than missing, it was inverted: the handler closes the invite dialog
+    // and then asks for the lock, so with the microphone uncounted the ask
+    // *released* it at precisely that moment.
+    const browser = await chromium.launch({
+      args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream']
+    })
+
+    try {
+      const page = await (await browser.newContext({ baseURL })).newPage()
+
+      await page.goto('/?ice=host&view=technical&intro=off')
+      await page.locator('#start-client').click()
+      await page.waitForFunction(() => document.getElementById('peer-id').textContent !== 'not started')
+      await page.locator('#create-offer').click()
+      await expect(page.locator('#invite-box')).toBeVisible({ timeout: 60000 })
+
+      await page.locator('#listen-reply').click()
+      await expect(page.locator('qr-listen dialog')).toBeVisible()
+      // The invite dialog is closed by now, so nothing but the microphone can
+      // be holding this.
+      await expect(page.locator('#invite-box')).toBeHidden()
+      await expect.poll(() => wanted(page), { timeout: 10000 }).toBe(true)
+
+      await page.keyboard.press('Escape')
+      await expect.poll(() => wanted(page), { timeout: 5000 }).toBe(false)
+    } finally {
+      await browser.close()
+    }
+  })
 })
+
