@@ -124,4 +124,57 @@ test.describe('the link beside the code', () => {
 
     await expect(page.locator('#copy-link')).toHaveText('Kopieren')
   })
+
+  test('a pasted reply works with no peer started, in the view that hides the start button', async ({ browser, baseURL }) => {
+    // Reported from two phones over Telegram, and it is the main path rather
+    // than an edge of it: Alice left for the messenger, the phone discarded the
+    // tab, and coming back reloaded the page. No node, no invite on screen -
+    // and in the simple view no visible control that starts one, because step 1
+    // is exactly what that view hides.
+    //
+    // The suite missed it twice over. `useLink()` above uses `fill()`, which
+    // dispatches `input` and re-enables the button; and every other spec drives
+    // `view=technical` and presses Start first. So this one does neither.
+    const alice = await (await browser.newContext({ baseURL })).newPage()
+    const bob = await (await browser.newContext({ baseURL })).newPage()
+
+    try {
+      await alice.goto('/?ice=host&view=technical&intro=off')
+      await alice.locator('#start-client').click()
+      await alice.waitForFunction(() => document.getElementById('peer-id').textContent !== 'not started')
+      await alice.locator('#create-offer').click()
+      await expect(alice.locator('#invite-box')).toBeVisible({ timeout: 60000 })
+
+      const invite = await alice.locator('#invite-link').inputValue()
+
+      // Bob answers by opening the link, which is the ordinary way round.
+      await bob.goto(invite.replace(/^https?:\/\/[^/]+/, ''))
+      await expect(bob.locator('#invite-box')).toBeVisible({ timeout: 60000 })
+      await expect.poll(() => bob.locator('#invite-link').inputValue()).toMatch(/#r=/)
+      const reply = await bob.locator('#invite-link').inputValue()
+
+      // Alice comes back to a page that was discarded and reloaded, in the
+      // default view, with nothing started.
+      await alice.goto('/?ice=host&intro=off')
+      await expect(alice.locator('#step-start')).toBeHidden()
+      await expect(alice.locator('#peer-id')).toHaveText('not started')
+
+      await alice.locator('.paste-fallback summary').click()
+      await alice.locator('#payload-display').fill(reply)
+
+      // The whole report in one assertion: this button could not be pressed.
+      await expect(alice.locator('#process-payload')).toBeEnabled()
+      await alice.locator('#process-payload').click()
+
+      // And pressing it has to start a peer on the way, or it is a button that
+      // reports its own failure instead of doing the work.
+      await expect.poll(
+        () => alice.locator('#peer-id').textContent(),
+        { timeout: 60000 }
+      ).not.toBe('not started')
+    } finally {
+      await alice.close()
+      await bob.close()
+    }
+  })
 })
