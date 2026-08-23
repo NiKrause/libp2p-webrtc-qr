@@ -166,7 +166,22 @@ test.describe('installable', () => {
     // Asserted rather than left implicit, so nobody adds one by reflex. If one
     // is ever wanted, this test is the place the argument gets written down.
     expect(await page.evaluate(() => navigator.serviceWorker?.controller ?? null)).toBeNull()
-    expect(await page.locator('script[src*="sw"], link[rel="serviceworker"]').count()).toBe(0)
+
+    // Asked of what the page *does*, not of what its files are called. This
+    // used to be `script[src*="sw"]`, which matches any script whose name
+    // happens to contain those two letters - and Vite names its bundle after a
+    // content hash, so the day an unrelated edit produced `index-BrWDv0sw.js`
+    // the suite reported a service worker that does not exist. A build-hash
+    // lottery is not a test, and its failure message pointed at the wrong thing.
+    const registers = await page.evaluate(async () => {
+      const sources = [...document.querySelectorAll('script[src]')].map(script => script.src)
+      const bodies = await Promise.all(sources.map(src => fetch(src).then(response => response.text())))
+
+      return bodies.some(body => body.includes('serviceWorker.register'))
+    })
+
+    expect(registers, 'the bundle registers a service worker').toBe(false)
+    expect(await page.locator('link[rel="serviceworker"]').count()).toBe(0)
   })
 })
 
