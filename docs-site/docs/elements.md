@@ -52,7 +52,7 @@ DOM.
 | properties | `label`, `strings`, `validate`, `createReceiver`, `isOpen` |
 | methods | `open()`, `close()` |
 | events | `payload` → `{ text }`, `close`, `error` → `{ error }` |
-| strings | `label`, `close`, `unsupported`, `starting`, `listening`, `quiet`, `progress({ received, total })`, `rejected`, `denied` |
+| strings | `label`, `close`, `unsupported`, `noAudio`, `starting`, `listening`, `quiet`, `progress({ received, total })`, `rejected`, `denied` |
 
 The other half of `<qr-scanner>`, and the same shape: the element owns the
 device, the decoding and the reassembly, and `validate` decides whether what it

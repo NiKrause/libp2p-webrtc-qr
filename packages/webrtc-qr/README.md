@@ -331,7 +331,7 @@ The element releases the camera on every way out, including removal from the DOM
 | properties | `label`, `strings`, `validate`, `createReceiver`, `isOpen` |
 | methods | `open()`, `close()` |
 | events | `payload` → `{ text }`, `close`, `error` → `{ error }` |
-| strings | `label`, `close`, `unsupported`, `starting`, `listening`, `quiet`, `progress({ received, total })`, `rejected`, `denied` |
+| strings | `label`, `close`, `unsupported`, `noAudio`, `starting`, `listening`, `quiet`, `progress({ received, total })`, `rejected`, `denied` |
 
 The other half of `<qr-scanner>`: it hears an answer played as sound instead of
 held up to a camera, which is the case a laptop and a phone cannot do otherwise.

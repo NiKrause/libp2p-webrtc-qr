@@ -111,6 +111,7 @@ export const QR_LISTEN_STRINGS_DE = {
   label: 'Auf die Antwort horchen',
   close: 'Schließen',
   unsupported: 'Dieser Browser kann kein Mikrofon öffnen',
+  noAudio: 'Das Audiosystem ist nicht gestartet. Vielleicht hat dieses Gerät keine Tonausgabe, die der Browser nutzen kann.',
   starting: 'Mikrofon wird geöffnet…',
   listening: 'Ich höre zu. Halten Sie die Geräte nah zusammen und spielen Sie den Ton auf dem anderen ab.',
   quiet: 'Noch nichts gehört. Spielt das andere Gerät, und ist es laut genug?',

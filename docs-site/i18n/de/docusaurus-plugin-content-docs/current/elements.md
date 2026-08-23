@@ -55,7 +55,7 @@ aus dem DOM.
 | Eigenschaften | `label`, `strings`, `validate`, `createReceiver`, `isOpen` |
 | Methoden | `open()`, `close()` |
 | Ereignisse | `payload` → `{ text }`, `close`, `error` → `{ error }` |
-| Strings | `label`, `close`, `unsupported`, `starting`, `listening`, `quiet`, `progress({ received, total })`, `rejected`, `denied` |
+| Strings | `label`, `close`, `unsupported`, `noAudio`, `starting`, `listening`, `quiet`, `progress({ received, total })`, `rejected`, `denied` |
 
 Die andere Hälfte von `<qr-scanner>` und von derselben Bauart: das Element
 besitzt das Gerät, die Dekodierung und die Zusammensetzung, und `validate`

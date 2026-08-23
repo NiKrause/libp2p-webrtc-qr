@@ -189,6 +189,7 @@ export const QR_LISTEN_STRINGS = {
   label: 'Listen for their reply',
   close: 'Close',
   unsupported: 'This browser cannot open a microphone',
+  noAudio: 'The audio system did not start. This device may have no sound output the browser can use.',
   starting: 'Opening the microphone…',
   listening: 'Listening. Hold the two devices close, and play the sound on the other one.',
   quiet: 'Nothing heard yet. Is the other device playing, and is its volume up?',
@@ -348,7 +349,12 @@ export class QrListenElement extends HTMLElement {
       this.#stream = stream
       await this.#listen(session)
     } catch (error) {
-      this.#status.textContent = resolveText(this.#strings.denied)
+      // `NotAllowedError` is the one a person can act on; anything else already
+      // carries its own sentence and saying "you refused this" over the top of
+      // it would be wrong.
+      this.#status.textContent = error?.name === 'NotAllowedError'
+        ? resolveText(this.#strings.denied)
+        : (error?.message ?? resolveText(this.#strings.denied))
       this.close()
       this.dispatchEvent(new CustomEvent('error', { detail: { error } }))
       throw error
@@ -393,7 +399,23 @@ export class QrListenElement extends HTMLElement {
     // gesture that opened this, and the autoplay policy is entitled to hold it
     // suspended - in which case the graph never runs and the microphone is open
     // for nothing.
-    if (context.state === 'suspended') await context.resume()
+    //
+    // Bounded, because "suspended" is not the only way this ends. On a machine
+    // with no usable audio output - a container, a stripped-down VM - Firefox
+    // never settles this promise at all, and a dialog that waits forever is
+    // worse than one that says what went wrong.
+    if (context.state === 'suspended') {
+      const started = await Promise.race([
+        context.resume().then(() => true, () => false),
+        new Promise(resolve => setTimeout(() => resolve(false), 5000))
+      ])
+
+      if (!started) {
+        receiver.close()
+        await context.close().catch(() => {})
+        throw new Error(resolveText(this.#strings.noAudio))
+      }
+    }
 
     const node = new AudioWorkletNode(context, 'qr-listen-processor')
     const source = context.createMediaStreamSource(this.#stream)

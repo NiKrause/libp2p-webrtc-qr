@@ -21,6 +21,13 @@ import { expect, test } from '@playwright/test'
  * `getUserMedia` would have returned. Everything the element does with it is
  * unchanged, it runs on all three engines, and it needs no hardware.
  *
+ * One engine still stands down in the E2E container: Firefox cannot start an
+ * `AudioContext` on a machine with no audio output, and never settles
+ * `resume()` to say so. Chromium and WebKit start one there without complaint,
+ * so this is a narrow skip with a named cause rather than a blanket one - and
+ * the element learned the same bound, because a dialog that waits forever is
+ * worse than one that says what went wrong.
+ *
  * **CI found a real bug here, twice over.** The first version handed Chromium a
  * WAV as its capture device and the container had no device to play it through.
  * The second made the sound in the page and still decoded nothing - which read
@@ -56,7 +63,20 @@ test.describe('a payload heard through a microphone', () => {
       // context follows the output device, and at 44.1 kHz this encodes to
       // something that decodes to nothing.
       const context = new AudioContext({ sampleRate: window.__libp2pQrTest.AUDIO_SAMPLE_RATE })
-      if (context.state === 'suspended') await context.resume()
+
+      // Bounded, and the bound is the point. Chromium and WebKit start an audio
+      // context in the E2E container quite happily; Firefox there never settles
+      // `resume()` at all, because the container has no audio output for it to
+      // start against. That is a property of the machine, so the test says so
+      // and stands down rather than hanging for two minutes.
+      if (context.state === 'suspended') {
+        const started = await Promise.race([
+          context.resume().then(() => true, () => false),
+          new Promise(resolve => setTimeout(() => resolve(false), 5000))
+        ])
+
+        if (!started) return { noAudioContext: true }
+      }
 
       const { frames } = await encodeToAudio(payload, { protocol: 'fastest', sampleRate: context.sampleRate })
       const length = frames.reduce((total, frame) => total + frame.length, 0)
@@ -120,6 +140,8 @@ test.describe('a payload heard through a microphone', () => {
 
       return result
     }, PAYLOAD)
+
+    test.skip(heard.noAudioContext === true, 'this machine has no audio output the browser can start against')
 
     expect(heard.text, 'nothing was decoded from the stream').toBe(PAYLOAD)
 
