@@ -4,6 +4,8 @@ import { describe, it } from 'node:test'
 import {
   AUDIO_CHUNK_LIMIT,
   AUDIO_HEADER_LENGTH,
+  AUDIO_ID_LENGTH,
+  byteLength,
   AUDIO_SAMPLE_RATE,
   AUDIO_TRANSMISSION_LIMIT,
   createAudioReceiver,
@@ -53,13 +55,46 @@ describe('framing for the acoustic channel', () => {
     const frames = frameForAudio(COMPACT_SIZED)
 
     assert.equal(frames.length, 2)
-    assert.equal(frames[0].slice(0, 3), '12:')
-    assert.equal(frames[1].slice(0, 3), '22:')
-    for (const frame of frames) assert.ok(frame.length <= AUDIO_TRANSMISSION_LIMIT, `${frame.length} bytes`)
+    assert.match(frames[0], new RegExp(`^12[0-9a-z]{${AUDIO_ID_LENGTH}}:`))
+    assert.match(frames[1], new RegExp(`^22[0-9a-z]{${AUDIO_ID_LENGTH}}:`))
+    // Both halves of one payload carry the same id, or the receiver would treat
+    // the second as a different transmission and throw the first away.
+    assert.equal(parseAudioFrame(frames[0]).id, parseAudioFrame(frames[1]).id)
+    for (const frame of frames) assert.ok(byteLength(frame) <= AUDIO_TRANSMISSION_LIMIT, `${byteLength(frame)} bytes`)
   })
 
   it('sends a short payload as one transmission rather than padding it', () => {
-    assert.deepEqual(frameForAudio('q3:short'), ['11:q3:short'])
+    const frames = frameForAudio('q3:short')
+
+    assert.equal(frames.length, 1)
+    assert.equal(parseAudioFrame(frames[0]).body, 'q3:short')
+    assert.equal(parseAudioFrame(frames[0]).index, 1)
+    assert.equal(parseAudioFrame(frames[0]).total, 1)
+  })
+
+  it('measures the limit in bytes, which is what truncates', () => {
+    // The limit ggwave enforces is a byte count. `text.slice` counts UTF-16
+    // code units, so this payload used to be cut into pieces that looked right
+    // and arrived short - a payload cut in half that verifies as one.
+    const frames = frameForAudio('ä'.repeat(200))
+
+    for (const frame of frames) {
+      assert.ok(byteLength(frame) <= AUDIO_TRANSMISSION_LIMIT, `${byteLength(frame)} bytes`)
+    }
+
+    // And no piece ends halfway through a character, so the parts still join
+    // back into what went in.
+    assert.equal(frames.map(frame => parseAudioFrame(frame).body).join(''), 'ä'.repeat(200))
+  })
+
+  it('gives two different payloads two different ids', () => {
+    // The same chunk count is the ordinary case - two answers are usually the
+    // same length - so the count cannot be what tells them apart.
+    const one = frameForAudio(COMPACT_SIZED)
+    const other = frameForAudio(COMPACT_SIZED.replace('q3:A', 'q3:B'))
+
+    assert.equal(one.length, other.length)
+    assert.notEqual(parseAudioFrame(one[0]).id, parseAudioFrame(other[0]).id)
   })
 
   it('refuses a payload that would need more chunks than the header can number', () => {
@@ -204,3 +239,32 @@ describe('the sample rate it can be carried at', () => {
     }
   })
 })
+
+describe('two payloads in one room', () => {
+  it('does not splice chunks from different payloads into one', async () => {
+    // The failure this prevents: Alice plays an answer, Bob hears chunk 1;
+    // Alice abandons that invite and plays a new answer of the same length, Bob
+    // hears chunk 2. Before the payload id, the receiver assembled the two
+    // halves into a payload that never existed and handed it over as intact.
+    const one = await encodeToAudio(COMPACT_SIZED, { protocol: 'fastest' })
+    const other = await encodeToAudio(COMPACT_SIZED.replace('q3:A', 'q3:B'), { protocol: 'fastest' })
+
+    assert.equal(one.frames.length, 2)
+    assert.equal(other.frames.length, 2)
+
+    const receiver = await createAudioReceiver()
+
+    try {
+      // The first half of one payload, then the second half of the other.
+      const spliced = feed(receiver, [one.frames[0], other.frames[1]])
+
+      assert.equal(spliced, null, 'assembled a payload out of two different ones')
+      // And the second payload is now the one being collected, so its own first
+      // half completes it rather than being discarded as a duplicate.
+      assert.equal(feed(receiver, [other.frames[0]]), COMPACT_SIZED.replace('q3:A', 'q3:B'))
+    } finally {
+      receiver.close()
+    }
+  })
+})
+

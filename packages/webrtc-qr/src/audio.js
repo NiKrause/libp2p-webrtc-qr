@@ -61,15 +61,32 @@ import { AUDIO_SAMPLE_RATE, assertRate } from './audio-rate.js'
 export { AUDIO_SAMPLE_RATE }
 
 /**
- * 140 bytes is the transmission limit, three of them are ours.
+ * 140 bytes is the transmission limit, six of them are ours.
  *
- * The header is `<index><total>:` - one digit each, so at most nine chunks, and
- * the colon makes a malformed frame obvious rather than plausible. Nine chunks
- * is 1233 bytes, comfortably past the largest payload this project produces, and
- * a bound is better than a format that grows a second header byte in the field.
+ * The header is `<index><total><id><id><id>:` - a digit each for the position
+ * and the count, so at most nine chunks, then three characters naming *which
+ * payload this is*, and a colon that makes a malformed frame obvious rather than
+ * plausible.
+ *
+ * **The id is not decoration.** Without it, two payloads with the same number of
+ * transmissions merge: hear chunk 1 of one answer and chunk 2 of another, and
+ * the receiver assembles a payload that never existed and hands it over as
+ * though it had arrived intact. A room is full of second attempts - somebody
+ * replays a sound, somebody makes a fresh invite because the first went
+ * unanswered - so this is the ordinary case, not an adversarial one.
+ *
+ * Derived from the payload rather than random, so a sender that plays the same
+ * answer twice sends the same id and the second pass fills the gaps in the
+ * first. Three base-36 characters: a collision needs two *different* payloads
+ * with the same chunk count in one listening session, at about 1 in 47,000.
+ *
+ * Nine chunks of 134 bytes is 1206, comfortably past the largest payload this
+ * project produces, and a bound is better than a format that grows another
+ * header byte in the field.
  */
 export const AUDIO_TRANSMISSION_LIMIT = 140
-export const AUDIO_HEADER_LENGTH = 3
+export const AUDIO_ID_LENGTH = 3
+export const AUDIO_HEADER_LENGTH = 2 + AUDIO_ID_LENGTH + 1
 export const AUDIO_CHUNK_LIMIT = AUDIO_TRANSMISSION_LIMIT - AUDIO_HEADER_LENGTH
 
 /** The three audible protocols, named as this project talks about them. */
@@ -141,27 +158,97 @@ function protocolId (codec, name) {
 export function frameForAudio (text) {
   if (typeof text !== 'string' || text.length === 0) throw new Error('Nothing to send over audio')
 
-  const total = Math.ceil(text.length / AUDIO_CHUNK_LIMIT)
+  const bodies = splitByBytes(text, AUDIO_CHUNK_LIMIT)
+  const total = bodies.length
+
   if (total > 9) {
     throw new Error(
-      `${text.length} bytes needs ${total} transmissions and the frame header carries one digit. ` +
+      `${byteLength(text)} bytes needs ${total} transmissions and the frame header carries one digit. ` +
       'Send the compact format over sound.'
     )
   }
 
-  return Array.from({ length: total }, (_, index) => {
-    const body = text.slice(index * AUDIO_CHUNK_LIMIT, (index + 1) * AUDIO_CHUNK_LIMIT)
-    const frame = `${index + 1}${total}:${body}`
+  const id = payloadId(text)
+
+  return bodies.map((body, index) => {
+    const frame = `${index + 1}${total}${id}:${body}`
 
     // Belt and braces against the silent truncation this whole module is shaped
-    // around. If the arithmetic above is ever wrong, it fails here rather than
-    // on the other side of the room.
-    if (frame.length > AUDIO_TRANSMISSION_LIMIT) {
-      throw new Error(`Frame of ${frame.length} bytes exceeds the ${AUDIO_TRANSMISSION_LIMIT}-byte transmission limit`)
+    // around. Measured in bytes, like the limit itself: the arithmetic above
+    // counts them, and a check that counted characters would agree with a wrong
+    // answer rather than catching it.
+    if (byteLength(frame) > AUDIO_TRANSMISSION_LIMIT) {
+      throw new Error(
+        `Frame of ${byteLength(frame)} bytes exceeds the ${AUDIO_TRANSMISSION_LIMIT}-byte transmission limit`
+      )
     }
 
     return frame
   })
+}
+
+const encoder = new TextEncoder()
+
+/** What this costs on the wire, which is not what `String.length` reports. */
+export function byteLength (text) {
+  return encoder.encode(text).length
+}
+
+/**
+ * Cut a string into pieces of at most `limit` **bytes**.
+ *
+ * The limit ggwave enforces is a byte count and it enforces it by truncating in
+ * silence. `text.slice` counts UTF-16 code units, so a payload with anything
+ * outside ASCII was cut into pieces that looked right here and arrived short -
+ * the exact failure this module is built to make impossible.
+ *
+ * Split on code points rather than bytes, so no piece ends halfway through a
+ * character and concatenating them restores the original exactly.
+ */
+function splitByBytes (text, limit) {
+  const pieces = []
+  let piece = ''
+  let bytes = 0
+
+  for (const character of text) {
+    const size = byteLength(character)
+
+    if (size > limit) {
+      throw new Error(`A single character needs ${size} bytes, more than the ${limit}-byte chunk limit`)
+    }
+
+    if (bytes + size > limit) {
+      pieces.push(piece)
+      piece = ''
+      bytes = 0
+    }
+
+    piece += character
+    bytes += size
+  }
+
+  if (piece.length > 0) pieces.push(piece)
+
+  return pieces
+}
+
+/**
+ * Which payload this is, in three base-36 characters.
+ *
+ * FNV-1a over the bytes, and deliberately not a cryptographic hash: this
+ * separates one transmission from another in a room, it does not authenticate
+ * anything. The signature inside the payload does that, and it is checked after
+ * reassembly whatever this says.
+ */
+function payloadId (text) {
+  let hash = 0x811c9dc5
+
+  for (const byte of encoder.encode(text)) {
+    hash ^= byte
+    hash = Math.imul(hash, 0x01000193) >>> 0
+  }
+
+  return hash.toString(36).padStart(AUDIO_ID_LENGTH, '0').slice(-AUDIO_ID_LENGTH)
 }
 
 /**
@@ -172,14 +259,17 @@ export function frameForAudio (text) {
  */
 export function parseAudioFrame (frame) {
   if (typeof frame !== 'string' || frame.length < AUDIO_HEADER_LENGTH + 1) return null
-  if (frame[2] !== ':') return null
+  if (frame[AUDIO_HEADER_LENGTH - 1] !== ':') return null
 
   const index = Number(frame[0])
   const total = Number(frame[1])
   if (!Number.isInteger(index) || !Number.isInteger(total)) return null
   if (index < 1 || total < 1 || index > total) return null
 
-  return { index, total, body: frame.slice(AUDIO_HEADER_LENGTH) }
+  const id = frame.slice(2, 2 + AUDIO_ID_LENGTH)
+  if (!/^[0-9a-z]+$/u.test(id)) return null
+
+  return { index, total, id, body: frame.slice(AUDIO_HEADER_LENGTH) }
 }
 
 /**
@@ -253,6 +343,8 @@ export async function createAudioReceiver ({ sampleRate = AUDIO_SAMPLE_RATE } = 
   const instance = codec.init(parameters)
   const received = new Map()
   let expected = null
+  /** Which payload the chunks in hand belong to. */
+  let current = null
 
   const assemble = () => {
     if (expected == null || received.size !== expected) return null
@@ -280,10 +372,14 @@ export async function createAudioReceiver ({ sampleRate = AUDIO_SAMPLE_RATE } = 
       // answer: a room contains other sounds and none of them are a failure.
       if (frame == null) return null
 
-      // A different transmission entirely - somebody started over with a fresh
-      // payload. Keeping the old chunks would splice two answers into one.
-      if (expected != null && frame.total !== expected) received.clear()
+      // A different payload entirely - somebody started over with a fresh
+      // answer, or replayed a different one. Keeping the old chunks would
+      // splice two payloads into one and hand over something that never
+      // existed. The chunk count alone could not tell them apart: two answers
+      // are very often the same length.
+      if (current != null && frame.id !== current) received.clear()
 
+      current = frame.id
       expected = frame.total
       received.set(frame.index, frame.body)
 
@@ -310,11 +406,13 @@ export async function createAudioReceiver ({ sampleRate = AUDIO_SAMPLE_RATE } = 
     reset () {
       received.clear()
       expected = null
+      current = null
     },
 
     close () {
       received.clear()
       expected = null
+      current = null
       codec.free(instance)
     }
   }

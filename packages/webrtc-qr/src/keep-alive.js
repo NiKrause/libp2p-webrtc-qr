@@ -91,6 +91,14 @@ export function createKeepAlive (options = {}) {
   /** @type {AudioBufferSourceNode | null} */
   let source = null
   let starting = false
+  /**
+   * Bumped by every `stop()`. `start()` awaits a resume and a fetch, and a stop
+   * arriving in that window used to leave it dereferencing a context that had
+   * been closed underneath it - a TypeError its own catch swallowed, reported to
+   * the caller as "audio could not start" at the exact moment the connection
+   * succeeded and the caller asked it to stop.
+   */
+  let generation = 0
 
   const supported = typeof globalThis.AudioContext === 'function' ||
     typeof (/** @type {any} */ (globalThis).webkitAudioContext) === 'function'
@@ -131,9 +139,16 @@ export function createKeepAlive (options = {}) {
      * Must be called from a user gesture.
      *
      * `AudioContext` starts `suspended` under the autoplay policy, and
-     * `resume()` outside a gesture is refused. In practice that means the click
-     * that produces the invite, not a `visibilitychange` handler reacting to
-     * somebody already leaving — by then there is no gesture left to spend.
+     * `resume()` outside a gesture is refused - so not a `visibilitychange`
+     * handler reacting to somebody already leaving, by which time there is no
+     * gesture left to spend.
+     *
+     * **The gesture that hands the page away**, not the one that makes the
+     * invite. Starting when the invite is created means playing music at
+     * somebody who is only holding a code up to a camera and never leaves at
+     * all; the share or copy control is the first moment the page is actually
+     * about to lose the foreground. The demo moved for that reason and this
+     * paragraph did not follow it until now.
      *
      * @returns {Promise<boolean>} whether audio is now playing
      */
@@ -144,6 +159,8 @@ export function createKeepAlive (options = {}) {
 
       starting = true
 
+      const mine = generation
+
       try {
         const Ctor = globalThis.AudioContext ?? /** @type {any} */ (globalThis).webkitAudioContext
         context = new Ctor()
@@ -151,6 +168,8 @@ export function createKeepAlive (options = {}) {
         if (context.state === 'suspended') {
           await context.resume()
         }
+
+        if (mine !== generation) return false
 
         let buffer = null
 
@@ -163,6 +182,10 @@ export function createKeepAlive (options = {}) {
             // reassurance.
           }
         }
+
+        // Stopped while the track was still downloading. Nothing to undo -
+        // `stop()` closed the context - and nothing went wrong either.
+        if (mine !== generation) return false
 
         const audible = buffer != null
         source = context.createBufferSource()
@@ -197,6 +220,8 @@ export function createKeepAlive (options = {}) {
      * app is still working on something it finished minutes ago.
      */
     async stop () {
+      generation++
+
       try {
         source?.stop()
       } catch {
