@@ -165,7 +165,8 @@ veröffentlicht werden kann.
 Verwandte Arbeiten, die vor einer Erweiterung zu lesen lohnen:
 
 - [**Air-gapped WebRTC: breaking the QR limit**](https://magarcia.io/air-gapped-webrtc-breaking-the-qr-limit/)
-  von Miguel García – argumentiert, dass semantische Kompression generische
+  von [Martin Garcia Monterde](https://github.com/magarcia) ([magarcia.io](https://magarcia.io)) –
+  argumentiert, dass semantische Kompression generische
   schlägt, und erklärt, warum der Autor animierte QR-Sequenzen zugunsten einer
   kleineren Nutzlast verworfen hat.
 - [**QWBP**](https://magarcia.github.io/qwbp/) und die zugehörige

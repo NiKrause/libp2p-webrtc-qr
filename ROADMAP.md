@@ -102,7 +102,7 @@ the offer it replies to, because a peer that sent v2 cannot read a v3 answer.
 and base64url-encoded. Every ICE candidate makes it longer.
 
 **The idea:** [QWBP](https://magarcia.github.io/qwbp/) - the QR-WebRTC Bootstrap
-Protocol by Miguel García, described in
+Protocol by [Martin Garcia Monterde](https://github.com/magarcia), described in
 [_Air-gapped WebRTC: breaking the QR limit_](https://magarcia.io/air-gapped-webrtc-breaking-the-qr-limit/)
 and specified [here](https://magarcia.github.io/qwbp/spec.html) - gets the same
 handshake down to **41-100 bytes**. A 97.8% reduction, by refusing to send the
@@ -789,9 +789,14 @@ Reading these first will save time on items 1 and 2:
 
 - [_Air-gapped WebRTC: breaking the QR limit_](https://magarcia.io/air-gapped-webrtc-breaking-the-qr-limit/)
   and the [QWBP specification](https://magarcia.github.io/qwbp/spec.html) by
-  Miguel García
+  **Martin Garcia Monterde** - [@magarcia](https://github.com/magarcia),
+  [magarcia.io](https://magarcia.io). The reference implementation is
+  [magarcia/qwbp](https://github.com/magarcia/qwbp); item 1 above is our
+  reading of it, and says where the two part company
 - [`AquiGorka/webrtc-qr`](https://github.com/AquiGorka/webrtc-qr) by Gorka
   Ludlow, the sample this project started from
 - [`vbocan/webrtc-oob-pairing`](https://github.com/vbocan/webrtc-oob-pairing) by
-  Valer Bocan - the same idea studied from the defensive-security side, with
-  detection signatures
+  **Valer Bocan** - [@vbocan](https://github.com/vbocan), [bocan.ro](https://www.bocan.ro),
+  Politehnica University of Timisoara. The artefact for _Look, Listen, Leak:
+  Out-of-Band WebRTC Pairing as an Enterprise Egress Surface_ - the same idea
+  studied from the defensive-security side, with detection signatures

@@ -151,7 +151,8 @@ repository.
 Related work worth reading before extending this:
 
 - [**Air-gapped WebRTC: breaking the QR limit**](https://magarcia.io/air-gapped-webrtc-breaking-the-qr-limit/)
-  by Miguel García - argues that semantic compression beats generic compression,
+  by [Martin Garcia Monterde](https://github.com/magarcia) ([magarcia.io](https://magarcia.io)) -
+  argues that semantic compression beats generic compression,
   and explains why the author rejected animated QR sequences in favour of
   shrinking the payload.
 - [**QWBP**](https://magarcia.github.io/qwbp/) and its
@@ -162,7 +163,8 @@ Related work worth reading before extending this:
   magnitude below this project's ~1 kB signed SDP, at the cost of carrying no
   identity binding of its own.
 - [**vbocan/webrtc-oob-pairing**](https://github.com/vbocan/webrtc-oob-pairing)
-  by Valer Bocan (MIT) - a defensive-security study of the same out-of-band
+  by [Valer Bocan](https://github.com/vbocan) ([bocan.ro](https://www.bocan.ro),
+  Politehnica University of Timisoara) (MIT) - a defensive-security study of the same out-of-band
   pairing idea, using QR in one direction and an acoustic chirp in the other. It
   is the counter-perspective: it documents that such a channel works through
   TLS-intercepting proxies and with DNS blocked, and ships detection signatures
