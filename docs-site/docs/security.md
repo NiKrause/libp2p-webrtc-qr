@@ -59,6 +59,30 @@ The **channel the code travels over**. A QR code scanned off a screen is
 out-of-band by construction. A link pasted into a messenger is not: whoever can
 read that message can read the offer. The signature stops tampering, not reading.
 
+## What a third party still learns
+
+"No relay, no signaling server" is a claim about **signalling**, and it is true:
+nothing between the two peers holds the offer, the answer, or a byte of what
+follows. It is not a claim that nobody outside the room hears anything.
+
+`DEFAULT_RTC_CONFIGURATION` asks four STUN servers — two operated by Cloudflare,
+two by Google — and a reflexive candidate exists only because one of them
+answered. So **gathering candidates tells those operators the public IP address
+of whoever is gathering**, on every invite and every reply. That is ordinary
+WebRTC rather than anything this project invented, and it is the price of
+connecting across two networks without a relay.
+
+Three things follow, and none of them needs a code change:
+
+- `rtcConfiguration` replaces the list, with your own STUN server or with none.
+- With none, only host candidates are gathered: the same network works, across
+  the internet does not.
+- `?ice=host` does exactly that in the demo, which is why the test suite runs
+  without contacting anyone.
+
+Written down because the front page says *nothing in the middle*, and somebody
+who took that literally would be wrong about this one thing.
+
 ## This channel is observable
 
 "No server involved" is not "invisible on the network". The defensive-security
