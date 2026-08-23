@@ -2311,9 +2311,10 @@ window.__libp2pQrTest = {
   // The tables for the current locale, so a spec can hand the shipped German to
   // an element rather than retyping it and proving only that it retyped it.
   elementStrings,
-  // The codec, so a spec can mount its own <qr-listen> against a fake capture
-  // device without the demo's own answer validation standing in front of it.
+  // The codec, so a spec can mount its own <qr-listen> and feed it a payload
+  // without the demo's own answer validation standing in front of it.
   createAudioReceiver,
+  encodeToAudio,
   wakeLockState: () => ({ supported: wakeLock.supported, wanted: wakeLock.wanted, held: wakeLock.held }),
   /**
    * Whether the keep-alive is running, and whether it got the real recording or
