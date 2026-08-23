@@ -48,6 +48,14 @@ The experiment that settles it, and it is cheap:
 2. Switch to a messenger, paste it, come back.
 3. Time how long before the connection is gone — with the keep-alive running and
    without.
+
+The demo starts the audio in the gesture that *takes the link away* — the share
+button and the Copy button — rather than in the one that creates the invite. That
+is the honest place for it, because showing a code to a camera never leaves the
+app and a minute of opera to do it is nobody's idea of help. It also makes this
+experiment sharper and the margin thinner: the audio now starts in the same
+gesture that hands the screen to a messenger, so if the answer below turns out to
+be "it does not survive", the first thing to try is arming it earlier again.
 4. Repeat per browser. Vanadium on GrapheneOS and Chrome are the ones that fail
    today; DuckDuckGo and Safari already hold for around ten seconds, so they say
    least about whether this helps.
