@@ -302,6 +302,11 @@
           <div class="field">
             <label data-i18n="files.received">Received files</label>
             <div id="received-files" class="received-files"></div>
+            <!-- In the markup rather than as `content:` on a pseudo-element,
+                 which is where this used to live: a string in a stylesheet
+                 cannot be translated and the catalogue test cannot see it, so
+                 it stayed English in a German page and nothing noticed. -->
+            <p class="files-empty" data-i18n="files.empty">Nothing sent or received yet.</p>
           </div>
 
           <div id="chat-log" aria-live="polite"></div>

@@ -36,7 +36,10 @@ export default {
   },
   files: {
     send: 'Eine Datei schicken',
-    received: 'Empfangene Dateien'
+    received: 'Dateien in diesem Gespräch',
+    empty: 'Noch nichts geschickt oder empfangen.',
+    sent: 'von Ihnen geschickt',
+    gotIt: 'Sie haben das erhalten'
   },
   preview: {
     open: ({ name }) => `${name} anzeigen`,

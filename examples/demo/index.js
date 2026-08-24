@@ -1144,6 +1144,16 @@ async function sendFile (file) {
     mime: file.type || 'application/octet-stream'
   }, 'file')
 
+  // Shown here too, and not only at the far end. A picture that vanishes the
+  // moment it is sent leaves the person who sent it with no record of what went
+  // - and, with the previews, no way back to it. The list is what passed
+  // through this conversation, in both directions.
+  renderReceivedFile(
+    { name: file.name, cid: cid.toString(), mime: file.type || 'application/octet-stream' },
+    bytes,
+    { direction: 'sent' }
+  )
+
   appendLog(`Sent ${file.name} (${formatBytes(bytes.byteLength)}) as ${cid}`)
 
   return cid.toString()
@@ -1183,7 +1193,7 @@ async function receiveFile (announcement) {
   return bytes
 }
 
-function renderReceivedFile (announcement, bytes) {
+function renderReceivedFile (announcement, bytes, { direction = 'received' } = {}) {
   // Not `announcement.mime`, though the sender took the trouble to send one.
   //
   // A received file is being *saved*, not rendered, so honouring a peer's
@@ -1197,7 +1207,7 @@ function renderReceivedFile (announcement, bytes) {
   // not have to be theirs.
   const url = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }))
   const row = document.createElement('div')
-  row.className = 'received-file'
+  row.className = `received-file is-${direction}`
 
   const link = document.createElement('a')
   link.href = url
@@ -1209,9 +1219,16 @@ function renderReceivedFile (announcement, bytes) {
   meta.className = 'received-file-meta'
   meta.textContent = `${formatBytes(bytes.byteLength)} · ${announcement.cid}`
 
+  // Which way it went, said in a word rather than only in a colour: the border
+  // is the fast answer for somebody who already knows the convention, and the
+  // word is the answer for everybody else.
+  const way = document.createElement('span')
+  way.className = 'received-file-way'
+  way.textContent = t(direction === 'sent' ? 'files.sent' : 'files.gotIt')
+
   const facts = document.createElement('div')
   facts.className = 'received-file-facts'
-  facts.append(link, meta)
+  facts.append(link, way, meta)
 
   // The type is measured, not believed - see previews.js. A file this page
   // cannot recognise gets no thumbnail rather than a guess.
@@ -1315,6 +1332,56 @@ document.addEventListener('keydown', event => {
   event.preventDefault()
   stepPreview(event.key === 'ArrowRight' ? 1 : -1)
 })
+
+/**
+ * Swipe, for the devices that have no arrow keys.
+ *
+ * Pointer events rather than touch ones, so a trackpad drag does the same thing
+ * as a thumb and there is one code path instead of two. The threshold is a
+ * fraction of the dialog rather than a fixed count of pixels: the same flick is
+ * a long way across a phone and a short way across a laptop, and a constant
+ * would have been tuned on whichever device was to hand.
+ *
+ * Vertical movement disqualifies it. Somebody scrolling a tall picture is not
+ * asking for the next one, and treating that as a swipe is how a gallery starts
+ * skipping ahead while you look at something.
+ *
+ * Listened for on the whole dialog rather than on the picture. A thumb crossing
+ * a phone lands wherever it lands - most of a portrait photo's dialog is margin
+ * beside it - and a swipe that only counts on the pixels themselves is one that
+ * works when you aim and fails when you do not.
+ */
+const SWIPE_FRACTION = 0.18
+const SWIPE_MAX_SLOPE = 0.6
+
+let swipeFrom = null
+
+previewEl.addEventListener('pointerdown', event => {
+  // Not the controls: dragging a video's scrubber is a drag, and it is not this
+  // one. `closest` rather than a tag test, because the controls are a shadow
+  // root and what arrives here is the <video> itself.
+  if (event.target.closest('video') != null) return
+
+  swipeFrom = { x: event.clientX, y: event.clientY }
+})
+
+previewEl.addEventListener('pointerup', event => {
+  if (swipeFrom == null) return
+
+  const dx = event.clientX - swipeFrom.x
+  const dy = event.clientY - swipeFrom.y
+
+  swipeFrom = null
+
+  if (Math.abs(dx) < previewEl.clientWidth * SWIPE_FRACTION) return
+  if (Math.abs(dy) > Math.abs(dx) * SWIPE_MAX_SLOPE) return
+
+  // Dragged left means "bring the next one in from the right", which is the
+  // direction every photo viewer has taught everybody to expect.
+  stepPreview(dx < 0 ? 1 : -1)
+})
+
+previewEl.addEventListener('pointercancel', () => { swipeFrom = null })
 
 previewEl.addEventListener('click', event => {
   if (event.target.closest('[data-close-modal]') != null) {
@@ -2592,8 +2659,8 @@ window.__libp2pQrTest = {
    * under test here is the *presentation* - a thumbnail, a dialog, the arrow
    * keys - so this hands `renderReceivedFile` the bytes directly.
    */
-  renderReceived: (name, cid, bytes) =>
-    renderReceivedFile({ name, cid, mime: 'application/octet-stream' }, new Uint8Array(bytes)),
+  renderReceived: (name, cid, bytes, direction = 'received') =>
+    renderReceivedFile({ name, cid, mime: 'application/octet-stream' }, new Uint8Array(bytes), { direction }),
   // The codec, so a spec can mount its own <qr-listen> and feed it a payload
   // without the demo's own answer validation standing in front of it.
   createAudioReceiver,
