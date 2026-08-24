@@ -177,4 +177,32 @@ test.describe('the link beside the code', () => {
       await bob.close()
     }
   })
+
+  test('scanning is offered to somebody who has not started a peer', async ({ page }) => {
+    // The sibling of the test above, and reported the same way: on a phone,
+    // "Scan their code" was sometimes dead and it was not obvious when. The
+    // answer was whether anything else had happened to start a peer first -
+    // creating an invite starts one, arriving by link starts one, and a person
+    // whose first move is to scan has done neither.
+    //
+    // In the simple view the control that would have started one is exactly the
+    // control that view hides, so the only enabled button on screen was the
+    // wrong one.
+    await page.goto('/?ice=host&intro=off')
+
+    await expect(page.locator('#step-start')).toBeHidden()
+    await expect(page.locator('#peer-id')).toHaveText('not started')
+
+    await expect(page.locator('#scan-offer')).toBeEnabled()
+    await page.locator('#scan-offer').click()
+
+    // Opening the scanner starts a peer beside the camera rather than before
+    // it, so that the camera prompt still belongs to this click.
+    await expect(page.locator('qr-scanner dialog')).toBeVisible()
+    await expect.poll(
+      () => page.locator('#peer-id').textContent(),
+      { timeout: 60000 }
+    ).not.toBe('not started')
+  })
 })
+
