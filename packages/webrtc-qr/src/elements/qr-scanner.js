@@ -118,7 +118,10 @@ const STYLE = `
 export const QR_SCANNER_STRINGS = {
   label: 'Scan a code',
   close: 'Close',
-  unsupported: 'Camera access is not supported by this browser',
+  unsupported: 'This browser cannot open a camera at all. Use the link instead - the button beside this one sends it.',
+  insecure: 'A camera is only allowed on a secure page. This one was opened over plain http, so the browser refuses. Use https, or send the link instead.',
+  denied: 'The camera was refused. Allow it in the address bar and press again - or use the link instead, which needs no camera.',
+  noDevice: 'No camera answered. If another app is using it, close that first - or use the link instead.',
   starting: 'Starting the camera…',
   looking: 'Looking for a code… hold it steady and fill about half of the frame.',
   stillLooking: ({ attempts }) =>
@@ -233,13 +236,52 @@ export class QrScannerElement extends HTMLElement {
     return this.#dialog.open
   }
 
-  async open () {
-    if (navigator.mediaDevices?.getUserMedia == null) {
-      throw new Error(resolveText(this.#strings.unsupported))
-    }
+  /**
+   * Say what went wrong, where the person is looking.
+   *
+   * The dialog stays open. It used to close on any camera failure, which left
+   * the one surface that could explain gone half a second after it appeared -
+   * and the host's own message, wherever it puts those, is somewhere else on the
+   * page than the button that was just pressed. From a person's seat that reads
+   * as "nothing happened", which is the report this came from.
+   *
+   * The promise still rejects and the event still fires: a host that wants to
+   * say something too is not prevented, it is just no longer the only voice.
+   */
+  #fail (message) {
+    this.#stop()
+    this.#status.textContent = message
 
+    return new Error(message)
+  }
+
+  /** Which way the camera is unavailable, before asking for one. */
+  #unavailable () {
+    // Checked first, because it is the one that is not the browser's fault and
+    // not the person's. `mediaDevices` is simply absent on an insecure origin -
+    // http on a LAN address, which is how somebody tests two devices - and
+    // "this browser cannot open a camera" sends them to change browsers over a
+    // page that would work at the same address under https.
+    if (globalThis.isSecureContext === false) return resolveText(this.#strings.insecure)
+    if (navigator.mediaDevices?.getUserMedia == null) return resolveText(this.#strings.unsupported)
+
+    return null
+  }
+
+  async open () {
+    // Opened before anything can fail, so that everything which can fail has
+    // somewhere to be said.
     if (!this.#dialog.open) {
       this.#dialog.showModal()
+    }
+
+    const unavailable = this.#unavailable()
+
+    if (unavailable != null) {
+      const error = this.#fail(unavailable)
+
+      this.dispatchEvent(new CustomEvent('error', { detail: { error } }))
+      throw error
     }
 
     const session = ++this.#session
@@ -279,7 +321,17 @@ export class QrScannerElement extends HTMLElement {
       this.#status.textContent = resolveText(this.#strings.looking)
       this.#schedule(session)
     } catch (error) {
-      this.close()
+      // Named rather than relayed. `NotAllowedError` and `NotFoundError` are
+      // the two a person can act on, and their own messages say neither what
+      // happened nor what to do about it - Chromium's is the bare string
+      // "Permission denied".
+      const named = {
+        NotAllowedError: this.#strings.denied,
+        NotFoundError: this.#strings.noDevice,
+        OverconstrainedError: this.#strings.noDevice
+      }[error?.name]
+
+      this.#fail(named != null ? resolveText(named) : (error?.message ?? resolveText(this.#strings.unsupported)))
       this.dispatchEvent(new CustomEvent('error', { detail: { error } }))
       throw error
     }
