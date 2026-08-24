@@ -46,7 +46,10 @@ export const QR_STATUS_STRINGS_DE = {
 export const QR_SCANNER_STRINGS_DE = {
   label: 'Code scannen',
   close: 'Schließen',
-  unsupported: 'Dieser Browser unterstützt keinen Kamerazugriff',
+  unsupported: 'Dieser Browser kann überhaupt keine Kamera öffnen. Nehmen Sie stattdessen den Link — der Knopf daneben verschickt ihn.',
+  insecure: 'Eine Kamera ist nur auf einer sicheren Seite erlaubt. Diese wurde über einfaches http geöffnet, deshalb verweigert der Browser sie. Nutzen Sie https, oder schicken Sie stattdessen den Link.',
+  denied: 'Die Kamera wurde abgelehnt. Erlauben Sie sie in der Adressleiste und drücken Sie erneut — oder nehmen Sie den Link, der braucht keine Kamera.',
+  noDevice: 'Keine Kamera hat geantwortet. Falls eine andere App sie benutzt, schließen Sie diese zuerst — oder nehmen Sie den Link.',
   starting: 'Kamera wird gestartet…',
   looking: 'Suche einen Code… ruhig halten und etwa das halbe Bild ausfüllen.',
   stillLooking: ({ attempts }) =>

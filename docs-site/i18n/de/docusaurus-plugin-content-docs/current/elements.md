@@ -38,7 +38,7 @@ ein Code sich nicht scannen lässt.
 | Eigenschaften | `label`, `strings`, `validate`, `isOpen` |
 | Methoden | `open()`, `close()` |
 | Ereignisse | `scan` → `{ text }`, `close`, `error` → `{ error }` |
-| Zeichenketten | `label`, `close`, `unsupported`, `starting`, `looking`, `stillLooking({ attempts })`, `rejected`, `animated({ received, total })`, `animatedUnknown` |
+| Zeichenketten | `label`, `close`, `unsupported`, `insecure`, `denied`, `noDevice`, `starting`, `looking`, `stillLooking({ attempts })`, `rejected`, `animated({ received, total })`, `animatedUnknown` |
 
 `validate` entscheidet, ob ein gescannter Code der ist, den dieser Bildschirm
 will — ein `{ ok: false, reason }` lässt die Kamera weiterlaufen und zeigt den

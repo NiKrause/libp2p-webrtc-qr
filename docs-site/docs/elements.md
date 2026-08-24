@@ -36,7 +36,7 @@ are what to log when a code will not scan.
 | properties | `label`, `strings`, `validate`, `isOpen` |
 | methods | `open()`, `close()` |
 | events | `scan` → `{ text }`, `close`, `error` → `{ error }` |
-| strings | `label`, `close`, `unsupported`, `starting`, `looking`, `stillLooking({ attempts })`, `rejected`, `animated({ received, total })`, `animatedUnknown` |
+| strings | `label`, `close`, `unsupported`, `insecure`, `denied`, `noDevice`, `starting`, `looking`, `stillLooking({ attempts })`, `rejected`, `animated({ received, total })`, `animatedUnknown` |
 
 `validate` decides whether a scanned code is the one this screen wants —
 returning `{ ok: false, reason }` keeps the camera running with the reason shown.
