@@ -2104,6 +2104,14 @@ function beginScan (expectedType) {
   refreshWakeLock()
 }
 
+// Technical view only, like every other diagnostic: the number that matters
+// when a scan will not take is which lens the phone chose and at what size.
+scanModalEl.addEventListener('camera', event => {
+  const { label, settings } = event.detail
+
+  appendLog(`Camera: ${settings.width ?? '?'}×${settings.height ?? '?'}${label ? ` - ${label}` : ''}`)
+})
+
 scanModalEl.addEventListener('scan', async event => {
   const expectedType = scanMode
 
