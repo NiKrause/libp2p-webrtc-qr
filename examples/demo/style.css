@@ -745,10 +745,15 @@ button.is-busy::before {
   cursor: not-allowed;
 }
 
-.received-files:empty::after {
-  content: 'Nothing received yet.';
+.files-empty {
+  margin: 0;
   color: var(--ls-text-faint);
   font-size: 0.82rem;
+}
+
+/* Hidden the moment there is anything in the list above it. */
+.received-files:not(:empty) + .files-empty {
+  display: none;
 }
 
 .received-file {
@@ -1465,4 +1470,22 @@ button.is-busy::before {
   font-family: var(--ls-font-mono);
   font-size: 0.72rem;
   color: var(--ls-text-faint);
+}
+
+/* Which way a file went. Colour for the eye that already knows the convention,
+   a word underneath for the one that does not. */
+.received-file.is-sent {
+  border-left-color: var(--ls-blue, #58c7f3);
+}
+
+.received-file-way {
+  font-size: 0.72rem;
+  color: var(--ls-text-faint);
+}
+
+/* A dragged picture would otherwise be dragged rather than swiped. */
+.preview-stage img {
+  user-select: none;
+  -webkit-user-drag: none;
+  touch-action: pan-y;
 }

@@ -125,4 +125,83 @@ test.describe('previews of received files', () => {
     // "1 of 1" is a control describing itself and doing nothing.
     await expect(page.locator('#preview-position')).toHaveText('')
   })
+
+  test('a swipe moves as an arrow key does', async ({ page }) => {
+    // Phones have no arrow keys, and the gallery is mostly met on a phone.
+    // Pointer events rather than touch ones, so this drives the same code path
+    // a thumb does.
+    await page.goto('/?ice=host&view=technical&intro=off')
+    await page.waitForFunction(() => typeof window.__libp2pQrTest?.renderReceived === 'function')
+
+    await render(page, 'first.png', 'bafyone', PNG)
+    await render(page, 'second.gif', 'bafytwo', GIF)
+
+    await page.locator('.thumb').first().click()
+    await expect(page.locator('#preview-name')).toHaveText('first.png')
+
+    // The dialog, not the picture: that is what the swipe listens on, and with
+    // a 1×1 test image the stage is a one-pixel strip nobody could aim at.
+    const box = await page.locator('#preview').boundingBox()
+    const y = box.y + box.height / 2
+
+    // Dragged left brings the next one in from the right, which is what every
+    // photo viewer has taught everybody to expect.
+    await page.mouse.move(box.x + box.width * 0.8, y)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width * 0.1, y, { steps: 8 })
+    await page.mouse.up()
+
+    await expect(page.locator('#preview-name')).toHaveText('second.gif')
+
+    await page.mouse.move(box.x + box.width * 0.1, y)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width * 0.8, y, { steps: 8 })
+    await page.mouse.up()
+
+    await expect(page.locator('#preview-name')).toHaveText('first.png')
+  })
+
+  test('a small drag is not a swipe', async ({ page }) => {
+    // Somebody who moved a finger while looking is not asking for the next
+    // picture, and a gallery that skips ahead on that is one nobody trusts.
+    await page.goto('/?ice=host&view=technical&intro=off')
+    await page.waitForFunction(() => typeof window.__libp2pQrTest?.renderReceived === 'function')
+
+    await render(page, 'first.png', 'bafyone', PNG)
+    await render(page, 'second.gif', 'bafytwo', GIF)
+
+    await page.locator('.thumb').first().click()
+
+    const box = await page.locator('#preview').boundingBox()
+    const y = box.y + box.height / 2
+
+    await page.mouse.move(box.x + box.width * 0.5, y)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width * 0.44, y, { steps: 4 })
+    await page.mouse.up()
+
+    await expect(page.locator('#preview-name')).toHaveText('first.png')
+  })
+
+  test('the sender keeps a copy of what they sent', async ({ page }) => {
+    // Reported: Bob receives the picture correctly and Alice never sees it
+    // again. A file that vanishes the moment it is sent leaves the person who
+    // sent it with no record of what went - and, now that there are previews,
+    // no way back to it either.
+    await page.goto('/?ice=host&view=technical&intro=off')
+    await page.waitForFunction(() => typeof window.__libp2pQrTest?.renderReceived === 'function')
+
+    await page.evaluate(bytes => window.__libp2pQrTest.renderReceived('mine.png', 'bafymine', bytes, 'sent'), PNG)
+    await render(page, 'theirs.gif', 'bafytheirs', GIF)
+
+    await expect(page.locator('.received-file.is-sent')).toHaveCount(1)
+    await expect(page.locator('.received-file.is-received')).toHaveCount(1)
+
+    // Both are previewable, so the gallery walks the whole conversation rather
+    // than half of it.
+    await expect(page.locator('.thumb')).toHaveCount(2)
+    await page.locator('.thumb').first().click()
+    await expect(page.locator('#preview-position')).toHaveText('1 of 2')
+  })
 })
+
