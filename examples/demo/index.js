@@ -1291,7 +1291,12 @@ function previewThumb (preview, announcement) {
     // Decorative here: the button beside it already carries the name, and a
     // screen reader reading the filename twice is worse than reading it once.
     image.alt = ''
-    image.loading = 'lazy'
+    // No `loading="lazy"`, though a thumbnail is exactly where one reaches for
+    // it. There is nothing to defer: the URL is a blob whose bytes are already
+    // in memory, so deferring buys no network and no disk - it only means the
+    // picture is missing until somebody scrolls to it. Firefox is strict about
+    // that and does not load an out-of-viewport lazy image at all, which is how
+    // this was noticed: green in Chromium, blank in Firefox.
     button.append(image)
   } else {
     // No poster frame: producing one means decoding a frame into a canvas, a

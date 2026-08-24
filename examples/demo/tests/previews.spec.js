@@ -71,8 +71,9 @@ test.describe('previews of received files', () => {
     const image = page.locator('.thumb img')
     await expect(image).toHaveAttribute('src', /^blob:/)
     // Decoded, not merely present: a broken image would satisfy every
-    // assertion above.
-    expect(await image.evaluate(node => node.naturalWidth)).toBe(1)
+    // assertion above. Polled rather than read once, because decoding is
+    // asynchronous however eagerly the load was started.
+    await expect.poll(() => image.evaluate(node => node.naturalWidth)).toBe(1)
   })
 
   test('opens the big version, and the arrow keys walk the pictures', async ({ page }) => {
