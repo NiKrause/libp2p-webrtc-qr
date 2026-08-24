@@ -401,6 +401,26 @@ function renderNetwork (result) {
   appendLog(`Network check: IPv4 ${result.ipv4.state}, IPv6 ${result.ipv6.state} - ${result.overall.text}`)
 }
 
+/**
+ * A peer, started once however many callers ask for one.
+ *
+ * `createNode` returns early when a node exists, which is not the same as being
+ * safe to call twice: two callers that arrive while the first is still building
+ * one both see `null` and both build. That was unreachable while a single button
+ * started the node; it stopped being unreachable the moment scanning and pasting
+ * could each start one, and it would have shown up as two libp2p nodes in one
+ * tab fighting over the same identity.
+ */
+let nodeStarting = null
+
+function ensureNode () {
+  if (node != null) return Promise.resolve(node)
+
+  nodeStarting ??= createNode().finally(() => { nodeStarting = null })
+
+  return nodeStarting
+}
+
 async function createNode () {
   if (node != null) {
     return node
@@ -1965,7 +1985,12 @@ function updateControls () {
   // screen - permanently, because that something else is hidden.
   createOfferButton.disabled = !started && !isSimple()
   createOfferAgainButton.disabled = !started
-  scanOfferButton.disabled = !started
+  // The same shape as `create-offer` above, and for the same reason. Somebody
+  // whose first move is "scan the code they are showing me" is the ordinary
+  // case, not the rare one - and in the simple view the control that would have
+  // started a peer for them is exactly the one that view hides. `beginScan`
+  // starts one.
+  scanOfferButton.disabled = !started && !isSimple()
   scanAnswerButton.disabled = !started || session.offers.size === 0
   // The same shape as `create-offer` above, and for the same reason: in the
   // simple view step 1 is not on screen, so a peer that has not started cannot
@@ -1994,6 +2019,17 @@ function beginScan (expectedType) {
     refreshWakeLock()
   })
 
+  // Started beside the camera rather than before it: `getUserMedia` has to be
+  // asked from inside this click or the browser is entitled to refuse the
+  // prompt, so a peer cannot be awaited first. Lining a code up takes seconds
+  // and building a node takes less, so by the time anything is decoded this has
+  // long finished - and the scan handler awaits it anyway rather than trusting
+  // that.
+  ensureNode().catch(error => {
+    setStatus(t('status.startFailed', { reason: error.message }))
+    appendLog(`Start failed: ${error.message}`)
+  })
+
   // `open()` runs `showModal()` synchronously before its first await, so the
   // dialog is already open here - which is the case this whole change is for:
   // hold the screen the instant the scanner is on screen, not once a connection
@@ -2008,6 +2044,11 @@ scanModalEl.addEventListener('scan', async event => {
   setStatus(t('status.verifying'))
 
   try {
+    // The scanner can be opened before there is a peer - that is the point of
+    // starting one above - so the code that was just read waits for it rather
+    // than failing against a node that is still a few milliseconds away.
+    await ensureNode()
+
     const classified = await classifyScanned(event.detail.text, expectedType)
 
     await handleReceivedPayload(classified.payloadText, expectedType)
@@ -2265,7 +2306,7 @@ async function useIncoming (text) {
     // pasting the same link had no equivalent, and left the person on a screen
     // with a disabled button and nothing else to press.
     if (node == null) {
-      await createNode()
+      await ensureNode()
       setButtonBusy(processPayloadButton, 'Connecting…')
     }
 
