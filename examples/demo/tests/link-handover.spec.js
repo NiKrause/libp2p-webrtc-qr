@@ -196,9 +196,14 @@ test.describe('the link beside the code', () => {
     await expect(page.locator('#scan-offer')).toBeEnabled()
     await page.locator('#scan-offer').click()
 
-    // Opening the scanner starts a peer beside the camera rather than before
-    // it, so that the camera prompt still belongs to this click.
-    await expect(page.locator('qr-scanner dialog')).toBeVisible()
+    // The peer, not the camera. Whether the scanner *stays* open depends on
+    // there being a capture device: Chromium and Firefox are given a fake one
+    // in the config, WebKit has no way to be, and in the E2E container it opens
+    // the dialog and closes it again the moment `getUserMedia` rejects. That is
+    // the camera's business and `camera.spec.js` has it.
+    //
+    // What this test is about survives either outcome, because `beginScan`
+    // starts the peer *beside* the camera rather than inside its success path.
     await expect.poll(
       () => page.locator('#peer-id').textContent(),
       { timeout: 60000 }
