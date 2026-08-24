@@ -20,6 +20,7 @@ import {
 import { createIntroPolicy } from '@le-space/libp2p-webrtc-qr/elements'
 import { applyBrowserTheme } from './browser-theme.js'
 import { elementStrings, initialLocale, locale, setLocale, t, translateDocument } from './i18n.js'
+import { previewStore } from './previews.js'
 import { applyViewMode, isSimple } from './view-mode.js'
 import { forgetIdentity, launchedStandalone, loadOrCreateIdentity } from './identity.js'
 
@@ -181,6 +182,10 @@ const qrImage = document.getElementById('qr-image')
 const dropZone = document.getElementById('drop-zone')
 const fileInput = document.getElementById('file-input')
 const receivedFilesEl = document.getElementById('received-files')
+const previewEl = document.getElementById('preview')
+const previewStageEl = document.getElementById('preview-stage')
+const previewNameEl = document.getElementById('preview-name')
+const previewPositionEl = document.getElementById('preview-position')
 const inviteBoxEl = document.getElementById('invite-box')
 const scanModalEl = document.getElementById('scan-modal')
 const listenModalEl = document.getElementById('listen-modal')
@@ -1184,8 +1189,165 @@ function renderReceivedFile (announcement, bytes) {
   meta.className = 'received-file-meta'
   meta.textContent = `${formatBytes(bytes.byteLength)} · ${announcement.cid}`
 
-  row.append(link, meta)
+  const facts = document.createElement('div')
+  facts.className = 'received-file-facts'
+  facts.append(link, meta)
+
+  // The type is measured, not believed - see previews.js. A file this page
+  // cannot recognise gets no thumbnail rather than a guess.
+  const preview = previews.for(announcement.cid, bytes)
+
+  if (preview != null) {
+    row.classList.add('has-preview')
+    row.prepend(previewThumb(preview, announcement))
+  }
+
+  row.append(facts)
   receivedFilesEl.appendChild(row)
+}
+
+const previews = previewStore()
+
+/**
+ * Everything currently previewable, in the order it arrived.
+ *
+ * Read from the DOM rather than kept in a parallel array, because the list in
+ * the DOM is the one the arrow keys are moving through. A second copy would be
+ * a second thing to keep in step, and the first time it drifted the keys would
+ * skip a picture that is plainly on screen.
+ */
+function previewable () {
+  return [...receivedFilesEl.querySelectorAll('.thumb')].map(thumb => thumb.dataset.cid)
+}
+
+/**
+ * Show one, and remember where it sits so the arrows have somewhere to go.
+ */
+function openPreview (cid) {
+  const entry = previews.get(cid)
+
+  if (entry == null) return
+
+  const order = previewable()
+  const index = order.indexOf(cid)
+  const name = receivedFilesEl.querySelector(`.thumb[data-cid="${CSS.escape(cid)}"]`)
+    ?.closest('.received-file')?.querySelector('a')?.textContent ?? ''
+
+  previewEl.dataset.cid = cid
+  previewStageEl.replaceChildren(previewMedia(entry))
+  previewNameEl.textContent = name
+  // Only where there is somewhere to go. One picture with "1 of 1" under it is
+  // a control that describes itself and does nothing.
+  previewPositionEl.textContent = order.length > 1
+    ? t('preview.position', { index: index + 1, total: order.length })
+    : ''
+
+  if (!previewEl.open) {
+    openModal(previewEl)
+  }
+}
+
+function previewMedia (entry) {
+  if (entry.kind === 'image') {
+    const image = document.createElement('img')
+
+    image.src = entry.url
+    image.alt = ''
+
+    return image
+  }
+
+  const video = document.createElement('video')
+
+  video.src = entry.url
+  video.controls = true
+  // Not autoplay: a video that starts talking because somebody looked at a list
+  // is the behaviour every site is disliked for.
+  video.preload = 'metadata'
+
+  return video
+}
+
+/**
+ * Left and right, through the pictures rather than through the files.
+ *
+ * Stepping to the next *file* would stop on a zip nobody can preview and leave
+ * the dialog holding nothing - so this walks the previewable ones, which is
+ * what makes the keys feel like they work. It wraps, because a gallery of three
+ * that stops at the third is a gallery that argues with you.
+ */
+function stepPreview (direction) {
+  const order = previewable()
+
+  if (order.length < 2) return
+
+  const current = order.indexOf(previewEl.dataset.cid)
+  const next = (current + direction + order.length) % order.length
+
+  openPreview(order[next])
+}
+
+document.addEventListener('keydown', event => {
+  if (!previewEl.open) return
+  if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+
+  // Escape and the backdrop are the dialog's own; only the arrows are ours.
+  event.preventDefault()
+  stepPreview(event.key === 'ArrowRight' ? 1 : -1)
+})
+
+previewEl.addEventListener('click', event => {
+  if (event.target.closest('[data-close-modal]') != null) {
+    closeModal(previewEl)
+  }
+})
+
+// A video left playing behind a closed dialog is a voice from nowhere.
+previewEl.addEventListener('close', () => {
+  previewStageEl.replaceChildren()
+  delete previewEl.dataset.cid
+})
+
+/**
+ * The small version, and the way into the big one.
+ *
+ * A button rather than a div: it is the control that opens the preview, and
+ * making it one means the keyboard reaches it and a screen reader announces it
+ * without any `role` or `tabindex` of ours.
+ */
+function previewThumb (preview, announcement) {
+  const button = document.createElement('button')
+
+  button.type = 'button'
+  button.className = 'thumb'
+  button.dataset.cid = announcement.cid
+  button.setAttribute('aria-label', t('preview.open', { name: announcement.name }))
+
+  if (preview.kind === 'image') {
+    const image = document.createElement('img')
+
+    image.src = preview.url
+    // Decorative here: the button beside it already carries the name, and a
+    // screen reader reading the filename twice is worse than reading it once.
+    image.alt = ''
+    // No `loading="lazy"`, though a thumbnail is exactly where one reaches for
+    // it. There is nothing to defer: the URL is a blob whose bytes are already
+    // in memory, so deferring buys no network and no disk - it only means the
+    // picture is missing until somebody scrolls to it. Firefox is strict about
+    // that and does not load an out-of-viewport lazy image at all, which is how
+    // this was noticed: green in Chromium, blank in Firefox.
+    button.append(image)
+  } else {
+    // No poster frame: producing one means decoding a frame into a canvas, a
+    // different cost and a different set of failures from an <img>. The badge
+    // says what it is; opening it plays it.
+    button.classList.add('is-video')
+    button.textContent = '▶'
+  }
+
+  button.addEventListener('click', () => openPreview(announcement.cid))
+
+  return button
 }
 
 async function sendFiles (files) {
@@ -2381,6 +2543,16 @@ window.__libp2pQrTest = {
   // The tables for the current locale, so a spec can hand the shipped German to
   // an element rather than retyping it and proving only that it retyped it.
   elementStrings,
+  /**
+   * Draw a received file without transferring one.
+   *
+   * The bitswap round trip is covered by its own test and takes ten seconds of
+   * wantlist exchange to prove something this has no opinion about. What is
+   * under test here is the *presentation* - a thumbnail, a dialog, the arrow
+   * keys - so this hands `renderReceivedFile` the bytes directly.
+   */
+  renderReceived: (name, cid, bytes) =>
+    renderReceivedFile({ name, cid, mime: 'application/octet-stream' }, new Uint8Array(bytes)),
   // The codec, so a spec can mount its own <qr-listen> and feed it a payload
   // without the demo's own answer validation standing in front of it.
   createAudioReceiver,
