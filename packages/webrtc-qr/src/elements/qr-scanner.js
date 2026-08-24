@@ -33,6 +33,14 @@ const SCAN_INTERVAL = 140
 const CANVAS_MAX_WIDTH = 960
 
 const STYLE = `
+  /* The shadow root gets its own reset, because it does not inherit the page's.
+     Without it, a width of 100vw plus 20px of padding is 100vw *plus the
+     padding*: the dialog hangs 40px off the right of a phone, and the close
+     button sits at the right end of the header. Reported from a Galaxy A57
+     where the close button could not be reached. A Fold never showed it,
+     because above 560px the full-width branch below does not apply at all. */
+  *, *::before, *::after { box-sizing: border-box; }
+
   :host {
     /* The element renders nothing but a modal, so it should take no space in
        the flow it was placed in. */
@@ -318,6 +326,22 @@ export class QrScannerElement extends HTMLElement {
       this.#stream = stream
       this.#video.srcObject = stream
       await this.#video.play()
+
+      // Which camera this actually is, said out loud.
+      //
+      // `facingMode: environment` names a side of the phone, not a lens, and a
+      // phone with three rear cameras picks one. An ultra-wide has a minimum
+      // focus distance measured in tens of centimetres, so a code held at
+      // reading distance is a blur it will never resolve - and the scan loop
+      // reports that as "still looking", which sounds like aiming rather than
+      // like the wrong lens. A host that logs this can tell the two apart;
+      // without it neither of us can.
+      const [track] = stream.getVideoTracks()
+      const settings = track?.getSettings?.() ?? {}
+
+      this.dispatchEvent(new CustomEvent('camera', {
+        detail: { label: track?.label ?? '', settings }
+      }))
       this.#status.textContent = resolveText(this.#strings.looking)
       this.#schedule(session)
     } catch (error) {

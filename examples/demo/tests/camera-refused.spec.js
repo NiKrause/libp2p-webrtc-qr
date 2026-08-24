@@ -115,4 +115,35 @@ test.describe('a camera that will not open', () => {
     await page.keyboard.press('Escape')
     await expect(page.locator('qr-scanner dialog')).toBeHidden()
   })
+
+  test('fits a phone, and the close button can be reached', async ({ page }) => {
+    // Reported from a Galaxy A57: the camera view ran off the right of the
+    // screen and the close button could not be reached. A Fold never showed it,
+    // because the full-width branch only applies below 560px.
+    //
+    // The cause is a box model: a shadow root does not inherit the page's
+    // reset, so `width: 100vw` plus 20px of padding is 100vw *plus* the
+    // padding, and the header - with the close button at its right end - hangs
+    // 40px off the edge.
+    await page.setViewportSize({ width: 390, height: 844 })
+    await load(page)
+    await refuse(page, 'NotAllowedError')
+    await scan(page)
+
+    const dialog = page.locator('qr-scanner dialog')
+    await expect(dialog).toBeVisible()
+
+    const box = await dialog.boundingBox()
+    expect(box.width, 'the dialog is wider than the phone').toBeLessThanOrEqual(390)
+
+    // The button, not just the box around it: this is the half of the report
+    // that a width assertion alone would not have caught.
+    const close = page.locator('qr-scanner .close')
+    const closeBox = await close.boundingBox()
+
+    expect(closeBox.x + closeBox.width, 'the close button is off the screen').toBeLessThanOrEqual(390)
+    await close.click()
+    await expect(dialog).toBeHidden()
+  })
 })
+
