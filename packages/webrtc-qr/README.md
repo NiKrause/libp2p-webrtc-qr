@@ -1,5 +1,17 @@
 # @le-space/libp2p-webrtc-qr
 
+> ### ⚠️ Experimental
+>
+> This works, and it is not finished. Use it where a failed connection is an
+> inconvenience rather than a loss. The security property holds - a signature
+> binds the DTLS fingerprint to a Peer ID, traced end to end in a review - but
+> scanning depends on the phone, the acoustic channel has never been measured in
+> a room, compact payloads are off by default because they go silent under load
+> ([#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83)), and the API
+> still moves: the acoustic frame format changed between `0.11.0` and `0.12.0`.
+>
+> Bug reports from real devices are the most useful thing anybody can send.
+
 A libp2p transport that takes a WebRTC session whose SDP was exchanged
 out-of-band — typically as a scanned QR code — and upgrades it into a libp2p
 connection. No circuit relay, no signaling server.

@@ -2,6 +2,27 @@
 
 **[Deutsch](README.de.md)** · English
 
+> ### ⚠️ Experimental
+>
+> This works, and it is not finished. Use it where a failed connection is an
+> inconvenience rather than a loss.
+>
+> **What is solid.** The security property is: a signature binds the DTLS
+> fingerprint to a Peer ID, which is the only reason the usual encryption
+> handshake can be skipped. That chain was traced end to end in a review and
+> holds at every point where it could have been skipped.
+>
+> **What is not.** Scanning depends on the phone: two Samsung devices, one reads
+> the code and the other never does. The acoustic return channel is days old and
+> has never been measured in a room. Compact payloads are **off by default**
+> because a connection built from a reconstructed SDP goes silent under load -
+> four runs in eight ([#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83)).
+> And the API still moves: the acoustic frame format changed between `0.11.0` and
+> `0.12.0`, which cost nothing only because nothing had shipped it yet.
+>
+> Bug reports from real devices are the most useful thing anybody can send. Most
+> of what is listed above was found that way rather than by a test.
+
 Two browsers connect directly as libp2p peers with **no relay and no signaling
 server**. The WebRTC offer and answer are exchanged out-of-band as signed,
 compressed QR codes that one phone scans off another screen.
