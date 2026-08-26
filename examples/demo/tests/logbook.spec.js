@@ -22,7 +22,17 @@ const open = async page => {
 }
 
 test.describe('the logbook', () => {
-  test('records a connection, with the combination that achieved it', async ({ browser, baseURL }) => {
+  test('records a connection, with the combination that achieved it', async ({ browser, baseURL, browserName }) => {
+    // The only test here that needs a connection to actually happen, so the
+    // only one that needs the guard the connection specs already use. Playwright
+    // WebKit on Linux cannot establish a WebRTC connection at all - and the
+    // logbook recorded that faithfully, which is how this was noticed: CI read
+    // `failed` where the assertion wanted `connected`, and the entry was right.
+    test.skip(
+      browserName === 'webkit' && process.platform === 'linux',
+      'Playwright WebKit on Linux cannot establish a WebRTC connection'
+    )
+
     const alice = await (await browser.newContext({ baseURL })).newPage()
     const bob = await (await browser.newContext({ baseURL })).newPage()
 
