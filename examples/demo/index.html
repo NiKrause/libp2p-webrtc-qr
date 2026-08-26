@@ -396,6 +396,19 @@
         Whoever holds that code can connect to you until it expires, ten minutes later.
         Show it to the person you mean to.
       </p>
+      <!--
+        The way to say "I have read this".
+
+        Closed through the element's own `close`, so the "do not show again" box
+        is read exactly as it is when the × is used - a second path that forgot
+        to check it would remember nothing, and nobody would find out until the
+        dialog came back.
+
+        The slot has been there since the element grew room for a host's own
+        chrome; this demo was the only consumer not filling it, which made the
+        reference consumer show less of the element than an app downstream.
+      -->
+      <button slot="footer" id="intro-start" class="primary" type="button" data-i18n="intro.start">Let's go</button>
     </qr-intro>
 
     <!--

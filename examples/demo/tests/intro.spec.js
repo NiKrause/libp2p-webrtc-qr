@@ -77,4 +77,47 @@ test.describe('the introduction', () => {
     await expect(page.locator('qr-intro p').first()).toContainText('Browser verbinden sich direkt')
     await expect(page.locator('qr-intro h2')).toHaveText('Bevor Sie anfangen')
   })
+
+  test('ends with a button, and that button respects the remember box', async ({ page }) => {
+    // The introduction used to end with a × in the corner and nothing else,
+    // which is the difference between a dialog somebody dismisses and one they
+    // finish. ablage and simple-todo have both ended theirs with a primary
+    // button since the element grew a footer slot; this demo was the only
+    // consumer not filling it.
+    await open(page)
+    expect(await isOpen(page)).toBe(true)
+
+    await page.locator('#intro-start').click()
+    expect(await isOpen(page)).toBe(false)
+
+    // Not remembered, because the box was not ticked - the button closes
+    // through the element's own `close`, so it reads the box exactly as the ×
+    // does. A second path that forgot would remember nothing, and nobody would
+    // find out until the dialog came back.
+    await open(page)
+    expect(await isOpen(page)).toBe(true)
+
+    await page.evaluate(() => {
+      document.getElementById('intro').shadowRoot.querySelector('input[part=dont-show]').checked = true
+    })
+    await page.locator('#intro-start').click()
+
+    await open(page)
+    expect(await isOpen(page), 'the button ignored the remember box').toBe(false)
+  })
+
+  test('a tap on a control is a press, not a zoom', async ({ page }) => {
+    // Not a zoom ban: `user-scalable=no` fails WCAG 1.4.4, iOS ignores it, and
+    // this page shows QR codes and 46-character peer ids that people
+    // legitimately enlarge. Only the accidental gesture is taken away.
+    await page.goto('/?ice=host&view=technical&intro=off')
+
+    const action = await page.locator('#create-offer').evaluate(node => getComputedStyle(node).touchAction)
+    expect(action).toBe('manipulation')
+
+    // And the page itself stays pinchable.
+    const body = await page.evaluate(() => getComputedStyle(document.body).touchAction)
+    expect(body).not.toBe('manipulation')
+  })
 })
+

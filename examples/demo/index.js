@@ -377,10 +377,18 @@ document.getElementById('logbook-export').addEventListener('click', () => {
   const blob = new Blob([logbook.export()], { type: 'application/json' })
   const link = document.createElement('a')
 
-  link.href = URL.createObjectURL(blob)
+  const url = URL.createObjectURL(blob)
+
+  link.href = url
   link.download = `webrtc-qr-logbook-${new Date().toISOString().slice(0, 10)}.json`
   link.click()
-  URL.revokeObjectURL(link.href)
+
+  // Revoked later, not on the next line. A download reads the blob after the
+  // click returns, and revoking synchronously pulls it away mid-read: Chromium
+  // tolerates that, WebKit does not, and it showed up as a download that
+  // sometimes never arrived. A minute is longer than any save of a file this
+  // size, and the URL is one string until then.
+  setTimeout(() => URL.revokeObjectURL(url), 60000)
 })
 
 document.getElementById('logbook-clear').addEventListener('click', () => {
@@ -2861,6 +2869,10 @@ window.__libp2pQrTest = {
    * under test here is the *presentation* - a thumbnail, a dialog, the arrow
    * keys - so this hands `renderReceivedFile` the bytes directly.
    */
+  // The logbook's export, so a spec can assert what it contains without going
+  // through a download - which is the browser's plumbing rather than ours, and
+  // the part that turned out to be timing-dependent under load.
+  logbookExport: () => logbook.export(),
   renderReceived: (name, cid, bytes, direction = 'received') =>
     renderReceivedFile({ name, cid, mime: 'application/octet-stream' }, new Uint8Array(bytes), { direction }),
   // The codec, so a spec can mount its own <qr-listen> and feed it a payload
@@ -3083,6 +3095,8 @@ updateControls()
  * visit instead.
  */
 const introPolicy = createIntroPolicy({ storageKey: 'webrtc-qr.introSeen' })
+
+document.getElementById('intro-start').addEventListener('click', () => introEl.close())
 
 introEl.addEventListener('close', event => {
   if (event.detail.remember) introPolicy.remember()

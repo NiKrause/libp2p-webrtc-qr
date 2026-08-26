@@ -1556,3 +1556,27 @@ button.is-busy::before {
 
 /* The reason a failure failed is the point of keeping it, so it is not faint. */
 .logbook-why { color: var(--ls-text-dim); }
+
+/* ---------- what a tap should do ---------- */
+
+/*
+  Double-tapping a button zooms instead of pressing it, and the buttons here are
+  pressed in a hurry: a code is on screen for ten minutes, a reply is being
+  waited for, and somebody taps twice because the first tap seemed not to land.
+
+  `touch-action: manipulation` removes the double-tap-to-zoom delay on these
+  elements and nothing else. Pinch-zoom on the page is untouched, deliberately:
+  `user-scalable=no` fails WCAG 1.4.4, iOS has ignored it since iOS 10, and this
+  app shows QR codes and 46-character peer ids - enlarging those is a thing
+  people legitimately do here. The gesture that gets in the way is the accidental
+  one, so that is the only one taken away.
+*/
+button,
+a.nav-link,
+.thumb,
+.drop-zone,
+summary,
+label.option,
+input[type='checkbox'] {
+  touch-action: manipulation;
+}

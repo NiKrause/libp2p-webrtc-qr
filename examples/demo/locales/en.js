@@ -99,6 +99,7 @@ export default {
     }
   },
   intro: {
+    start: 'Let\'s go',
     what: 'Two browsers connect to each other directly. There is no server in the middle holding your messages, and nothing you send passes through us.',
     how: 'Show the code on this screen to the person next to you, or send them the link. They scan or tap it, show you a code back, and you are connected.',
     who: 'Whoever holds that code can connect to you until it expires, ten minutes later. Show it to the person you mean to.'

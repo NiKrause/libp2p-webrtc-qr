@@ -89,6 +89,7 @@ export default {
     }
   },
   intro: {
+    start: 'Los geht\'s',
     what: 'Zwei Browser verbinden sich direkt miteinander. Kein Server dazwischen hält Ihre Nachrichten, und nichts, was Sie senden, läuft über uns.',
     how: 'Zeigen Sie den Code auf diesem Bildschirm der Person neben Ihnen, oder schicken Sie ihr den Link. Sie scannt oder tippt ihn an, zeigt Ihnen einen Code zurück — verbunden.',
     who: 'Wer diesen Code hat, kann sich mit Ihnen verbinden, bis er nach zehn Minuten verfällt. Zeigen Sie ihn der Person, die Sie meinen.'
