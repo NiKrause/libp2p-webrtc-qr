@@ -773,6 +773,45 @@ default protocol will be decided.
 
 ---
 
+## 17. Carry the answer back over the mixnet
+
+**Tracked in [#131](https://github.com/NiKrause/libp2p-webrtc-qr/issues/131).**
+
+The return direction is this project's awkward half, and item 16 is the second
+attempt at it rather than the last. The offer has a screen to live on. The answer
+has to get back, and every carrier is a compromise: a second code needs the
+offering device to have a usable camera, a link needs a messenger, sound needs
+one room.
+
+A [Nym](https://nym.com) mixnet message needs none of those, and the fit is
+narrow but real: these payloads are **small, signed and self-verifying**, which
+is what a discrete-message channel is for. The mixnet would be a courier, not a
+trust anchor - the same role a messenger plays today, with the signature check
+unchanged.
+
+**It is not a VPN and it does not fix the network.** Nym's browser SDK is a
+message-passing API to Nym addresses, and their own documentation says the SDKs
+do not provide access to dVPN mode. A library inside a page cannot change an ICE
+candidate: ICE gathers in the browser's network stack, below anything JavaScript
+reaches. So this does nothing about symmetric NAT or Wi-Fi client isolation - the
+failures the README's warning is about. Worth stating because the name suggests
+otherwise, and the question has already been asked once.
+
+The cost is length, and length is the enemy of scanning. A Nym address is about
+**134 characters**, and it has to reach the other side somehow - which before a
+connection means the invite. Past 600 characters a code stops being one still
+frame and becomes an animated sequence, which is already the difference between
+one phone reading a code and another never doing so. That puts this behind the
+compact format, and the compact format behind
+[#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83).
+
+It also cannot be tested here. The whole suite runs offline - `?ice=host`, fake
+devices, loopback audio - and a mixnet needs a real gateway. It would be the
+first thing in this repository with no automated coverage at all, which is an
+argument for keeping it in the demo, small, and clearly marked.
+
+---
+
 ## Not planned
 
 - **Replacing WebRTC.** The point of this project is that libp2p can use a
