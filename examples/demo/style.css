@@ -1579,4 +1579,13 @@ summary,
 label.option,
 input[type='checkbox'] {
   touch-action: manipulation;
+/* The switch sits above the fields it governs, and the hint under it explains
+   what ticking it starts - before it is ticked rather than after. */
+.logbook-switch {
+  margin-bottom: 4px;
+}
+
+.logbook-switch + .hint {
+  margin-top: 0;
+  margin-bottom: 12px;
 }

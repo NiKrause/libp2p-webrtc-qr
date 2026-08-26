@@ -57,6 +57,8 @@ export default {
   },
   logbook: {
     heading: 'What worked here',
+    enable: 'Record what happens here',
+    enableHint: 'Off by default. Nothing is written until this is ticked, and turning it off again keeps what is already recorded - use Clear for that. Everything stays on this device; the export leaves addresses behind.',
     hint: 'Every attempt is recorded and closed when it connects or fails. Both are kept - a log of successes says nothing about what is broken.',
     provider: 'Network provider',
     providerHint: 'Telekom, Vodafone, the hotel…',

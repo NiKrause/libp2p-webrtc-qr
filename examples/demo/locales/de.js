@@ -47,6 +47,8 @@ export default {
   },
   logbook: {
     heading: 'Was hier funktioniert hat',
+    enable: 'Aufzeichnen, was hier passiert',
+    enableHint: 'Standardmäßig aus. Es wird nichts geschrieben, bis dies angehakt ist, und das Abschalten behält, was bereits aufgezeichnet ist — dafür gibt es „Protokoll leeren". Alles bleibt auf diesem Gerät; der Export lässt Adressen zurück.',
     hint: 'Jeder Versuch wird aufgezeichnet und geschlossen, wenn er verbindet oder scheitert. Beides bleibt — ein Protokoll der Erfolge sagt nichts darüber, was kaputt ist.',
     provider: 'Netzanbieter',
     providerHint: 'Telekom, Vodafone, das Hotel…',

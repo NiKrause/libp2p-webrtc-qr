@@ -95,7 +95,14 @@ Zwei Folgerungen, auf denen sich aufbauen lässt:
   `srflx`-Kandidaten von *derselben* öffentlichen Adresse gesammelt – stehen also
   hinter demselben NAT – und ICE kam trotzdem nie über `checking` hinaus, ist
   Client-Isolation die wahrscheinlichere Ursache als die NAT-Art.
-  `describeIce()` trägt die Kandidatensätze, die eine solche Meldung braucht.
+  `describeIce()` trägt die Kandidatensätze, die eine solche Meldung braucht,
+  und `readIceCandidates(sdp)` trägt sie mitsamt Adressen — je
+  `{ address, port, type }`, womit „dieselbe öffentliche Adresse" prüfbar wird
+  statt nur behauptbar.
+
+  Ein reflexiver Kandidat *ist* die öffentliche Adresse, die STUN ermittelt hat:
+  Wer lokal protokolliert, hat sie bereits und braucht keinen Auskunftsdienst.
+  Ebenso ist es das Feld, das ein Gerät niemals unprojiziert verlassen darf.
 
 Unabhängig berichtet von
 [vbocan/webrtc-oob-pairing](https://github.com/vbocan/webrtc-oob-pairing), wo

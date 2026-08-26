@@ -93,6 +93,7 @@ import {
   createWebRTCUpgradeContext,
   decodePayload,
   describeIce,
+  readIceCandidates,
   AUDIO_SAMPLE_RATE,
   encodeSignedPayload,
   encodeToAudio,
@@ -242,6 +243,28 @@ function describeConnection (peerId) {
 }
 
 /**
+ * The candidates with their addresses, which the summary above throws away.
+ *
+ * A reflexive address is the public one this network gave us, so it answers
+ * "which network was this" without asking anybody. It stays on the device: the
+ * logbook's export projects it back down to counts.
+ */
+function candidatesOf (peerId) {
+  const peerConnection = peerConnections.get(peerId)
+
+  try {
+    if (peerConnection == null) return null
+
+    return [
+      ...readIceCandidates(peerConnection.localDescription?.sdp).map(c => ({ ...c, side: 'local' })),
+      ...readIceCandidates(peerConnection.remoteDescription?.sdp).map(c => ({ ...c, side: 'remote' }))
+    ]
+  } catch {
+    return null
+  }
+}
+
+/**
  * How the payload that is being processed arrived.
  *
  * Set by whichever control started it, read when the entry is opened. A module
@@ -364,6 +387,16 @@ function renderLogbook () {
 
 logbook.subscribe(renderLogbook)
 renderLogbook()
+
+const logbookEnabledEl = document.getElementById('logbook-enabled')
+
+logbookEnabledEl.checked = logbook.enabled
+logbookEnabledEl.addEventListener('change', () => {
+  logbook.setEnabled(logbookEnabledEl.checked)
+  appendLog(logbookEnabledEl.checked
+    ? 'Logbook on: attempts are recorded on this device.'
+    : 'Logbook off: nothing further is recorded.')
+})
 
 for (const [el, key] of [[logbookProviderEl, 'provider'], [logbookPlaceEl, 'place']]) {
   el.value = logbook.context[key] ?? ''
@@ -763,7 +796,7 @@ function watchConnection (peerId, peerConnection) {
 function attachChatStream (stream, peerId, message) {
   // The attempt ended the way it was supposed to. Recorded before anything else
   // here, because everything else here can throw.
-  logbook.note({ network: networkVerdicts(), ice: describeConnection(peerId) })
+  logbook.note({ network: networkVerdicts(), ice: describeConnection(peerId), candidates: candidatesOf(peerId) })
   logbook.finish({ outcome: 'connected' })
   incomingCarrier = null
 

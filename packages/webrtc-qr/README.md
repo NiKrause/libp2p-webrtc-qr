@@ -94,6 +94,14 @@ connection is dialled twice.
 `describeIce(peerConnection)` returns a one-line summary of both candidate sets
 and the ICE state — what a failure message should carry.
 
+`readIceCandidates(sdp)` returns those candidates with their **addresses**:
+`{ address, port, type }` each. `describeIce` reduces them to counts on purpose,
+which is right for a status line and wrong for anybody asking *which network was
+this* — a reflexive candidate carries the public address STUN discovered, so a
+local diagnostic already has it and needs no service to find out. It is also the
+field that must never leave a device unprojected, which is a property of what a
+consumer does with it rather than of this function.
+
 ---
 
 ## Staying alive while somebody leaves
