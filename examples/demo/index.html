@@ -265,6 +265,42 @@
           </details>
         </section>
 
+        <!--
+          The logbook: what worked here and what did not.
+
+          Technical view only. It is a developer's instrument rather than part
+          of the story the simple view tells, and it is local - see logbook.js
+          for why being local changes the schema rather than shrinking it.
+        -->
+        <section class="card" id="logbook-card" data-view="technical">
+          <h2><span class="step-no">4</span> <span data-i18n="logbook.heading">What worked here</span></h2>
+          <p class="hint" data-i18n="logbook.hint">
+            Every attempt is recorded and closed when it connects or fails. Both are kept -
+            a log of successes says nothing about what is broken.
+          </p>
+
+          <div class="logbook-context">
+            <div class="field">
+              <label for="logbook-provider" data-i18n="logbook.provider">Network provider</label>
+              <input id="logbook-provider" type="text" autocomplete="off"
+                     data-i18n-attr="placeholder:logbook.providerHint" placeholder="Telekom, Vodafone, the hotel…" />
+            </div>
+            <div class="field">
+              <label for="logbook-place" data-i18n="logbook.place">Where you are</label>
+              <input id="logbook-place" type="text" autocomplete="off"
+                     data-i18n-attr="placeholder:logbook.placeHint" placeholder="home wifi, office, hotel lobby…" />
+            </div>
+          </div>
+
+          <div id="logbook-entries" class="logbook-entries"></div>
+          <p class="logbook-empty" data-i18n="logbook.empty">No attempts recorded yet.</p>
+
+          <div class="actions">
+            <button id="logbook-export" type="button" data-i18n="logbook.export">Export as JSON</button>
+            <button id="logbook-clear" type="button" data-i18n="logbook.clear">Clear the log</button>
+          </div>
+        </section>
+
         <section class="card" id="step-data">
           <h2>
             <span class="step-no">3</span>

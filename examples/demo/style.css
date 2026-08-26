@@ -1489,3 +1489,70 @@ button.is-busy::before {
   -webkit-user-drag: none;
   touch-action: pan-y;
 }
+
+/* ---------- the logbook ---------- */
+
+.logbook-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.logbook-context .field {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.logbook-entries:not(:empty) + .logbook-empty {
+  display: none;
+}
+
+.logbook-empty {
+  margin: 0;
+  color: var(--ls-text-faint);
+  font-size: 0.82rem;
+}
+
+.logbook-entry {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  padding: 8px 12px;
+  margin-bottom: 6px;
+  border: 1px solid var(--ls-bg-3);
+  /* The outcome is the first thing to read, so it is also the colour of the
+     edge - a list is scanned down its left side. */
+  border-left: 3px solid var(--ls-text-faint);
+  border-radius: 0 var(--ls-radius-sm) var(--ls-radius-sm) 0;
+  background: var(--ls-bg-1);
+  font-size: 0.82rem;
+}
+
+.logbook-entry.is-connected { border-left-color: var(--ls-green); }
+.logbook-entry.is-failed { border-left-color: var(--ls-red); }
+.logbook-entry.is-abandoned { border-left-color: var(--ls-amber); }
+
+.logbook-outcome {
+  grid-row: 1;
+  font-weight: 600;
+}
+
+.logbook-entry.is-connected .logbook-outcome { color: var(--ls-green); }
+.logbook-entry.is-failed .logbook-outcome { color: var(--ls-red); }
+.logbook-entry.is-abandoned .logbook-outcome { color: var(--ls-amber); }
+
+.logbook-what { grid-row: 1; }
+
+.logbook-how,
+.logbook-why,
+.logbook-when {
+  grid-column: 2;
+  font-family: var(--ls-font-mono);
+  font-size: 0.72rem;
+  color: var(--ls-text-faint);
+  overflow-wrap: anywhere;
+}
+
+/* The reason a failure failed is the point of keeping it, so it is not faint. */
+.logbook-why { color: var(--ls-text-dim); }
