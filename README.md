@@ -29,9 +29,7 @@
 > still never forms. That failure is in the environment rather than in this
 > code, and no amount of work here removes it.
 >
-> **What is ours, and known.** Scanning depends on the phone: two Samsung
-> devices, one reads the code and the other never does. Compact payloads are
-> **off by default** because a connection built from a reconstructed SDP goes
+> **What is ours, and known.** Compact payloads are **off by default** because a connection built from a reconstructed SDP goes
 > silent under load - four runs in eight
 > ([#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83)). And the API
 > still moves: the acoustic frame format changed between `0.11.0` and `0.12.0`.

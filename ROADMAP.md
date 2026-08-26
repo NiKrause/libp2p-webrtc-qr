@@ -800,9 +800,9 @@ otherwise, and the question has already been asked once.
 The cost is length, and length is the enemy of scanning. A Nym address is about
 **134 characters**, and it has to reach the other side somehow - which before a
 connection means the invite. Past 600 characters a code stops being one still
-frame and becomes an animated sequence, which is already the difference between
-one phone reading a code and another never doing so. That puts this behind the
-compact format, and the compact format behind
+frame and becomes an animated sequence - five of them at present, each of which a
+camera has to catch in turn. That puts this behind the compact format, and the
+compact format behind
 [#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83).
 
 It also cannot be tested here. The whole suite runs offline - `?ice=host`, fake
