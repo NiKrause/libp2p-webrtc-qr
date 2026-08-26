@@ -5,8 +5,8 @@
 > This works, and it is not finished. Use it where a failed connection is an
 > inconvenience rather than a loss. The security property holds - a signature
 > binds the DTLS fingerprint to a Peer ID, traced end to end in a review - but
-> scanning depends on the phone, the acoustic channel has never been measured in
-> a room, compact payloads are off by default because they go silent under load
+> scanning depends on the phone, compact payloads are off by default because a
+> connection built from a reconstructed SDP goes silent under load
 > ([#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83)), and the API
 > still moves: the acoustic frame format changed between `0.11.0` and `0.12.0`.
 >

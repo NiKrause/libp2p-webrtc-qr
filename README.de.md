@@ -13,8 +13,7 @@ Deutsch · **[English](README.md)**
 > lückenlos verfolgt und hält an jeder Stelle, an der sie hätte reißen können.
 >
 > **Was nicht trägt.** Das Scannen hängt am Telefon: zwei Samsung-Geräte, das
-> eine liest den Code, das andere nie. Der akustische Rückkanal ist Tage alt und
-> wurde noch nie in einem Raum gemessen. Kompakte Nutzlasten sind
+> eine liest den Code, das andere nie. Kompakte Nutzlasten sind
 > **standardmäßig aus**, weil eine aus rekonstruiertem SDP gebaute Verbindung
 > unter Last verstummt — vier von acht Läufen
 > ([#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83)). Und die API

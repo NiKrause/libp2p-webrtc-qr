@@ -13,8 +13,7 @@
 > holds at every point where it could have been skipped.
 >
 > **What is not.** Scanning depends on the phone: two Samsung devices, one reads
-> the code and the other never does. The acoustic return channel is days old and
-> has never been measured in a room. Compact payloads are **off by default**
+> the code and the other never does. Compact payloads are **off by default**
 > because a connection built from a reconstructed SDP goes silent under load -
 > four runs in eight ([#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83)).
 > And the API still moves: the acoustic frame format changed between `0.11.0` and
