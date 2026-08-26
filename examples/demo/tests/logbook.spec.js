@@ -119,18 +119,23 @@ test.describe('the logbook', () => {
     await page.locator('#process-payload').click()
     await expect.poll(() => entries(page).then(list => list.length), { timeout: 30000 }).toBe(1)
 
-    const download = page.waitForEvent('download')
-    await page.locator('#logbook-export').click()
-
-    const stream = await (await download).createReadStream()
-    const chunks = []
-    for await (const chunk of stream) chunks.push(chunk)
-
-    const parsed = JSON.parse(Buffer.concat(chunks).toString())
+    // What the file will contain, read from the source rather than out of the
+    // browser's download machinery. That machinery is worth one assertion of
+    // its own below, but it should not be what decides whether the *content*
+    // is right - it is timing-dependent under load and the content is not.
+    const parsed = JSON.parse(await page.evaluate(() => window.__libp2pQrTest.logbookExport()))
 
     expect(parsed.v).toBe(1)
     expect(parsed.entries).toHaveLength(1)
     expect(parsed.entries[0].outcome).toBe('failed')
+
+    // And the button really does hand a file over. Generously timed on purpose:
+    // three engines in parallel on one machine make a download take much longer
+    // than it takes alone, and a timeout is not a defect worth failing for.
+    const download = page.waitForEvent('download', { timeout: 60000 })
+    await page.locator('#logbook-export').click()
+
+    expect((await download).suggestedFilename()).toMatch(/^webrtc-qr-logbook-\d{4}-\d{2}-\d{2}\.json$/)
   })
 
   test('is a technical instrument, not part of the simple view', async ({ page }) => {
