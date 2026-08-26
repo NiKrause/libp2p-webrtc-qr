@@ -240,7 +240,11 @@ export function createLogbook ({ now = () => Date.now() } = {}) {
      * recipient knows they are holding a projection rather than a copy.
      */
     export () {
-      const projected = entries.map(({ candidates, ...rest }) => ({
+      // Everything measured about *where* is dropped except the two fields the
+      // public dataset in #27 actually asks for. A city is fine on a laptop and
+      // too fine in a file that travels; coordinates are too fine anywhere but
+      // here; the IP is the address this whole projection exists to withhold.
+      const projected = entries.map(({ candidates, ip, coords, city, ...rest }) => ({
         ...rest,
         // The shape survives, the addresses do not: counts by type answer "what
         // kind of network was this" without answering "whose".
@@ -250,7 +254,7 @@ export function createLogbook ({ now = () => Date.now() } = {}) {
       return JSON.stringify({
         v: 1,
         exportedAt: new Date(now()).toISOString(),
-        redacted: ['candidate addresses and ports'],
+        redacted: ['candidate addresses and ports', 'public IP', 'coordinates', 'city'],
         entries: projected
       }, null, 2)
     }

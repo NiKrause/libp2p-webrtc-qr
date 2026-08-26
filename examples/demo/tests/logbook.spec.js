@@ -20,7 +20,14 @@ const open = async (page, { record = true } = {}) => {
 
   // Off by default, so every test that expects an entry has to say so - which
   // is the assertion in miniature.
-  if (record) await page.locator('#logbook-enabled').check()
+  //
+  // Asserted rather than assumed: a switch that silently did not take would
+  // surface later as an empty log and read as a flake, which is exactly what it
+  // did once on WebKit under three parallel engines.
+  if (record) {
+    await page.locator('#logbook-enabled').check()
+    await expect(page.locator('#logbook-enabled')).toBeChecked()
+  }
 
   await page.locator('#start-client').click()
   await page.waitForFunction(() => document.getElementById('peer-id').textContent !== 'not started')
@@ -237,6 +244,98 @@ test.describe('the logbook', () => {
       await alice.close()
       await bob.close()
     }
+  })
+
+  /**
+   * The lookup, with the service replaced.
+   *
+   * Nothing here reaches the internet: the suite runs offline by design, and a
+   * test that depended on a free third party would fail for reasons that have
+   * nothing to do with this code - that service answered `RateLimited` while
+   * this was being written, which is the ordinary case rather than the
+   * exception.
+   */
+  const answerWith = (page, body, { status = 200 } = {}) => page.route('**/api.ipquery.io/**', route =>
+    route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) }))
+
+  test('works out the provider and fills the fields somebody would have typed', async ({ page }) => {
+    await open(page)
+    await answerWith(page, {
+      ip: '203.0.113.7',
+      isp: { asn: 'AS64500', isp: 'Example Telecom', org: 'Example Telecom GmbH' },
+      location: { country_code: 'DE', state: 'Bavaria', city: 'Munich' }
+    })
+
+    await page.locator('#logbook-locate').click()
+
+    await expect(page.locator('#logbook-provider')).toHaveValue('Example Telecom')
+
+    // The place is *not* filled from the city, though it is right there in the
+    // answer. `place` travels with an export and `city` is dropped by it, so
+    // prefilling one from the other would launder a measured value past the
+    // projection - and "hotel lobby" is what a pattern is made of anyway, which
+    // no service knows.
+    await expect(page.locator('#logbook-place')).toHaveValue('')
+
+    // The city is still shown, so somebody can see the lookup worked.
+    await expect(page.locator('#logbook-locate-state')).toContainText('Munich')
+  })
+
+  test('a typed place survives a lookup untouched', async ({ page }) => {
+    await open(page)
+    await page.locator('#logbook-place').fill('hotel lobby')
+    await answerWith(page, {
+      ip: '203.0.113.7',
+      isp: { isp: 'Example Telecom' },
+      location: { country_code: 'DE', state: 'Bavaria', city: 'Munich' }
+    })
+
+    await page.locator('#logbook-locate').click()
+    await expect(page.locator('#logbook-provider')).toHaveValue('Example Telecom')
+
+    // "hotel lobby" is what a pattern is made of; "Munich" is not, and no
+    // service knows the difference.
+    await expect(page.locator('#logbook-place')).toHaveValue('hotel lobby')
+  })
+
+  test('a service that says no leaves the typed fields alone', async ({ page }) => {
+    await open(page)
+    await page.locator('#logbook-provider').fill('typed by hand')
+    await answerWith(page, { error: true, reason: 'RateLimited' })
+
+    await page.locator('#logbook-locate').click()
+
+    await expect(page.locator('#logbook-locate-state')).toContainText('RateLimited')
+    await expect(page.locator('#logbook-provider')).toHaveValue('typed by hand')
+  })
+
+  test('the export keeps the country and drops everything finer', async ({ page }) => {
+    await open(page)
+    await answerWith(page, {
+      ip: '203.0.113.7',
+      isp: { isp: 'Example Telecom' },
+      location: { country_code: 'DE', state: 'Bavaria', city: 'Munich' }
+    })
+    await page.locator('#logbook-locate').click()
+    await expect(page.locator('#logbook-provider')).toHaveValue('Example Telecom')
+
+    await page.locator('.paste-fallback summary').click()
+    await page.locator('#payload-display').fill('https://example.org/#r=q3:nonsense')
+    await page.locator('#process-payload').click()
+    await expect.poll(() => entries(page).then(list => list.length), { timeout: 30000 }).toBe(1)
+
+    const exported = await page.evaluate(() => window.__libp2pQrTest.logbookExport())
+
+    // Country and region are what #27 asks for; the address is the thing this
+    // projection exists to withhold, and a city is fine on a laptop and too
+    // fine in a file that travels.
+    expect(exported).toContain('DE')
+    expect(exported).toContain('Bavaria')
+    expect(exported, 'the export leaked the public IP').not.toContain('203.0.113.7')
+    expect(exported, 'the export leaked the city').not.toContain('Munich')
+
+    const parsed = JSON.parse(exported)
+    expect(parsed.redacted).toContain('public IP')
   })
 })
 
