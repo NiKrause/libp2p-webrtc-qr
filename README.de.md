@@ -32,9 +32,8 @@ Deutsch · **[English](README.md)**
 > kommt trotzdem nie zustande. Dieses Scheitern liegt in der Umgebung und nicht
 > in diesem Code, und keine Arbeit hier schafft es aus der Welt.
 >
-> **Was unseres ist, und bekannt.** Das Scannen hängt am Telefon: zwei
-> Samsung-Geräte, das eine liest den Code, das andere nie. Kompakte Nutzlasten
-> sind **standardmäßig aus**, weil eine aus rekonstruiertem SDP gebaute
+> **Was unseres ist, und bekannt.** Kompakte Nutzlasten sind
+> **standardmäßig aus**, weil eine aus rekonstruiertem SDP gebaute
 > Verbindung unter Last verstummt — vier von acht Läufen
 > ([#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83)). Und die API
 > bewegt sich noch: das akustische Rahmenformat änderte sich zwischen `0.11.0`
