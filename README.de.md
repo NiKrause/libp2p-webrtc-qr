@@ -2,6 +2,47 @@
 
 Deutsch · **[English](README.md)**
 
+> ### ⚠️ Experimentell
+>
+> Das funktioniert, und es ist nicht fertig. Nutzen Sie es dort, wo eine
+> gescheiterte Verbindung ein Ärgernis ist und kein Verlust.
+>
+> **Was trägt.** Die Sicherheitseigenschaft lautet: eine Signatur bindet den
+> DTLS-Fingerabdruck an eine Peer-ID, und nur deshalb darf der übliche
+> Verschlüsselungs-Handshake entfallen. Diese Kette wurde in einem Review
+> lückenlos verfolgt und hält an jeder Stelle, an der sie hätte reißen können.
+>
+> **Was sich nicht zusichern lässt — und nicht an uns liegt.** Ein SDP als
+> QR-Code auszutauschen macht den Signalisierungsserver überflüssig. Es macht
+> nicht alles andere überflüssig, was eine direkte Verbindung braucht, und
+> Browser und Netze stellen das häufig nicht bereit:
+>
+> - ein **NAT, das Hole Punching zulässt**. Symmetrisches und Carrier-Grade-NAT
+>   tun das nicht, und ohne Relay im Entwurf gibt es keinen Ausweichweg
+> - ein **Netz, in dem zwei Clients einander überhaupt adressieren dürfen**.
+>   Konferenz-, Hotel- und Café-WLAN verbieten genau das regelmäßig — und der
+>   QR-Teil hat sichtbar funktioniert
+> - eine **sichere Herkunft**, ohne die es weder Kamera noch Mikrofon gibt. Eine
+>   LAN-Adresse über einfaches http hat keine, und genau so testet man zu zweit
+> - eine **Seite, die das Weggehen übersteht**, denn den Link zu verschicken
+>   heißt, in einen Messenger zu wechseln — und Telefone frieren ein, was nicht
+>   vorn ist
+>
+> Fehlt eines davon, verifiziert der Handschlag weiterhin und die Verbindung
+> kommt trotzdem nie zustande. Dieses Scheitern liegt in der Umgebung und nicht
+> in diesem Code, und keine Arbeit hier schafft es aus der Welt.
+>
+> **Was unseres ist, und bekannt.** Das Scannen hängt am Telefon: zwei
+> Samsung-Geräte, das eine liest den Code, das andere nie. Kompakte Nutzlasten
+> sind **standardmäßig aus**, weil eine aus rekonstruiertem SDP gebaute
+> Verbindung unter Last verstummt — vier von acht Läufen
+> ([#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83)). Und die API
+> bewegt sich noch: das akustische Rahmenformat änderte sich zwischen `0.11.0`
+> und `0.12.0`.
+>
+> Fehlerberichte von echten Geräten sind das Nützlichste, was jemand schicken
+> kann. Das meiste oben wurde so gefunden und nicht von einem Test.
+
 Zwei Browser verbinden sich direkt als libp2p-Peers — **ohne Relay und ohne
 Signaling-Server**. WebRTC-Offer und -Answer werden außerhalb des Netzes
 ausgetauscht: als signierte, komprimierte QR-Codes, die ein Telefon vom
