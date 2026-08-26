@@ -45,6 +45,23 @@ export default {
     open: ({ name }) => `${name} anzeigen`,
     position: ({ index, total }) => `${index} von ${total}`
   },
+  logbook: {
+    heading: 'Was hier funktioniert hat',
+    hint: 'Jeder Versuch wird aufgezeichnet und geschlossen, wenn er verbindet oder scheitert. Beides bleibt — ein Protokoll der Erfolge sagt nichts darüber, was kaputt ist.',
+    provider: 'Netzanbieter',
+    providerHint: 'Telekom, Vodafone, das Hotel…',
+    place: 'Wo Sie sind',
+    placeHint: 'WLAN zu Hause, Büro, Hotellobby…',
+    empty: 'Noch keine Versuche aufgezeichnet.',
+    export: 'Als JSON exportieren',
+    clear: 'Protokoll leeren',
+    frames: ({ frames }) => `${frames} Bild${frames === 1 ? '' : 'er'}`,
+    outcome: {
+      connected: 'verbunden',
+      failed: 'gescheitert',
+      abandoned: 'abgebrochen'
+    }
+  },
   view: {
     simple: 'Einfach',
     technical: 'Technisch'

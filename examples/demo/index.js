@@ -20,6 +20,7 @@ import {
 import { createIntroPolicy } from '@le-space/libp2p-webrtc-qr/elements'
 import { applyBrowserTheme } from './browser-theme.js'
 import { elementStrings, initialLocale, locale, setLocale, t, translateDocument } from './i18n.js'
+import { createLogbook } from './logbook.js'
 import { previewStore } from './previews.js'
 import { applyViewMode, isSimple } from './view-mode.js'
 import { forgetIdentity, launchedStandalone, loadOrCreateIdentity } from './identity.js'
@@ -91,9 +92,11 @@ import {
   createAudioReceiver,
   createWebRTCUpgradeContext,
   decodePayload,
+  describeIce,
   AUDIO_SAMPLE_RATE,
   encodeSignedPayload,
   encodeToAudio,
+  isCompactPayload,
   frameForAudio,
   parsePayload,
   createKeepAlive,
@@ -204,6 +207,49 @@ const copyLinkEl = document.getElementById('copy-link')
 let copiedTimer = null
 // What the dialog is currently showing, for the button that plays it as sound.
 let outboundPayload = null
+
+const logbookEntriesEl = document.getElementById('logbook-entries')
+const logbookProviderEl = document.getElementById('logbook-provider')
+const logbookPlaceEl = document.getElementById('logbook-place')
+
+const logbook = createLogbook()
+
+/**
+ * What this network turned out to allow, in the words `qr-status` already uses.
+ *
+ * Read at the end of an attempt rather than the start: the probe may still have
+ * been running when somebody pressed the button, and a verdict recorded before
+ * it finished would be a guess written down as a measurement.
+ */
+function networkVerdicts () {
+  const result = networkStateEl?.result
+
+  if (result == null) return null
+
+  return { ipv4: result.ipv4?.state ?? null, ipv6: result.ipv6?.state ?? null, overall: result.overall?.state ?? null }
+}
+
+/** Which candidates each side actually offered, once there is a connection. */
+function describeConnection (peerId) {
+  const peerConnection = peerConnections.get(peerId)
+
+  try {
+    return peerConnection == null ? null : describeIce(peerConnection)
+  } catch {
+    // A connection that closed underneath this is not worth failing over.
+    return null
+  }
+}
+
+/**
+ * How the payload that is being processed arrived.
+ *
+ * Set by whichever control started it, read when the entry is opened. A module
+ * variable rather than an argument threaded through six call sites, because
+ * every one of those sites already has a different shape and this is the only
+ * thing they would all have had to carry.
+ */
+let incomingCarrier = null
 const inviteFreshnessEl = document.getElementById('invite-freshness')
 const hurryBackEl = document.getElementById('hurry-back')
 const browserWarningEl = document.getElementById('browser-warning')
@@ -246,6 +292,100 @@ viewModeEl.addEventListener('click', () => {
 for (const [code, button] of Object.entries(localeButtons)) {
   button.addEventListener('click', () => applyLocale(code))
 }
+
+// The element is the only thing that knows whether the payload fitted in one
+// still code or needed a sequence, and how dense it came out. Both decide
+// whether a camera can read it, so both belong in the log.
+qrImage.addEventListener('render', event => {
+  const { frames, modules, characters } = event.detail
+
+  logbook.note({ frames, modules, characters })
+})
+
+/**
+ * Draw the log, newest first.
+ *
+ * Rebuilt wholesale on every change rather than patched. The list is bounded at
+ * 200 entries and changes once per connection attempt, so the cheap thing to do
+ * is also the correct one.
+ */
+function renderLogbook () {
+  const entries = logbook.entries().reverse()
+
+  logbookEntriesEl.replaceChildren(...entries.map(entry => {
+    const row = document.createElement('div')
+    row.className = `logbook-entry is-${entry.outcome}`
+
+    const verdict = document.createElement('span')
+    verdict.className = 'logbook-outcome'
+    verdict.textContent = t(`logbook.outcome.${entry.outcome}`)
+
+    const what = document.createElement('span')
+    what.className = 'logbook-what'
+    // The combination is the row of the matrix: browser, system, network, and
+    // the two nobody can measure.
+    what.textContent = [
+      `${entry.engine} ${entry.version}`.trim(),
+      entry.platform,
+      entry.provider || null,
+      entry.place || null
+    ].filter(Boolean).join(' · ')
+
+    const how = document.createElement('span')
+    how.className = 'logbook-how'
+    how.textContent = [
+      entry.role,
+      entry.carrier,
+      entry.format,
+      entry.frames != null ? t('logbook.frames', { frames: entry.frames }) : null,
+      entry.network?.overall ? `net: ${entry.network.overall}` : null,
+      entry.ms != null ? `${Math.round(entry.ms / 1000)}s` : null
+    ].filter(Boolean).join(' · ')
+
+    row.append(verdict, what, how)
+
+    // The reason is the field that makes a failure worth keeping. "It did not
+    // work" is not a finding.
+    if (entry.reason) {
+      const why = document.createElement('span')
+      why.className = 'logbook-why'
+      why.textContent = entry.reason
+      row.append(why)
+    }
+
+    const when = document.createElement('span')
+    when.className = 'logbook-when'
+    when.textContent = new Date(entry.at).toLocaleString()
+    row.append(when)
+
+    return row
+  }))
+}
+
+logbook.subscribe(renderLogbook)
+renderLogbook()
+
+for (const [el, key] of [[logbookProviderEl, 'provider'], [logbookPlaceEl, 'place']]) {
+  el.value = logbook.context[key] ?? ''
+  // On `input` rather than `change`: somebody who types a provider and goes
+  // straight to pressing the invite button never fires a change event, and the
+  // attempt would then be recorded without the field they just typed.
+  el.addEventListener('input', () => logbook.setContext({ ...logbook.context, [key]: el.value.trim() }))
+}
+
+document.getElementById('logbook-export').addEventListener('click', () => {
+  const blob = new Blob([logbook.export()], { type: 'application/json' })
+  const link = document.createElement('a')
+
+  link.href = URL.createObjectURL(blob)
+  link.download = `webrtc-qr-logbook-${new Date().toISOString().slice(0, 10)}.json`
+  link.click()
+  URL.revokeObjectURL(link.href)
+})
+
+document.getElementById('logbook-clear').addEventListener('click', () => {
+  logbook.clear()
+})
 
 const qrCanvas = document.createElement('canvas')
 const qrCanvasContext = qrCanvas.getContext('2d', { willReadFrequently: true })
@@ -460,6 +600,9 @@ async function createNode () {
   session.addEventListener('error', event => {
     const { error } = event.detail
 
+    logbook.note({ network: networkVerdicts() })
+    logbook.finish({ outcome: 'failed', reason: error.message })
+
     setStatus(/timed out/i.test(error.message)
       ? 'They never opened your reply, so this attempt expired. Ask them for a fresh invite link.'
       : explain(error))
@@ -610,6 +753,12 @@ function watchConnection (peerId, peerConnection) {
 }
 
 function attachChatStream (stream, peerId, message) {
+  // The attempt ended the way it was supposed to. Recorded before anything else
+  // here, because everything else here can throw.
+  logbook.note({ network: networkVerdicts(), ice: describeConnection(peerId) })
+  logbook.finish({ outcome: 'connected' })
+  incomingCarrier = null
+
   const existing = [...chatStreams.keys()]
 
   chatStreams.set(peerId, stream)
@@ -1244,6 +1393,12 @@ function renderReceivedFile (announcement, bytes, { direction = 'received' } = {
 }
 
 const previews = previewStore()
+
+/**
+ * Every attempt, and what became of it. Local only - see logbook.js for why
+ * that changes the schema rather than shrinking it.
+ */
+
 
 /**
  * Everything currently previewable, in the order it arrived.
@@ -2008,6 +2163,12 @@ async function renderOutbound (payload, kind) {
     return link
   }
 
+  logbook.note({
+    format: isCompactPayload(payload) ? 'v3' : 'v2',
+    sent: payload.length,
+    linkLength: link.length
+  })
+
   // The element decides whether one code fits or a sequence is needed, and
   // animates it if so. What used to be eighty lines here is now an attribute.
   qrImage.value = link
@@ -2020,6 +2181,14 @@ async function handleReceivedPayload (input, expectedType) {
   const text = payloadFrom(input)
   const parsed = await parsePayload(text)
   const type = expectedType ?? parsed.type
+
+  // An offer arriving means this side is answering, and nothing has opened an
+  // entry for it yet - the offering side's attempt is on the other device.
+  if (type === QR_TYPE_OFFER && logbook.pending() == null) {
+    logbook.start({ role: 'answering', carrier: incomingCarrier })
+  }
+
+  logbook.note({ format: isCompactPayload(text) ? 'v3' : 'v2', received: text.length })
 
   if (type === QR_TYPE_OFFER) {
     // Only meaningful while opening a link; a no-op otherwise, since the panel
@@ -2115,6 +2284,8 @@ scanModalEl.addEventListener('camera', event => {
 scanModalEl.addEventListener('scan', async event => {
   const expectedType = scanMode
 
+  incomingCarrier = 'camera'
+
   scanMode = null
   setStatus(t('status.verifying'))
 
@@ -2124,11 +2295,17 @@ scanModalEl.addEventListener('scan', async event => {
     // than failing against a node that is still a few milliseconds away.
     await ensureNode()
 
+    if (logbook.pending() == null) {
+      logbook.start({ role: 'answering', carrier: 'camera' })
+    }
+
     const classified = await classifyScanned(event.detail.text, expectedType)
 
     await handleReceivedPayload(classified.payloadText, expectedType)
     updateControls()
   } catch (error) {
+    logbook.note({ network: networkVerdicts() })
+    logbook.finish({ outcome: 'failed', reason: error.message })
     setStatus(t('status.qrFailed', { reason: error.message }))
     appendLog(`QR processing failed: ${error.message}`)
   }
@@ -2156,6 +2333,8 @@ resetIdentityButton.addEventListener('click', () => {
 })
 
 async function createInvite (button) {
+  logbook.start({ role: 'offering' })
+
   // Step 1 is technical - "start a browser peer" is not a thing anybody set out
   // to do - so in the simple view it is not on screen to press. The button that
   // *is* pressed does it instead, which is also the honest order: nobody wants
@@ -2260,6 +2439,7 @@ listenModalEl.createReceiver = createAudioReceiver
 listenModalEl.validate = async text => classifyScanned(text, QR_TYPE_ANSWER)
 
 listenModalEl.addEventListener('payload', async event => {
+  incomingCarrier = 'sound'
   setStatus(t('status.verifying'))
 
   try {
@@ -2268,6 +2448,8 @@ listenModalEl.addEventListener('payload', async event => {
     await handleReceivedPayload(classified.payloadText, QR_TYPE_ANSWER)
     updateControls()
   } catch (error) {
+    logbook.note({ network: networkVerdicts() })
+    logbook.finish({ outcome: 'failed', reason: error.message })
     setStatus(t('status.qrFailed', { reason: error.message }))
     appendLog(`Audio reply failed: ${error.message}`)
   }
@@ -2371,6 +2553,16 @@ function revealPasteField () {
 }
 
 async function useIncoming (text) {
+  incomingCarrier ??= 'paste'
+
+  // Opened here rather than deeper in, because the most interesting failures
+  // happen before a payload has proved itself: a link that is not a link, a
+  // reply that will not parse. An attempt begins when somebody acts on it.
+  // Guarded, because the offering side already has one open from `createInvite`
+  // and this is where it pastes the reply.
+  if (logbook.pending() == null) {
+    logbook.start({ role: 'answering', carrier: incomingCarrier })
+  }
   setButtonBusy(processPayloadButton, node == null ? t('invite.starting') : 'Connecting…')
 
   try {
@@ -2387,6 +2579,8 @@ async function useIncoming (text) {
 
     await handleReceivedPayload(text)
   } catch (error) {
+    logbook.note({ network: networkVerdicts() })
+    logbook.finish({ outcome: 'failed', reason: error.message })
     setStatus(explain(error))
     appendLog(`Link failed: ${error.message}`)
   } finally {
@@ -2856,6 +3050,7 @@ async function consumeLink () {
     await openProgress(1, t('progress.starting'))
     await createNode()
 
+    incomingCarrier = 'link'
     await openProgress(2, t('progress.checking'))
     // Step 3 is announced from inside handleReceivedPayload, which is where the
     // slow part actually starts - gathering candidates for the answer. Naming

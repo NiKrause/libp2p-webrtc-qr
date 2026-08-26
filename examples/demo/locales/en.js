@@ -55,6 +55,23 @@ export default {
     open: ({ name }) => `Show ${name}`,
     position: ({ index, total }) => `${index} of ${total}`
   },
+  logbook: {
+    heading: 'What worked here',
+    hint: 'Every attempt is recorded and closed when it connects or fails. Both are kept - a log of successes says nothing about what is broken.',
+    provider: 'Network provider',
+    providerHint: 'Telekom, Vodafone, the hotel…',
+    place: 'Where you are',
+    placeHint: 'home wifi, office, hotel lobby…',
+    empty: 'No attempts recorded yet.',
+    export: 'Export as JSON',
+    clear: 'Clear the log',
+    frames: ({ frames }) => `${frames} frame${frames === 1 ? '' : 's'}`,
+    outcome: {
+      connected: 'connected',
+      failed: 'failed',
+      abandoned: 'abandoned'
+    }
+  },
   view: {
     simple: 'Simple',
     technical: 'Technical'
