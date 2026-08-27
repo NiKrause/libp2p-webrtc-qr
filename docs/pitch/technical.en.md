@@ -10,10 +10,14 @@ Something has to introduce two peers to each other.
 **We deleted it.**
 
 The offer and the answer travel across the table as a QR code.
-Signed with the libp2p key that binds the DTLS fingerprint to the peer ID — and that is
-exactly why the Noise handshake can be skipped. The code *is* the trust anchor.
+Or as a link, through any messenger you like.
+Or — when the other side has no camera worth using — **back as audible sound.**
 
-No relay. No TURN. No account. No registration.
+The channel is interchangeable, because the trust is not in the channel.
+The payload is signed with the libp2p key that binds the DTLS fingerprint to the peer
+ID. That is exactly why the Noise handshake can be skipped.
+
+No relay. No TURN. No account.
 
 Being honest: STUN sees your IP, and the page itself comes from a web server.
 
@@ -28,9 +32,12 @@ Open source, Apache and MIT.
 
 - **"We deleted it"** is the hook. Anybody who has built on WebRTC stops here — the
   signalling server is the piece you cannot get rid of.
+- **The three carriers are not a list, they are the proof.** Code, link and sound carry
+  the same signed payload; that they can be swapped freely *demonstrates* that the
+  security does not hang on the channel. That is why the sentence about the signature
+  comes immediately after them rather than before.
 - **The signature is not a feature, it is the argument.** It is *why* skipping the
-  handshake is sound, not a security bullet point beside it. Leave it out and the claim
-  sounds like "we turned encryption off".
+  handshake is sound. Leave it out and the claim sounds like "we turned encryption off".
 - **The honesty line buys credibility rather than costing it.** Without it the first
   expert comment takes the video apart, and deservedly.
 - **Do not blame network operators.** Symmetric NAT is the rational answer to IPv4
