@@ -65,6 +65,7 @@ export default {
     locating: 'Asking…',
     located: ({ where, precise }) => `${where} — ${precise}`,
     withPosition: 'position added',
+    askingPosition: 'asking for a position…',
     noPosition: 'no position (refused, or not available here)',
     locateFailed: ({ reason }) => `Could not work it out: ${reason}. Type it instead.`,
     providerHint: 'Telekom, Vodafone, the hotel…',

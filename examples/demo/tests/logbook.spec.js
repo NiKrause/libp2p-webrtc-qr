@@ -255,18 +255,40 @@ test.describe('the logbook', () => {
    * this was being written, which is the ordinary case rather than the
    * exception.
    */
-  const answerWith = (page, body, { status = 200 } = {}) => page.route('**/api.ipquery.io/**', route =>
-    route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) }))
+  const answerWith = async (page, body, { status = 200 } = {}) => {
+    const hits = { count: 0 }
+
+    // A predicate rather than a glob. `**/api.ipquery.io/**` matched here and
+    // not in the E2E container on Firefox, where the request went to the real
+    // network instead, failed DNS, and surfaced as an empty field three tests
+    // later. A URL match should not depend on how a trailing slash and a query
+    // string normalise.
+    await page.route(url => url.hostname === 'api.ipquery.io', route => {
+      hits.count++
+
+      return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
+    })
+
+    return hits
+  }
+
+  /** The stub was used, rather than the field being empty for some other reason. */
+  const usedStub = async (page, hits) => {
+    await expect
+      .poll(() => hits.count, { message: 'the lookup never reached the stubbed service' })
+      .toBeGreaterThan(0)
+  }
 
   test('works out the provider and fills the fields somebody would have typed', async ({ page }) => {
     await open(page)
-    await answerWith(page, {
+    const hits = await answerWith(page, {
       ip: '203.0.113.7',
       isp: { asn: 'AS64500', isp: 'Example Telecom', org: 'Example Telecom GmbH' },
       location: { country_code: 'DE', state: 'Bavaria', city: 'Munich' }
     })
 
     await page.locator('#logbook-locate').click()
+    await usedStub(page, hits)
 
     await expect(page.locator('#logbook-provider')).toHaveValue('Example Telecom')
 
@@ -284,13 +306,14 @@ test.describe('the logbook', () => {
   test('a typed place survives a lookup untouched', async ({ page }) => {
     await open(page)
     await page.locator('#logbook-place').fill('hotel lobby')
-    await answerWith(page, {
+    const hits = await answerWith(page, {
       ip: '203.0.113.7',
       isp: { isp: 'Example Telecom' },
       location: { country_code: 'DE', state: 'Bavaria', city: 'Munich' }
     })
 
     await page.locator('#logbook-locate').click()
+    await usedStub(page, hits)
     await expect(page.locator('#logbook-provider')).toHaveValue('Example Telecom')
 
     // "hotel lobby" is what a pattern is made of; "Munich" is not, and no
@@ -301,9 +324,10 @@ test.describe('the logbook', () => {
   test('a service that says no leaves the typed fields alone', async ({ page }) => {
     await open(page)
     await page.locator('#logbook-provider').fill('typed by hand')
-    await answerWith(page, { error: true, reason: 'RateLimited' })
+    const hits = await answerWith(page, { error: true, reason: 'RateLimited' })
 
     await page.locator('#logbook-locate').click()
+    await usedStub(page, hits)
 
     await expect(page.locator('#logbook-locate-state')).toContainText('RateLimited')
     await expect(page.locator('#logbook-provider')).toHaveValue('typed by hand')
@@ -311,12 +335,13 @@ test.describe('the logbook', () => {
 
   test('the export keeps the country and drops everything finer', async ({ page }) => {
     await open(page)
-    await answerWith(page, {
+    const hits = await answerWith(page, {
       ip: '203.0.113.7',
       isp: { isp: 'Example Telecom' },
       location: { country_code: 'DE', state: 'Bavaria', city: 'Munich' }
     })
     await page.locator('#logbook-locate').click()
+    await usedStub(page, hits)
     await expect(page.locator('#logbook-provider')).toHaveValue('Example Telecom')
 
     await page.locator('.paste-fallback summary').click()

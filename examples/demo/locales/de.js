@@ -55,6 +55,7 @@ export default {
     locating: 'Frage nach…',
     located: ({ where, precise }) => `${where} — ${precise}`,
     withPosition: 'Position ergänzt',
+    askingPosition: 'frage nach der Position…',
     noPosition: 'keine Position (abgelehnt oder hier nicht verfügbar)',
     locateFailed: ({ reason }) => `Ließ sich nicht ermitteln: ${reason}. Bitte eintippen.`,
     providerHint: 'Telekom, Vodafone, das Hotel…',

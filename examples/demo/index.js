@@ -428,8 +428,10 @@ document.getElementById('logbook-locate').addEventListener('click', async () => 
 
   try {
     const network = await lookUpNetwork()
-    const position = await lookUpPosition()
 
+    // Written before the position is asked for, not after. The coarse answer is
+    // the one that matters here and it is already in hand; letting a permission
+    // prompt nobody answers withhold it would be the tail wagging the dog.
     logbook.setContext({
       ...logbook.context,
       provider: network.provider ?? logbook.context.provider,
@@ -442,12 +444,18 @@ document.getElementById('logbook-locate').addEventListener('click', async () => 
       country: network.country,
       region: network.region,
       city: network.city,
-      ip: network.ip,
-      coords: position
+      ip: network.ip
     })
 
     logbookProviderEl.value = logbook.context.provider ?? ''
+    state.textContent = t('logbook.located', {
+      where: [network.city, network.country].filter(Boolean).join(', ') || '?',
+      precise: t('logbook.askingPosition')
+    })
 
+    const position = await lookUpPosition()
+
+    logbook.setContext({ ...logbook.context, coords: position })
     state.textContent = t('logbook.located', {
       where: [network.city, network.country].filter(Boolean).join(', ') || '?',
       precise: position == null ? t('logbook.noPosition') : t('logbook.withPosition')

@@ -83,7 +83,7 @@ export async function lookUpNetwork ({ endpoint = DEFAULT_LOOKUP, fetch = global
 export async function lookUpPosition ({ geolocation = globalThis.navigator?.geolocation, timeout = 8000 } = {}) {
   if (geolocation == null) return null
 
-  return new Promise(resolve => {
+  const asked = new Promise(resolve => {
     geolocation.getCurrentPosition(
       position => resolve({
         latitude: position.coords.latitude,
@@ -94,4 +94,15 @@ export async function lookUpPosition ({ geolocation = globalThis.navigator?.geol
       { timeout, maximumAge: 600000 }
     )
   })
+
+  // Bounded here as well, and not because the option above is untrusted: that
+  // timeout governs *acquiring a position once permission exists*. A prompt
+  // nobody answers - a headless browser, a policy that neither grants nor
+  // denies, a person who walks away - settles nothing, and neither callback
+  // ever fires. Found on Firefox in the E2E container, where the whole button
+  // sat on "asking…" for as long as anybody waited.
+  return Promise.race([
+    asked,
+    new Promise(resolve => setTimeout(() => resolve(null), timeout + 1000))
+  ])
 }
