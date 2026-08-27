@@ -24,6 +24,7 @@
 
 const STORAGE_KEY = 'webrtc-qr.logbook.v1'
 const CONTEXT_KEY = 'webrtc-qr.logbook.context.v1'
+const ENABLED_KEY = 'webrtc-qr.logbook.enabled.v1'
 
 /**
  * Enough to see a pattern, few enough that the list stays readable and the
@@ -71,9 +72,33 @@ function describeAgent () {
   return { engine, version, platform, mobile: navigator.userAgentData?.mobile ?? /Mobi/i.test(ua) }
 }
 
+/** Counts by type and family, which is what survives an export. */
+function summariseCandidates (candidates) {
+  const counts = {}
+
+  for (const { type, address } of candidates) {
+    const family = address?.includes(':') ? 'v6' : 'v4'
+    const key = `${type}.${family}`
+
+    counts[key] = (counts[key] ?? 0) + 1
+  }
+
+  return counts
+}
+
 export function createLogbook ({ now = () => Date.now() } = {}) {
   let entries = read(STORAGE_KEY, [])
   let context = read(CONTEXT_KEY, { provider: '', place: '' })
+  /**
+   * Off until somebody says otherwise.
+   *
+   * It records every attempt, and it holds the public address a reflexive
+   * candidate carries. That was defensible while it was a count in
+   * `localStorage`; it stops being defensible the moment the entry holds an
+   * address, and a default that was fine for the quiet version should not be
+   * inherited by the loud one.
+   */
+  let enabled = read(ENABLED_KEY, false) === true
   /** The attempt currently in flight, if any. */
   let open = null
   const listeners = new Set()
@@ -102,6 +127,26 @@ export function createLogbook ({ now = () => Date.now() } = {}) {
       return entries.map(entry => ({ ...entry }))
     },
 
+    get enabled () {
+      return enabled
+    },
+
+    /**
+     * Turning it off stops the recording and keeps what is already there.
+     *
+     * Deleting somebody's own measurements because they closed the tap would be
+     * its own surprise, and `clear()` is right beside it for anyone who means
+     * that instead.
+     */
+    setEnabled (next) {
+      enabled = next === true
+      write(ENABLED_KEY, enabled)
+
+      if (!enabled) open = null
+
+      announce()
+    },
+
     /** For a panel that wants to redraw when anything changes. */
     subscribe (listener) {
       listeners.add(listener)
@@ -117,6 +162,9 @@ export function createLogbook ({ now = () => Date.now() } = {}) {
      * it dangling would silently lose the row that says somebody gave up.
      */
     start ({ role, carrier = null }) {
+      // Off means off: no entry, not an empty one and not a redacted one.
+      if (!enabled) return null
+
       if (open != null) this.finish({ outcome: 'abandoned' })
 
       open = {
@@ -178,9 +226,37 @@ export function createLogbook ({ now = () => Date.now() } = {}) {
       persist()
     },
 
-    /** Everything, as the file somebody would send by hand. */
+    /**
+     * The file somebody would send by hand - **projected, not copied**.
+     *
+     * A local entry may hold the addresses a connection actually used, because
+     * that is what makes a failure diagnosable a week later on your own machine.
+     * None of it may leave: a reflexive address is a public IP, and #27 refuses
+     * those for reasons that do not go away because the data was convenient to
+     * collect.
+     *
+     * So the projection happens here rather than at the far end, where it would
+     * depend on somebody remembering. What is removed is named in the file, so a
+     * recipient knows they are holding a projection rather than a copy.
+     */
     export () {
-      return JSON.stringify({ v: 1, exportedAt: new Date(now()).toISOString(), entries }, null, 2)
+      // Everything measured about *where* is dropped except the two fields the
+      // public dataset in #27 actually asks for. A city is fine on a laptop and
+      // too fine in a file that travels; coordinates are too fine anywhere but
+      // here; the IP is the address this whole projection exists to withhold.
+      const projected = entries.map(({ candidates, ip, coords, city, ...rest }) => ({
+        ...rest,
+        // The shape survives, the addresses do not: counts by type answer "what
+        // kind of network was this" without answering "whose".
+        candidates: candidates == null ? null : summariseCandidates(candidates)
+      }))
+
+      return JSON.stringify({
+        v: 1,
+        exportedAt: new Date(now()).toISOString(),
+        redacted: ['candidate addresses and ports', 'public IP', 'coordinates', 'city'],
+        entries: projected
+      }, null, 2)
     }
   }
 }

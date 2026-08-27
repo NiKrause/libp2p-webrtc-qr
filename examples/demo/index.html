@@ -279,6 +279,22 @@
             a log of successes says nothing about what is broken.
           </p>
 
+          <!--
+            One switch for the lot, and it starts off. From the person's side
+            the recording, the addresses it holds and anything looked up later
+            are one question - is this app keeping notes about me - and three
+            checkboxes for one question would be two too many.
+          -->
+          <label class="option logbook-switch">
+            <input id="logbook-enabled" type="checkbox">
+            <span data-i18n="logbook.enable">Record what happens here</span>
+          </label>
+          <p class="hint" data-i18n="logbook.enableHint">
+            Off by default. Nothing is written until this is ticked, and turning it off again
+            keeps what is already recorded - use Clear for that. Everything stays on this device;
+            the export leaves addresses behind.
+          </p>
+
           <div class="logbook-context">
             <div class="field">
               <label for="logbook-provider" data-i18n="logbook.provider">Network provider</label>
@@ -290,6 +306,11 @@
               <input id="logbook-place" type="text" autocomplete="off"
                      data-i18n-attr="placeholder:logbook.placeHint" placeholder="home wifi, office, hotel lobby…" />
             </div>
+          </div>
+
+          <div class="actions logbook-lookup">
+            <button id="logbook-locate" type="button" data-i18n="logbook.locate">Work out where I am</button>
+            <span id="logbook-locate-state" class="logbook-locate-state" role="status" aria-live="polite"></span>
           </div>
 
           <div id="logbook-entries" class="logbook-entries"></div>

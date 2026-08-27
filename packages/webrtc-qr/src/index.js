@@ -1,5 +1,5 @@
 export { webRTCQR, createWebRTCUpgradeContext } from './transport.js'
-export { QRSession, describeIce } from './session.js'
+export { QRSession, describeIce, readIceCandidates } from './session.js'
 export { createKeepAlive } from './keep-alive.js'
 export {
   AUDIO_CHUNK_LIMIT,

@@ -1580,3 +1580,28 @@ label.option,
 input[type='checkbox'] {
   touch-action: manipulation;
 }
+
+/* The switch sits above the fields it governs, and the hint under it explains
+   what ticking it starts - before it is ticked rather than after. */
+.logbook-switch {
+  margin-bottom: 4px;
+}
+
+.logbook-switch + .hint {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
+/* The lookup sits under the fields it fills, and says what came back beside it
+   rather than in the log further down. */
+.logbook-lookup {
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.logbook-locate-state {
+  font-size: 0.78rem;
+  color: var(--ls-text-faint);
+  overflow-wrap: anywhere;
+}

@@ -21,6 +21,7 @@ import { createIntroPolicy } from '@le-space/libp2p-webrtc-qr/elements'
 import { applyBrowserTheme } from './browser-theme.js'
 import { elementStrings, initialLocale, locale, setLocale, t, translateDocument } from './i18n.js'
 import { createLogbook } from './logbook.js'
+import { lookUpNetwork, lookUpPosition } from './whereabouts.js'
 import { previewStore } from './previews.js'
 import { applyViewMode, isSimple } from './view-mode.js'
 import { forgetIdentity, launchedStandalone, loadOrCreateIdentity } from './identity.js'
@@ -93,6 +94,7 @@ import {
   createWebRTCUpgradeContext,
   decodePayload,
   describeIce,
+  readIceCandidates,
   AUDIO_SAMPLE_RATE,
   encodeSignedPayload,
   encodeToAudio,
@@ -242,6 +244,28 @@ function describeConnection (peerId) {
 }
 
 /**
+ * The candidates with their addresses, which the summary above throws away.
+ *
+ * A reflexive address is the public one this network gave us, so it answers
+ * "which network was this" without asking anybody. It stays on the device: the
+ * logbook's export projects it back down to counts.
+ */
+function candidatesOf (peerId) {
+  const peerConnection = peerConnections.get(peerId)
+
+  try {
+    if (peerConnection == null) return null
+
+    return [
+      ...readIceCandidates(peerConnection.localDescription?.sdp).map(c => ({ ...c, side: 'local' })),
+      ...readIceCandidates(peerConnection.remoteDescription?.sdp).map(c => ({ ...c, side: 'remote' }))
+    ]
+  } catch {
+    return null
+  }
+}
+
+/**
  * How the payload that is being processed arrived.
  *
  * Set by whichever control started it, read when the entry is opened. A module
@@ -365,6 +389,16 @@ function renderLogbook () {
 logbook.subscribe(renderLogbook)
 renderLogbook()
 
+const logbookEnabledEl = document.getElementById('logbook-enabled')
+
+logbookEnabledEl.checked = logbook.enabled
+logbookEnabledEl.addEventListener('change', () => {
+  logbook.setEnabled(logbookEnabledEl.checked)
+  appendLog(logbookEnabledEl.checked
+    ? 'Logbook on: attempts are recorded on this device.'
+    : 'Logbook off: nothing further is recorded.')
+})
+
 for (const [el, key] of [[logbookProviderEl, 'provider'], [logbookPlaceEl, 'place']]) {
   el.value = logbook.context[key] ?? ''
   // On `input` rather than `change`: somebody who types a provider and goes
@@ -372,6 +406,68 @@ for (const [el, key] of [[logbookProviderEl, 'provider'], [logbookPlaceEl, 'plac
   // attempt would then be recorded without the field they just typed.
   el.addEventListener('input', () => logbook.setContext({ ...logbook.context, [key]: el.value.trim() }))
 }
+
+/**
+ * Fill the two typed fields by asking, once, because somebody pressed a button.
+ *
+ * Not per attempt and not on load. Determining the provider means making a
+ * request, and a request tells the service our address by the act of asking -
+ * there is no version that does not. So it is an act somebody performs on
+ * arriving somewhere new, rather than something an invite does on their behalf.
+ *
+ * Best effort throughout: the coarse answer is kept when the precise one is
+ * refused, and a refusal or a rate limit leaves the typed fields exactly as they
+ * were rather than clearing them.
+ */
+document.getElementById('logbook-locate').addEventListener('click', async () => {
+  const button = document.getElementById('logbook-locate')
+  const state = document.getElementById('logbook-locate-state')
+
+  button.disabled = true
+  state.textContent = t('logbook.locating')
+
+  try {
+    const network = await lookUpNetwork()
+
+    // Written before the position is asked for, not after. The coarse answer is
+    // the one that matters here and it is already in hand; letting a permission
+    // prompt nobody answers withhold it would be the tail wagging the dog.
+    logbook.setContext({
+      ...logbook.context,
+      provider: network.provider ?? logbook.context.provider,
+      // The city is *not* offered as the place, though it was at first and the
+      // test caught why: `place` is typed and travels with an export, `city` is
+      // measured and is dropped by it. Prefilling one from the other launders a
+      // measured value past the projection - and it fails the field's purpose
+      // anyway, since "hotel lobby" is what a pattern is made of and "Munich"
+      // is not.
+      country: network.country,
+      region: network.region,
+      city: network.city,
+      ip: network.ip
+    })
+
+    logbookProviderEl.value = logbook.context.provider ?? ''
+    state.textContent = t('logbook.located', {
+      where: [network.city, network.country].filter(Boolean).join(', ') || '?',
+      precise: t('logbook.askingPosition')
+    })
+
+    const position = await lookUpPosition()
+
+    logbook.setContext({ ...logbook.context, coords: position })
+    state.textContent = t('logbook.located', {
+      where: [network.city, network.country].filter(Boolean).join(', ') || '?',
+      precise: position == null ? t('logbook.noPosition') : t('logbook.withPosition')
+    })
+  } catch (error) {
+    // A free service is entitled to say no, and offline is a case this app is
+    // *for*. Neither is worth more than a sentence.
+    state.textContent = t('logbook.locateFailed', { reason: error.message })
+  } finally {
+    button.disabled = false
+  }
+})
 
 document.getElementById('logbook-export').addEventListener('click', () => {
   const blob = new Blob([logbook.export()], { type: 'application/json' })
@@ -763,7 +859,7 @@ function watchConnection (peerId, peerConnection) {
 function attachChatStream (stream, peerId, message) {
   // The attempt ended the way it was supposed to. Recorded before anything else
   // here, because everything else here can throw.
-  logbook.note({ network: networkVerdicts(), ice: describeConnection(peerId) })
+  logbook.note({ network: networkVerdicts(), ice: describeConnection(peerId), candidates: candidatesOf(peerId) })
   logbook.finish({ outcome: 'connected' })
   incomingCarrier = null
 
