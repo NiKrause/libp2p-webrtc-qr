@@ -123,6 +123,7 @@ export default {
     fresh: ({ minutes }) => `This invite stays fresh for about ${minutes} more minute(s).`,
     stale: 'This invite is probably too old to connect - create a new one.'
   },
+  hurryBack: 'Come straight back - within seconds. While you are in another app this phone suspends the page, and the invite stops working.',
   invite: {
     heading: 'Show this to the other person',
     scanHelp: 'Their phone camera opens the same link - or send it to them.',
