@@ -104,6 +104,25 @@ function symmetricFamilies (candidates) {
   ].filter(Boolean)
 }
 
+/**
+ * The candidates in an SDP, with their addresses.
+ *
+ * Exported because `describeIce` deliberately reduces this to counts - which is
+ * the right shape for a status line and the wrong one for anybody asking *which
+ * network was this*. A reflexive candidate carries the public address the STUN
+ * transaction discovered, so a consumer keeping a local diagnostic log has it
+ * already and needs no service to find out.
+ *
+ * It is also the field that must never leave a device unprojected, which is a
+ * property of what a consumer does with it rather than of this function.
+ *
+ * @param {string | undefined} sdp
+ * @returns {Array<{ address: string, port: string, type: 'host' | 'srflx' | 'prflx' | 'relay' }>}
+ */
+export function readIceCandidates (sdp) {
+  return readCandidates(sdp)
+}
+
 function readCandidates (sdp) {
   const found = []
 

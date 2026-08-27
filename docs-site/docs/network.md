@@ -93,7 +93,13 @@ Two consequences worth building on:
   gathered `srflx` candidates from the *same* public address - so they are behind
   the same NAT - and ICE still never left `checking`, client isolation is the
   likely cause rather than NAT type. `describeIce()` carries the candidate sets
-  a message would need to say so.
+  a message would need to say so, and `readIceCandidates(sdp)` carries them with
+  their addresses — `{ address, port, type }` each, which is what makes "the same
+  public address" checkable rather than merely sayable.
+
+  A reflexive candidate *is* the public address STUN discovered, so anything
+  keeping a local diagnostic has it already and needs no lookup service. It is
+  equally the field that must never leave a device unprojected.
 
 Reported independently by
 [vbocan/webrtc-oob-pairing](https://github.com/vbocan/webrtc-oob-pairing), which
