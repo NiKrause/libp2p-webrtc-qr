@@ -12,25 +12,34 @@ Stativ aufnehmen; nichts davon braucht einen Schnittplatz mit mehreren Spuren.
   „Einladungslink erzeugen".
 - **Beide Geräte auf dieselbe Sprache** stellen wie der Sprechtext.
 - **Logbuch aus** (Vorgabe). Es ist ein Entwicklerwerkzeug und lenkt ab.
+- **Automatische Helligkeit aus, beide Bildschirme hell.** Es wird zweimal gescannt, und
+  ein Gerät, das sich mitten in der Aufnahme dunkel stellt, lässt den zweiten Scan
+  scheitern — an der Kamera liegt es dann nicht.
 
 ## Einstellungen
 
-| # | Sek | Bild | Ton |
+| # | sek | Bild | Ton |
 |---|---|---|---|
-| 1 | 0–4 | Zwei Telefone nebeneinander auf dem Tisch, beide zeigen die Startseite | „Zwei Handys. Ein Code auf dem Bildschirm." |
+| 1 | 0–4 | Zwei Handys nebeneinander auf einem Tisch, beide auf dem Startbildschirm | „Zwei Handys. Ein Code auf dem einen Bildschirm." |
 | 2 | 4–9 | Nah auf Gerät A: Daumen tippt **Einladungslink erzeugen**, der Code erscheint | „Das andere scannt ihn —" |
-| 3 | 9–14 | Gerät B hebt sich, Kamera über den Code; Schnitt in dem Moment, in dem sich der Dialog schließt | „— verbunden." |
-| 4 | 14–20 | Bildschirmaufnahme: Link wird in einen Messenger eingefügt und geschickt | „Ihr seid nicht im selben Raum? Dann schick den Link." |
-| 5 | 20–27 | Gerät A drückt **Auf die Antwort horchen**, Gerät B drückt **Als Ton abspielen**; beide Geräte im Bild | Ton läuft **hörbar** — zwei Sekunden ohne Sprache stehen lassen |
-| 6 | 27–32 | Der Pegelbalken im Horch-Dialog bewegt sich, dann schließt er sich | „Die Antwort kommt als Ton zurück." |
-| 7 | 32–45 | Beide Geräte: eine Nachricht wird getippt und erscheint drüben; danach ein Foto ziehen und drüben erscheinen lassen | „Zwischen euch ist niemand …" |
-| 8 | 45–50 | **Flugmodus an beiden Geräten einschalten**, Nachricht geht weiter durch | „Im selben Raum braucht es nicht einmal Internet." |
-| 9 | 50–55 | Standbild: Adresse der Demo | leise Schluss-Zeile |
+| 3 | 9–14 | Gerät B hebt sich, Kamera über den Code; B zeigt daraufhin **seinen eigenen** Code | „— und zeigt einen Code zurück." |
+| 4 | 14–18 | Gerät A scannt jetzt B's Code; Schnitt auf den Moment, in dem der Dialog schließt | „Der erste scannt den. Verbunden." |
+| 5 | 18–23 | Bildschirmaufnahme: der Link wird in einen Messenger eingefügt und gesendet | „Nicht im selben Raum? Dann geht beides als Link." |
+| 6 | 23–30 | Gerät A tippt **Auf Antwort hören**, Gerät B tippt **Als Ton abspielen**; beide im Bild | die Töne laufen **hörbar** — zwei Sekunden ohne Sprache |
+| 7 | 30–34 | Der Pegel im Hör-Dialog schlägt aus, dann schließt der Dialog | „Die Antwort kommt als Ton zurück." |
+| 8 | 34–46 | Beide Geräte: eine Nachricht wird getippt und erscheint drüben; dann ein Foto hinüberziehen | „Zwischen euch ist niemand …" |
+| 9 | 46–51 | **Beide Geräte vom Internet trennen**, die Nachricht geht trotzdem durch | „Im selben Raum braucht es nicht einmal Internet." |
+| 10 | 51–56 | Standbild: die Adresse der Demo | leiser Schlusssatz |
 
-Einstellung 8 ist der stärkste Beweis im ganzen Video und kostet fünf Sekunden. Sie
-funktioniert nur, wenn beide Geräte im selben WLAN sind und die Verbindung **vorher**
-stand — Flugmodus trennt das WLAN, also stattdessen WLAN aus und Mobilfunk aus, oder ein
-Router ohne Internetzugang.
+Die Einstellungen 3 und 4 sind **eine** Bewegung und gehören zusammen geschnitten. Es
+sind zwei Scans, und beide müssen zu sehen sein: Wer nur einen zeigt, behauptet
+unfreiwillig, dass doch jemand vermittelt — genau die Sache, die dieses Projekt nicht
+tut.
+
+Einstellung 9 ist der stärkste Beweis im Video und kostet fünf Sekunden. Sie gelingt nur,
+wenn beide Geräte im selben lokalen Netz hängen und die Verbindung **schon stand** — der
+Flugmodus kappt auch das WLAN, also einen Router ohne Uplink nehmen oder mobile Daten aus
+und WLAN an.
 
 ## Für den Fachtext
 
@@ -55,7 +64,8 @@ Was du **nicht** zeigen solltest: das Logbuch nach einer Ortsabfrage (dort steht
 
 ## Schnitt
 
-- **Keine Musik über Einstellung 5.** Der Ton *ist* die Demonstration.
+- **Keine Musik über Einstellung 6.** Der Ton *ist* die Demonstration.
 - Harte Schnitte, keine Überblendungen. Das Thema ist Unmittelbarkeit.
-- Wenn eine Einstellung länger dauert als geplant, kürze **7**, nicht 5 oder 8. Die
-  Nachricht, die ankommt, ist erwartbar; der Ton und der Flugmodus sind es nicht.
+- Wenn eine Einstellung länger dauert als geplant, kürze **8**, nicht 6 oder 9. Die
+  Nachricht, die ankommt, ist erwartbar; der Ton und der Offline-Moment sind es nicht.
+  3 und 4 nie kürzen — das ist der Handshake.

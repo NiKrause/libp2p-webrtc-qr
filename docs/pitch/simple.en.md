@@ -1,16 +1,17 @@
 # For people — English
 
-*Spoken script, about 50 seconds. Read it aloud; where there is a full stop, breathe.*
+*Spoken script, about 55 seconds. Read it aloud; where there is a full stop, breathe.*
 
 ---
 
-Two phones. A code on the screen.
-The other one scans it — connected.
+Two phones. A code on one screen.
+The other one scans it — and shows a code back.
+The first one scans that. Connected.
 
 Not in the same room?
-Then send the link. Through any messenger you like.
+Then both directions go as a link. Through any messenger you like.
 
-And if the other device has no camera worth using:
+And when the way back is awkward — a camera too poor, a screen too small:
 the answer comes back **as sound**. Just play it.
 
 *[let two seconds of the tones play]*
@@ -29,6 +30,13 @@ This is how the net was meant to work.
 
 ## Notes for reading
 
+- **Two scans, not one.** There and back. This is not clumsiness to be edited out — it is
+  exactly the place where the server would otherwise stand. It would handle the return
+  direction; there isn't one, so the two of you do it yourselves. Leaving the second scan
+  out of the video quietly claims that somebody *is* introducing the two peers after all.
+- **The return leg is the reason the sound exists.** The first scan nearly always works;
+  the second one is where it fails. That is why the audio line comes straight after it —
+  it answers a question the viewer has just asked themselves.
 - **"There is nobody in between"** is the sentence the video exists for. Half a second
   of silence before it.
 - **Do not put music over the tones.** Two seconds of the real sound convinces where an

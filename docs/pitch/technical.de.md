@@ -9,7 +9,10 @@ Irgendetwas muss zwei Peers einander vorstellen.
 
 **Wir haben ihn gelöscht.**
 
-Offer und Answer reisen als QR-Code über den Tisch.
+Was er getan hätte, tut ihr selbst — in beide Richtungen.
+Offer hin, Answer zurück. Zwei Wege, zwei Scans.
+
+Beide reisen als QR-Code über den Tisch.
 Oder als Link durch einen beliebigen Messenger.
 Oder — wenn die Gegenseite keine brauchbare Kamera hat — **als hörbarer Ton zurück.**
 
@@ -32,6 +35,10 @@ Quelloffen, Apache und MIT.
 
 - **„Wir haben ihn gelöscht"** ist der Haken. Wer schon einmal WebRTC gebaut hat, hält
   hier an — der Signalisierungsserver ist die Sache, die man nicht loswird.
+- **Die zwei Richtungen sind Pflicht, nicht Kleingedrucktes.** Wer WebRTC gebaut hat,
+  sieht ein Video mit nur einem Scan und weiß sofort: Die Answer fehlt, also vermittelt
+  doch jemand. Der zweite Scan ist der Beleg dafür, dass der Server wirklich weg ist —
+  und zugleich die Stelle, an der es in der Praxis hakt, was den Ton-Rückkanal begründet.
 - **Die drei Träger sind keine Aufzählung, sondern der Beweis.** Code, Link und Ton
   tragen dieselbe signierte Nutzlast; dass man sie beliebig tauschen kann, *zeigt*, dass
   die Sicherheit nicht am Kanal hängt. Deshalb steht der Satz über die Signatur

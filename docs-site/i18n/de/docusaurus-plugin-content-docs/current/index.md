@@ -7,8 +7,9 @@ slug: /
 
 Zwei Browser verbinden sich direkt als libp2p-Peers — **ohne Relay und ohne
 Signaling-Server**. WebRTC-Offer und -Answer werden außerhalb des Netzes
-ausgetauscht: als signierte, komprimierte QR-Codes, die ein Telefon vom
-Bildschirm des anderen abscannt.
+ausgetauscht: als signierte, komprimierte QR-Codes, die beide Telefone vom
+Bildschirm des jeweils anderen abscannen — einmal in jede Richtung, weil kein
+Server die Answer zurückträgt.
 
 **[Live-Demo](https://webrtc-qr.le-space.de)** · [npm](https://www.npmjs.com/package/@le-space/libp2p-webrtc-qr) · [GitHub](https://github.com/NiKrause/libp2p-webrtc-qr)
 

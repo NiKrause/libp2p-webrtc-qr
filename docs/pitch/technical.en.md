@@ -9,7 +9,10 @@ Something has to introduce two peers to each other.
 
 **We deleted it.**
 
-The offer and the answer travel across the table as a QR code.
+What it would have done, the two of you do yourselves — in both directions.
+Offer out, answer back. Two legs, two scans.
+
+Both travel across the table as a QR code.
 Or as a link, through any messenger you like.
 Or — when the other side has no camera worth using — **back as audible sound.**
 
@@ -32,6 +35,11 @@ Open source, Apache and MIT.
 
 - **"We deleted it"** is the hook. Anybody who has built on WebRTC stops here — the
   signalling server is the piece you cannot get rid of.
+- **Both directions are mandatory, not fine print.** Anybody who has built on WebRTC
+  sees a video with a single scan and knows at once: the answer is missing, so something
+  *is* introducing the peers. The second scan is the evidence that the server is really
+  gone — and it is also the leg that fails in practice, which is what justifies the
+  acoustic return channel.
 - **The three carriers are not a list, they are the proof.** Code, link and sound carry
   the same signed payload; that they can be swapped freely *demonstrates* that the
   security does not hang on the channel. That is why the sentence about the signature
