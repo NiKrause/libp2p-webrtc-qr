@@ -89,7 +89,7 @@ export default {
       heading: 'Mit jemandem verbinden',
       hint: 'Laden Sie jemanden ein, oder scannen Sie den Code, den er Ihnen zeigt. Beides führt an dieselbe Stelle.',
       invite: 'Einladungslink erzeugen',
-      scan: 'Seinen Code scannen',
+      scan: 'Anderen Code scannen',
       reconnect: 'Neu verbinden'
     },
     data: {
@@ -116,6 +116,7 @@ export default {
       `Diese Einladung bleibt noch etwa ${minutes} ${minutes === 1 ? 'Minute' : 'Minuten'} frisch.`,
     stale: 'Diese Einladung ist vermutlich zu alt zum Verbinden — erzeugen Sie eine neue.'
   },
+  hurryBack: 'Kommen Sie sofort zurück — innerhalb von Sekunden. Solange Sie in einer anderen App sind, hält dieses Telefon die Seite an, und die Einladung verfällt.',
   invite: {
     heading: 'Zeigen Sie das der anderen Person',
     scanHelp: 'Die Telefonkamera der anderen Person öffnet denselben Link — oder schicken Sie ihn ihr.',
