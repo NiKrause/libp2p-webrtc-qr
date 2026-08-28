@@ -83,6 +83,43 @@ test.describe('qr-intro', () => {
     await expect(inShadow(page, '.tech')).toContainText('DuckDuckGo')
   })
 
+  /**
+   * The verdict says whether a connection looks possible. The addresses say what
+   * it was measured from - which is the question a VPN raises, and the one a
+   * sentence cannot answer.
+   *
+   * In the technical half only. The first-run dialog is read by people who have
+   * never heard of a candidate, and the list is a developer's instrument.
+   */
+  test('the addresses behind the verdict are in the technical half', async ({ page }) => {
+    await mount(page)
+    await page.evaluate(() => window.__intro.open())
+
+    // The probe runs on open; the block appears once it has an answer.
+    await expect.poll(
+      () => page.evaluate(() => window.__intro.shadowRoot.querySelector('.details') != null),
+      { timeout: 40000 }
+    ).toBe(true)
+
+    // Hidden with the rest of the technical half, not separately: a reader who
+    // asked for the simple view asked once.
+    await expect(inShadow(page, '.tech')).toBeHidden()
+
+    await page.evaluate(() => { window.__intro.technical = true })
+    await expect(inShadow(page, '.details')).toBeVisible()
+
+    // And closed, as everywhere else: a reflexive candidate carries the public
+    // IP of whoever is looking at the screen.
+    expect(await page.evaluate(() => window.__intro.shadowRoot.querySelector('.details').open)).toBe(false)
+
+    await inShadow(page, '.details summary').click()
+    await expect(inShadow(page, '.candidates')).not.toBeEmpty()
+
+    // The button measures again rather than handing back the remembered answer:
+    // somebody who has just switched a VPN on is asking for a second one.
+    await expect(inShadow(page, '.details .recheck')).toBeVisible()
+  })
+
   test('closing reports whether the box was ticked', async ({ page }) => {
     await mount(page)
 

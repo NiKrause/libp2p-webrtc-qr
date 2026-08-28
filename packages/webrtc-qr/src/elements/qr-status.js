@@ -1,3 +1,4 @@
+import { CANDIDATE_STRINGS, CANDIDATE_STYLE, createCandidateList } from './candidates.js'
 import { mergeStrings, resolveText } from './strings.js'
 import { DEFAULT_RTC_CONFIGURATION, offNetworkRisk, probeBrowser, probeCamera, probeNetwork } from './network.js'
 
@@ -47,33 +48,14 @@ export const QR_STATUS_STRINGS = {
   // destination, so it works only if the other side is open - worth saying,
   // and worth saying more quietly than the outright block above.
   alarmUnreliable: 'This network maps a new port per destination and has no IPv6, so an invite made here reaches peers on this network but will usually fail to anyone else. Wi-Fi, IPv6, or a relay makes it reliable.',
-  // The candidate list. Closed by default, and that is not only tidiness: a
-  // reflexive candidate carries the public IP of whoever is looking at the
-  // screen, and a panel that is safe to screenshot stays safe.
-  details: 'Show the addresses this check found',
-  detailsHint: 'What a peer would be offered as a route to this device. Turn a VPN on or off and check again - if anything changed, it changed here.',
-  recheck: 'Check again',
-  detailsEmpty: 'No candidates were gathered.',
-  // Named rather than abbreviated: "srflx" is the word in the specification and
-  // nowhere else, and this panel is read by people who are not reading the
-  // specification.
-  candidateHost: 'this device',
-  candidateSrflx: 'seen from outside',
-  candidateRelay: 'via a relay',
-  candidatePrflx: 'discovered mid-connection',
-  // Shown only when an mDNS name is actually in the list, because until then it
-  // is an explanation of something nobody has seen.
-  candidateMdns: 'Addresses ending in .local are stand-ins the browser substitutes for this device\'s own address, so a web page cannot read it. They are not a fault and they are not the VPN.',
-  candidateNew: 'new',
-  candidateGone: 'gone'
-}
-
-/** ICE's own words for where a candidate came from, in this panel's words. */
-const KIND_KEYS = {
-  host: 'candidateHost',
-  srflx: 'candidateSrflx',
-  relay: 'candidateRelay',
-  prflx: 'candidatePrflx'
+  // The addresses behind the verdict. Closed by default, and that is not only
+  // tidiness: a reflexive candidate carries the public IP of whoever is looking
+  // at the screen, and a panel that is safe to screenshot stays safe.
+  //
+  // Shared with `<qr-intro>`, which shows the same list in its technical half.
+  // One table, because the same word for the same thing in two places is how a
+  // translation ends up saying two different things.
+  ...CANDIDATE_STRINGS
 }
 
 /** Which keys are rows rather than verdicts. Also the `rows` vocabulary. */
@@ -101,6 +83,18 @@ const STYLE = `
     --qr-status-tip-color: #edf1f8;
     --qr-status-focus: #58c7f3;
     --qr-status-radius: 8px;
+
+    /* The shared candidate block reads these; mapping them here keeps its
+       stylesheet host-agnostic and this element's own knobs unchanged. */
+    --qr-candidate-dim: var(--qr-status-chip-color);
+    --qr-candidate-text: var(--qr-status-tip-color);
+    --qr-candidate-faint: var(--qr-status-verdict-color);
+    --qr-candidate-background: var(--qr-status-chip-background);
+    --qr-candidate-border: var(--qr-status-chip-border);
+    --qr-candidate-focus: var(--qr-status-focus);
+    --qr-candidate-open: var(--qr-status-open);
+    --qr-candidate-blocked: var(--qr-status-blocked);
+    --qr-candidate-radius: var(--qr-status-radius);
   }
 
   :host([hidden]) { display: none; }
@@ -263,71 +257,7 @@ const STYLE = `
 
   /* ---------- the addresses behind the verdict ---------- */
 
-  .details { margin-top: 8px; }
-  .details[hidden] { display: none; }
-
-  summary {
-    font-size: 0.78rem;
-    color: var(--qr-status-chip-color);
-    cursor: pointer;
-  }
-
-  summary:focus-visible {
-    outline: 2px solid var(--qr-status-focus);
-    outline-offset: 3px;
-  }
-
-  .details-body {
-    margin-top: 7px;
-    padding: 9px 12px;
-    background: var(--qr-status-chip-background);
-    border: 1px solid var(--qr-status-chip-border);
-    border-radius: var(--qr-status-radius);
-  }
-
-  .details-hint,
-  .details-note {
-    margin: 0 0 8px;
-    font-size: 0.76rem;
-    line-height: 1.45;
-    color: var(--qr-status-chip-color);
-  }
-
-  .details-note { margin: 8px 0 0; }
-
-  .candidates {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    font-size: 0.76rem;
-    line-height: 1.6;
-    color: var(--qr-status-tip-color);
-  }
-
-  /* The address is the thing being compared between two probes, so it is the
-     thing set in a font where a digit cannot be mistaken for another. */
-  .candidate-address {
-    font-family: ui-monospace, monospace;
-    overflow-wrap: anywhere;
-  }
-
-  .candidate-kind { color: var(--qr-status-chip-color); }
-
-  .candidate-flag {
-    margin-left: 6px;
-    padding: 0 6px;
-    font-size: 0.68rem;
-    border-radius: 999px;
-    border: 1px solid currentColor;
-  }
-
-  .is-new .candidate-flag { color: var(--qr-status-open); }
-
-  .is-gone { color: var(--qr-status-verdict-color); }
-  .is-gone .candidate-address { text-decoration: line-through; }
-  .is-gone .candidate-flag { color: var(--qr-status-blocked); }
-
-  .recheck { margin-top: 9px; }
+  ${CANDIDATE_STYLE}
 `
 
 export class QrStatusElement extends HTMLElement {
@@ -338,10 +268,6 @@ export class QrStatusElement extends HTMLElement {
   #result = null
   #strings = { ...QR_STATUS_STRINGS }
   #dismiss = null
-  /** What the display is being compared against. Null before a second probe. */
-  #baseline = null
-  /** What is on screen now, so a repaint is not mistaken for a new probe. */
-  #renderedCandidates = null
 
   /** Override to probe through a different set of STUN servers. */
   rtcConfiguration = DEFAULT_RTC_CONFIGURATION
@@ -391,41 +317,12 @@ export class QrStatusElement extends HTMLElement {
     this.__alarmText = alarmInner
 
     // The addresses behind the verdict, below the chips because they explain
-    // them. A `<details>` rather than a button of our own: it is closed by
-    // default in every engine, it is keyboard-operable without any code here,
-    // and a reflexive candidate holds the public IP of whoever is looking at
-    // the screen - so closed-by-default is the safety property as much as the
-    // tidiness one.
-    const details = document.createElement('details')
-    const summary = document.createElement('summary')
-    const body = document.createElement('div')
-    const hint = document.createElement('p')
-    const items = document.createElement('ul')
-    const note = document.createElement('p')
-    const recheck = document.createElement('button')
+    // them. Built by the shared factory so `<qr-intro>` shows the same thing.
+    const candidates = createCandidateList({ onRecheck: () => this.probe().catch(() => {}) })
 
-    details.className = 'details'
-    details.hidden = true
-    body.className = 'details-body'
-    hint.className = 'details-hint'
-    items.className = 'candidates'
-    note.className = 'details-note'
-    note.hidden = true
-    recheck.type = 'button'
-    recheck.className = 'recheck'
-    recheck.addEventListener('click', () => this.probe().catch(() => {}))
+    this.__candidateList = candidates
 
-    body.append(hint, items, note, recheck)
-    details.append(summary, body)
-
-    this.__details = details
-    this.__summary = summary
-    this.__detailsHint = hint
-    this.__candidates = items
-    this.__mdnsNote = note
-    this.__recheck = recheck
-
-    root.append(style, probe, alarm, list, details)
+    root.append(style, probe, alarm, list, candidates.element)
     this.#build()
   }
 
@@ -506,94 +403,7 @@ export class QrStatusElement extends HTMLElement {
     }
 
     this.#renderAlarm(result)
-    this.#renderCandidates(result.candidates ?? null)
-  }
-
-  /**
-   * The addresses, and what is different about them since last time.
-   *
-   * The diff is the point. A list of eight candidates asks somebody to compare
-   * two screens from memory; "new" and "gone" answer the question they actually
-   * had - did switching the VPN on change anything - and answer it wrong only
-   * if it genuinely changed nothing.
-   *
-   * Gone candidates are kept on screen, struck through. A row that vanishes
-   * between two probes is the most interesting thing the panel can show, and
-   * removing it hides exactly that.
-   */
-  #renderCandidates (candidates) {
-    if (candidates == null) {
-      this.__details.hidden = true
-      return
-    }
-
-    const key = c => `${c.type}|${c.protocol}|${c.address}|${c.port}`
-
-    // A repaint is not a new measurement. `#paint` runs again whenever a
-    // consumer assigns a string table, and advancing the baseline there would
-    // wipe the new/gone marks off the screen because somebody changed language.
-    // So the baseline only moves when the list actually did.
-    if (candidates !== this.#renderedCandidates) {
-      this.#baseline = this.#renderedCandidates
-    }
-
-    const before = this.#baseline
-    const now = new Set(candidates.map(key))
-    const gone = before == null ? [] : before.filter(c => !now.has(key(c)))
-
-    this.__summary.textContent = resolveText(this.#strings.details)
-    this.__detailsHint.textContent = resolveText(this.#strings.detailsHint)
-    this.__recheck.textContent = resolveText(this.#strings.recheck)
-
-    const row = (candidate, state) => {
-      const item = document.createElement('li')
-      const kind = document.createElement('span')
-      const address = document.createElement('span')
-
-      item.className = state == null ? '' : `is-${state}`
-      kind.className = 'candidate-kind'
-      kind.textContent = `${resolveText(this.#strings[KIND_KEYS[candidate.type] ?? 'candidateHost'])} · `
-      address.className = 'candidate-address'
-      address.textContent = candidate.port == null
-        ? candidate.address
-        : `${candidate.address}:${candidate.port}`
-
-      item.append(kind, address)
-
-      if (state != null) {
-        const flag = document.createElement('span')
-
-        flag.className = 'candidate-flag'
-        flag.textContent = resolveText(this.#strings[state === 'new' ? 'candidateNew' : 'candidateGone'])
-        item.append(flag)
-      }
-
-      return item
-    }
-
-    const fresh = before == null ? null : new Set(before.map(key))
-
-    this.__candidates.replaceChildren(
-      ...candidates.map(c => row(c, fresh != null && !fresh.has(key(c)) ? 'new' : null)),
-      ...gone.map(c => row(c, 'gone'))
-    )
-
-    if (candidates.length === 0 && gone.length === 0) {
-      const empty = document.createElement('li')
-
-      empty.textContent = resolveText(this.#strings.detailsEmpty)
-      this.__candidates.replaceChildren(empty)
-    }
-
-    // Only once an mDNS name is actually on screen. Before that it explains
-    // something nobody has seen, which is how a panel becomes unreadable.
-    const hasMdns = candidates.some(c => c.family === 'mdns')
-
-    this.__mdnsNote.textContent = hasMdns ? resolveText(this.#strings.candidateMdns) : ''
-    this.__mdnsNote.hidden = !hasMdns
-
-    this.__details.hidden = false
-    this.#renderedCandidates = candidates
+    this.__candidateList.render(result.candidates ?? null, this.#strings)
   }
 
   /** The measuring bar and caption, on or off. */
