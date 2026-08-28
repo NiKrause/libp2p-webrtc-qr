@@ -299,6 +299,16 @@
               <input id="logbook-place" type="text" autocomplete="off"
                      data-i18n-attr="placeholder:logbook.placeHint" placeholder="home wifi, office, hotel lobby…" />
             </div>
+            <!--
+              The other end, which nothing here can measure: a failed attempt has
+              no channel to ask over, and the distinctions worth recording are
+              the ones a platform hides on purpose. Typed, therefore.
+            -->
+            <div class="field">
+              <label for="logbook-peer" data-i18n="logbook.peer">The other device</label>
+              <input id="logbook-peer" type="text" autocomplete="off"
+                     data-i18n-attr="placeholder:logbook.peerHint" placeholder="Vanadium on GrapheneOS, iPhone 12 Safari…" />
+            </div>
           </div>
 
           <div class="actions logbook-lookup">

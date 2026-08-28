@@ -15,12 +15,23 @@
  * failure diagnosable a week later. So this keeps the lot, and the public record
  * becomes a *projection* of this one rather than a different thing.
  *
- * ## The two fields no browser can know
+ * ## The three fields no browser can know
  *
- * The network provider and where you are. They are asked for once and kept as
- * the current context, because somebody testing in a hotel lobby sets them at
- * the start of the evening and not once per attempt.
+ * The network provider, where you are, and what the other device is. They are
+ * asked for once and kept as the current context, because somebody testing in a
+ * hotel lobby sets them at the start of the evening and not once per attempt.
+ *
+ * The peer is the one that cannot be measured even in principle. A connection
+ * has two ends and an entry describes one; the other end is only ever reachable
+ * over a channel that a *failed* attempt does not have. And the distinctions
+ * worth recording are the ones a platform hides on purpose - Vanadium reports a
+ * stock Chrome user agent, GrapheneOS reports itself as Android - so even a
+ * successful exchange would answer "Chrome on Android" where the interesting
+ * answer was "Vanadium on GrapheneOS". The person holding both phones knows.
+ * Nothing else does. See #145.
  */
+
+import { detectBrowser } from './browser-theme.js'
 
 const STORAGE_KEY = 'webrtc-qr.logbook.v1'
 const CONTEXT_KEY = 'webrtc-qr.logbook.context.v1'
@@ -52,12 +63,45 @@ const write = (key, value) => {
 }
 
 /**
+ * The name a Chromium fork answers to, where it has one.
+ *
+ * `detectBrowser` returns a slug; the log wants something a person reads back a
+ * week later. Only the forks are listed - the three at the bottom fall through
+ * to the brands table or the user agent, which name themselves perfectly well.
+ */
+const FORK_NAMES = {
+  ddg: 'DuckDuckGo',
+  brave: 'Brave',
+  opera: 'Opera',
+  edge: 'Edge'
+}
+
+/**
  * What this browser is, in the words the matrix needs.
  *
  * Deliberately coarse. The user agent carries more than this and none of the
  * rest distinguishes one row of the matrix from another.
+ *
+ * ## Two names, because there are two things
+ *
+ * Every Chromium fork puts "Chrome" in its user agent and reports "Google
+ * Chrome" in `userAgentData.brands`, so asking either of them alone recorded
+ * DuckDuckGo, Brave, Opera and Edge as Chrome - and DuckDuckGo is one of the two
+ * browsers this project has field results about, which made it the wrong one to
+ * be losing.
+ *
+ * So `browser` is the shell somebody chose and `engine`/`version` stay the
+ * engine underneath. Both are worth having: the shell is what a person can be
+ * told to install, and the engine number is what predicts whether WebRTC
+ * behaves. Where they agree - plain Chrome, Firefox, Safari - `browser` is left
+ * off rather than repeated.
+ *
+ * The slug comes from the root element where `applyBrowserTheme` stamped it,
+ * because that one has already resolved Brave, whose check is a promise. Absent
+ * that - a test, or a call before the stamp - it is worked out from the same
+ * detector directly, minus Brave.
  */
-function describeAgent () {
+function describeAgent ({ browser = document.documentElement.dataset.browser } = {}) {
   const ua = navigator.userAgent
   const brands = navigator.userAgentData?.brands ?? []
   const known = brands.find(b => !/Not.?A.?Brand/i.test(b.brand))
@@ -69,7 +113,15 @@ function describeAgent () {
   const platform = navigator.userAgentData?.platform ??
     (/Android/i.test(ua) ? 'Android' : /iPhone|iPad|iPod/i.test(ua) ? 'iOS' : /Mac OS X/.test(ua) ? 'macOS' : /Windows/.test(ua) ? 'Windows' : /Linux/.test(ua) ? 'Linux' : 'unknown')
 
-  return { engine, version, platform, mobile: navigator.userAgentData?.mobile ?? /Mobi/i.test(ua) }
+  const slug = browser ?? detectBrowser(navigator)
+
+  return {
+    engine,
+    version,
+    browser: FORK_NAMES[slug] ?? null,
+    platform,
+    mobile: navigator.userAgentData?.mobile ?? /Mobi/i.test(ua)
+  }
 }
 
 /** Counts by type and family, which is what survives an export. */
@@ -88,7 +140,7 @@ function summariseCandidates (candidates) {
 
 export function createLogbook ({ now = () => Date.now() } = {}) {
   let entries = read(STORAGE_KEY, [])
-  let context = read(CONTEXT_KEY, { provider: '', place: '' })
+  let context = read(CONTEXT_KEY, { provider: '', place: '', peer: '' })
   /**
    * Off until somebody says otherwise.
    *
@@ -118,7 +170,7 @@ export function createLogbook ({ now = () => Date.now() } = {}) {
     },
 
     setContext (next) {
-      context = { provider: '', place: '', ...next }
+      context = { provider: '', place: '', peer: '', ...next }
       write(CONTEXT_KEY, context)
       announce()
     },

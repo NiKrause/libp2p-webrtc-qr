@@ -1540,6 +1540,7 @@ button.is-busy::before {
 .logbook-what { grid-row: 1; }
 
 .logbook-how,
+.logbook-peer,
 .logbook-why,
 .logbook-when {
   grid-column: 2;
@@ -1551,6 +1552,10 @@ button.is-busy::before {
 
 /* The reason a failure failed is the point of keeping it, so it is not faint. */
 .logbook-why { color: var(--ls-text-dim); }
+
+/* The far end, which is not faint either: half of every row in the matrix is
+   about a device this one never gets to describe. */
+.logbook-peer { color: var(--ls-text-dim); }
 
 /* ---------- what a tap should do ---------- */
 
