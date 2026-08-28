@@ -382,7 +382,7 @@ and noise suppression in particular is built to remove exactly this kind of tone
 | methods | `probe()`, `renderResult(result)` |
 | event | `probe` → the result |
 | reflected | `blocked`, `off-network-risk="blocked\|unreliable"` |
-| strings | `browser`, `ipv4`, `ipv6`, `camera`, `overall`, `open`, `relay`, `symmetric`, `blocked`, `measuring`, `alarm`, `alarmUnreliable`, `details`, `detailsHint`, `recheck`, `detailsEmpty`, `candidateHost`, `candidateSrflx`, `candidateRelay`, `candidatePrflx`, `candidateMdns`, `candidateNew`, `candidateGone` |
+| strings | `browser`, `ipv4`, `ipv6`, `camera`, `overall`, `open`, `relay`, `symmetric`, `unproven`, `blocked`, `measuring`, `alarm`, `alarmUnreliable`, `details`, `detailsHint`, `detailsDecides`, `recheck`, `detailsEmpty`, `candidateHost`, `candidateSrflx`, `candidateRelay`, `candidatePrflx`, `candidateMdns`, `candidateNew`, `candidateGone` |
 
 Shows a progress bar while measuring, and raises an alarm when the network
 cannot reach a peer elsewhere. `renderResult` displays a verdict you measured
@@ -395,6 +395,17 @@ word for the same thing in two places is how a translation drifts. A verdict say
 possible; the list says what changed - which is the question after switching a
 VPN on, and one no summary can answer. A second probe marks what is new and
 keeps what vanished, struck through.
+
+Each row names where the candidate came from **and over which protocol**: the
+same address is gathered once over UDP and once over TCP, and the TCP one carries
+port 9 - the discard port ICE uses as a placeholder for an active TCP candidate.
+Without the protocol those read as one address duplicated with a nonsense port.
+
+**Only the reflexive rows decide the verdict**, and the panel says so. A device
+can hold global IPv6 addresses of its own and still gather no IPv6 candidate from
+a STUN server - the chip then says none while the list is full of IPv6, which
+looks like a contradiction and is not: one is what this device has, the other is
+what got out.
 
 It is closed by default, and that is a safety property rather than a tidiness
 one: a reflexive candidate carries the public IP of whoever is looking at the

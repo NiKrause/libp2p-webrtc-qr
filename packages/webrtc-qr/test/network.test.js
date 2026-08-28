@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { isGlobalUnicastV6, offNetworkBlocked, offNetworkRisk, probeBrowser, probeCamera, summariseNetwork } from '../src/elements/network.js'
+import { DEFAULT_RTC_CONFIGURATION, isGlobalUnicastV6, offNetworkBlocked, offNetworkRisk, probeBrowser, probeCamera, summariseNetwork } from '../src/elements/network.js'
 
 /**
  * The two pure parts of the network check.
@@ -114,4 +114,134 @@ test('a camera nobody has been asked about is amber, not red', async () => {
 
   assert.equal(verdict.state, 'blocked')
   assert.match(verdict.text, /pasted/)
+})
+
+/**
+ * A peer connection that gathers exactly what a test says it gathers.
+ *
+ * `probeNetwork` needs one and nothing else, so the verdict is arithmetic over a
+ * candidate list once the connection is faked - and the interesting cases are
+ * ones no CI machine could be made to produce on demand, like a phone that has
+ * global IPv6 and gets nothing back over it.
+ */
+const withCandidates = candidates => class {
+  #listener = null
+
+  createDataChannel () {}
+  createOffer () { return {} }
+  close () {}
+
+  addEventListener (name, fn) {
+    if (name === 'icecandidate') this.#listener = fn
+  }
+
+  async setLocalDescription () {
+    for (const candidate of candidates) {
+      this.#listener?.({ candidate })
+    }
+
+    // The terminator, which is what clears the six-second fallback timer.
+    this.#listener?.({ candidate: null })
+  }
+}
+
+const probeWith = async candidates => {
+  const { probeNetwork } = await import('../src/elements/network.js')
+  const real = globalThis.RTCPeerConnection
+
+  globalThis.RTCPeerConnection = withCandidates(candidates)
+
+  try {
+    return await probeNetwork({})
+  } finally {
+    globalThis.RTCPeerConnection = real
+  }
+}
+
+const host = (address, port = 5000) => ({ type: 'host', protocol: 'udp', address, port })
+const srflx = (address, port = 5000) => ({ type: 'srflx', protocol: 'udp', address, port })
+
+test('a device with global IPv6 and no answer over it is untested, not blocked', async () => {
+  // The reported case: a phone on mobile data, Chrome, holding two global IPv6
+  // prefixes of its own while no IPv6 came back from any STUN server.
+  //
+  // Amber rather than red, because the two explanations are indistinguishable
+  // from here and only one of them means it cannot work. The address is offered
+  // to a peer either way - this panel advises, it never filters candidates.
+  const result = await probeWith([
+    host('2a02:3033:268:538e::1'),
+    host('10.175.44.142'),
+    srflx('176.2.191.44', 36998)
+  ])
+
+  assert.equal(result.ipv6.state, 'unproven')
+  assert.match(result.ipv6.text, /a peer will be offered it/)
+  // Both readings named, because guessing between them is what the old sentence
+  // did. And the reason one of them is fatal: WebRTC is UDP, not only its
+  // address discovery.
+  assert.match(result.ipv6.text, /UDP not leaving this network/)
+  assert.match(result.ipv6.text, /unreachable over IPv6 while everything else is fine/)
+})
+
+test('an untested IPv6 never makes the summary green', async () => {
+  // The overclaim this panel exists to avoid: a green summary resting on an
+  // address nobody has reached. Symmetric IPv4 plus untested IPv6 is amber.
+  const result = await probeWith([
+    host('2a02:3033:268:538e::1'),
+    srflx('176.2.191.44', 36998),
+    srflx('176.2.191.44', 36893)
+  ])
+
+  assert.equal(result.ipv6.state, 'unproven')
+  assert.equal(result.ipv4.state, 'symmetric')
+  assert.notEqual(result.overall.state, 'open')
+})
+
+test('a device behind mDNS stand-ins is told what cannot be read, rather than a guess', async () => {
+  const result = await probeWith([
+    host('4f1c2f3e-0000-4000-8000-000000000000.local'),
+    srflx('176.2.191.44')
+  ])
+
+  assert.equal(result.ipv6.state, 'blocked')
+  assert.match(result.ipv6.text, /cannot be read here/)
+})
+
+test('a device with no IPv6 anywhere is told exactly that', async () => {
+  const result = await probeWith([host('192.168.1.20'), srflx('176.2.191.44')])
+
+  assert.equal(result.ipv6.state, 'blocked')
+  assert.match(result.ipv6.text, /No IPv6 at all/)
+})
+
+test('two reflexive ports on one address is what symmetric means', async () => {
+  // The other half of the same report, and the one the panel can prove: the same
+  // public address seen on two ports, because two STUN servers were asked.
+  const result = await probeWith([
+    srflx('176.2.191.44', 36998),
+    srflx('176.2.191.44', 36893)
+  ])
+
+  assert.equal(result.ipv4.state, 'symmetric')
+})
+
+test('every default STUN entry is a STUN endpoint, not a resolver that happens to be nearby', () => {
+  // `2606:4700:4700::1111` sat in this list and answered nothing: it is
+  // Cloudflare's public resolver, the IPv6 twin of 1.1.1.1, and not their STUN
+  // service. Measured with a peer connection against both, one answered.
+  //
+  // Asserted rather than trusted because the failure is invisible: a dead entry
+  // costs no error and no delay, it only halves the evidence behind a verdict.
+  // The literals must stay the AAAA records of the named servers above them.
+  const urls = DEFAULT_RTC_CONFIGURATION.iceServers.map(s => s.urls)
+
+  assert.ok(urls.includes('stun:[2606:4700:49::]:3478'), 'the Cloudflare literal must be its STUN AAAA')
+  assert.ok(!urls.some(u => u.includes('4700:4700')), 'a resolver address is not a STUN server')
+
+  // One literal per named server, so a resolver returning no AAAA cannot leave
+  // the check with no IPv6 transaction at all.
+  const byName = urls.filter(u => !u.includes('['))
+  const literals = urls.filter(u => u.includes('['))
+
+  assert.equal(literals.length, byName.length)
 })

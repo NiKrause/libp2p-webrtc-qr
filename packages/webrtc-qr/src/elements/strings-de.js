@@ -38,6 +38,7 @@ export const QR_STATUS_STRINGS_DE = {
   open: 'nutzbar',
   relay: 'über TURN',
   symmetric: 'nur lokal',
+  unproven: 'ungeprüft',
   blocked: 'keins',
   measuring: 'Prüfe, was dieses Netz zulässt…',
   alarm: 'Dieses Netz erreicht keinen Peer in einem anderen Netz. Eine hier erzeugte Einladung verbindet sich nicht, bis Sie ins WLAN wechseln, IPv6 aktivieren oder ein Relay benutzen.',

@@ -13,12 +13,19 @@
  * but no AAAA leaves a machine with working IPv6 gathering no IPv6 candidate at
  * all - and the peers then never exchange the addresses that would have beaten
  * carrier NAT without a relay.
+ *
+ * The literals are the AAAA records of the two servers above and were measured,
+ * not copied. `2606:4700:4700::1111` sat here for a while and answers nothing:
+ * it is Cloudflare's public *resolver* - the IPv6 twin of 1.1.1.1 - and not
+ * their STUN service, which is `2606:4700:49::`. A dead entry costs nothing
+ * visible and quietly halves the evidence behind an IPv6 verdict, which is the
+ * worst way for a mistake to sit.
  */
 export const DEFAULT_RTC_CONFIGURATION = {
   iceServers: [
     { urls: 'stun:stun.cloudflare.com:3478' },
     { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:[2606:4700:4700::1111]:3478' },
+    { urls: 'stun:[2606:4700:49::]:3478' },
     { urls: 'stun:[2001:4860:4864:5:8000::1]:19302' }
   ]
 }
@@ -43,7 +50,16 @@ export function isGlobalUnicastV6 (address) {
  * Either family being usable is enough - the peers negotiate over whichever
  * one works, and IPv6 does not care that IPv4 sits behind a carrier NAT.
  */
-const NETWORK_RANK = { open: 3, relay: 3, symmetric: 2, blocked: 1 }
+/**
+ * `unproven` ranks with `symmetric`, not with `open`.
+ *
+ * A device holding a global IPv6 address will have it offered to a peer whatever
+ * this panel says - the verdict advises, it never filters candidates. What it
+ * must not do is call an untested path usable: a summary that goes green on an
+ * address nobody has reached would be the one overclaim this whole panel exists
+ * to avoid.
+ */
+const NETWORK_RANK = { open: 3, relay: 3, symmetric: 2, unproven: 2, blocked: 1 }
 
 export function summariseNetwork (ipv4, ipv6) {
   const best = NETWORK_RANK[ipv4.state] >= NETWORK_RANK[ipv6.state] ? ipv4 : ipv6
@@ -237,11 +253,28 @@ export async function probeNetwork (rtcConfiguration = DEFAULT_RTC_CONFIGURATION
   // build and its WebRTC IP-handling policy as much as on the route: the same
   // phone on the same Wi-Fi can gather one in one browser and not in another.
   // So the text does not claim the network is IPv4-only - it says what was seen.
+  // Three ways to have no reflexive IPv6, and they call for different actions.
+  // The candidates already gathered say which one it is, at no extra cost and
+  // without asking anyone: a device that offered a global IPv6 *host* candidate
+  // has global IPv6, so the missing answer is about the path or the browser and
+  // not about the address. Where host candidates arrive as mDNS stand-ins there
+  // is nothing to read, and the old ambiguous sentence is still the honest one.
+  const candidates = [...seen.values()]
+  const hasGlobalV6Host = candidates.some(c => c.type === 'host' && isGlobalUnicastV6(c.address))
+  const hasMdnsHost = candidates.some(c => c.family === 'mdns')
+
   const ipv6 = ports.v6.size > 0
     ? { state: 'open', text: 'Global IPv6 confirmed by STUN - no NAT in the way on this family.' }
-    : { state: 'blocked', text: 'No IPv6 reflexive candidate from this browser - it may have no IPv6 route here, or its WebRTC settings suppressed one. Another browser on the same network can differ.' }
+    : hasGlobalV6Host
+      ? {
+          state: 'unproven',
+          text: 'This device holds a global IPv6 address, and a peer will be offered it. What could not be shown is whether anything reaches it: no STUN server answered over IPv6. That is either IPv6 UDP not leaving this network at all - in which case it will not work, because WebRTC itself runs over UDP and not only its address discovery - or those particular servers being unreachable over IPv6 while everything else is fine. The two look identical from here, so the address is offered and the claim is not made.'
+        }
+      : hasMdnsHost
+        ? { state: 'blocked', text: 'No IPv6 reflexive candidate from this browser, and its host addresses are hidden behind mDNS stand-ins, so whether this device has IPv6 at all cannot be read here. Another browser on the same network can differ.' }
+        : { state: 'blocked', text: 'No IPv6 at all was seen from this browser - no global address on the device and nothing back from a STUN server.' }
 
-  return { ipv4, ipv6, overall: summariseNetwork(ipv4, ipv6), candidates: [...seen.values()] }
+  return { ipv4, ipv6, overall: summariseNetwork(ipv4, ipv6), candidates }
 }
 
 /**
