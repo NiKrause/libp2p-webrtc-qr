@@ -115,3 +115,91 @@ test('a camera nobody has been asked about is amber, not red', async () => {
   assert.equal(verdict.state, 'blocked')
   assert.match(verdict.text, /pasted/)
 })
+
+/**
+ * A peer connection that gathers exactly what a test says it gathers.
+ *
+ * `probeNetwork` needs one and nothing else, so the verdict is arithmetic over a
+ * candidate list once the connection is faked - and the interesting cases are
+ * ones no CI machine could be made to produce on demand, like a phone that has
+ * global IPv6 and gets nothing back over it.
+ */
+const withCandidates = candidates => class {
+  #listener = null
+
+  createDataChannel () {}
+  createOffer () { return {} }
+  close () {}
+
+  addEventListener (name, fn) {
+    if (name === 'icecandidate') this.#listener = fn
+  }
+
+  async setLocalDescription () {
+    for (const candidate of candidates) {
+      this.#listener?.({ candidate })
+    }
+
+    // The terminator, which is what clears the six-second fallback timer.
+    this.#listener?.({ candidate: null })
+  }
+}
+
+const probeWith = async candidates => {
+  const { probeNetwork } = await import('../src/elements/network.js')
+  const real = globalThis.RTCPeerConnection
+
+  globalThis.RTCPeerConnection = withCandidates(candidates)
+
+  try {
+    return await probeNetwork({})
+  } finally {
+    globalThis.RTCPeerConnection = real
+  }
+}
+
+const host = (address, port = 5000) => ({ type: 'host', protocol: 'udp', address, port })
+const srflx = (address, port = 5000) => ({ type: 'srflx', protocol: 'udp', address, port })
+
+test('a device with global IPv6 and no answer over it is told the address is not the problem', async () => {
+  // The reported case: a phone on mobile data, Chrome, holding two global IPv6
+  // prefixes of its own while no IPv6 came back from any STUN server.
+  const result = await probeWith([
+    host('2a02:3033:268:538e::1'),
+    host('10.175.44.142'),
+    srflx('176.2.191.44', 36998)
+  ])
+
+  assert.equal(result.ipv6.state, 'blocked')
+  assert.match(result.ipv6.text, /holds a global IPv6 address/)
+  // The actionable half: it is the path or the browser, not a missing address.
+  assert.match(result.ipv6.text, /route|suppressed/)
+})
+
+test('a device behind mDNS stand-ins is told what cannot be read, rather than a guess', async () => {
+  const result = await probeWith([
+    host('4f1c2f3e-0000-4000-8000-000000000000.local'),
+    srflx('176.2.191.44')
+  ])
+
+  assert.equal(result.ipv6.state, 'blocked')
+  assert.match(result.ipv6.text, /cannot be read here/)
+})
+
+test('a device with no IPv6 anywhere is told exactly that', async () => {
+  const result = await probeWith([host('192.168.1.20'), srflx('176.2.191.44')])
+
+  assert.equal(result.ipv6.state, 'blocked')
+  assert.match(result.ipv6.text, /No IPv6 at all/)
+})
+
+test('two reflexive ports on one address is what symmetric means', async () => {
+  // The other half of the same report, and the one the panel can prove: the same
+  // public address seen on two ports, because two STUN servers were asked.
+  const result = await probeWith([
+    srflx('176.2.191.44', 36998),
+    srflx('176.2.191.44', 36893)
+  ])
+
+  assert.equal(result.ipv4.state, 'symmetric')
+})
