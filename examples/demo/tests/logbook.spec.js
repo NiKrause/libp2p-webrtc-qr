@@ -52,6 +52,12 @@ test.describe('the logbook', () => {
       await open(alice)
       await open(bob)
 
+      // Bob's own network, typed on Bob's phone. Neither end can see the
+      // other's side of a connection without being told, and two peers on the
+      // same two browsers behave differently on cable and on carrier-grade NAT.
+      await bob.locator('#logbook-provider').fill('Vodafone')
+      await bob.locator('#logbook-place').fill('a place that must not travel')
+
       // The three fields no browser can know, typed before the attempt.
       await alice.locator('#logbook-provider').fill('Telekom')
       await alice.locator('#logbook-place').fill('hotel lobby')
@@ -90,6 +96,11 @@ test.describe('the logbook', () => {
       const [amended] = await entries(alice)
 
       expect(amended.reported.engine).toBeTruthy()
+      // The far end's network, which is half of every useful row.
+      expect(amended.reported.provider).toBe('Vodafone')
+      // And not the far end's place. That one is a note somebody wrote for
+      // themselves, and it stays on the phone it was typed on.
+      expect(JSON.stringify(amended)).not.toContain('a place that must not travel')
       // Never instead of the typed one: the two are different claims about the
       // same device, and the disagreement is the finding.
       expect(amended.peer).toBe('Vanadium on GrapheneOS')

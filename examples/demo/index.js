@@ -335,7 +335,8 @@ qrImage.addEventListener('render', event => {
 /** The far end's own description, in the same words the local one uses. */
 const describePeer = agent => [
   agent.browser ? `${agent.browser} (${agent.engine} ${agent.version})`.trim() : `${agent.engine} ${agent.version}`.trim(),
-  agent.platform
+  agent.platform,
+  agent.provider || null
 ].filter(Boolean).join(' · ')
 
 function renderLogbook () {
@@ -1138,13 +1139,31 @@ const recordedAttempts = new Map()
  * not the recipient's - somebody else ticking a box on their phone must not
  * cause this device to describe itself.
  *
- * Coarse on purpose, and the same description this device writes about itself:
- * browser, engine, system. Nothing that is not already in a user agent.
+ * Coarse on purpose: browser, engine, system - the same description this device
+ * writes about itself, and nothing that is not already in a user agent - plus
+ * the network provider, which is typed rather than measured and is half of every
+ * useful row in the matrix. Two peers on the same two browsers behave differently
+ * on cable and on carrier-grade NAT, and neither end can see the other's side of
+ * that without being told.
+ *
+ * The *place* is not sent, though it sits in the same panel and is typed by the
+ * same person. "Home office wifi" is a note somebody wrote for themselves; the
+ * provider is a fact about a network, and one the far end can already infer from
+ * the address ICE handed them. The line is drawn where the data stops being
+ * about the connection and starts being about the person.
  */
 function greet (peerId) {
   if (!logbook.enabled) return
 
-  sendTo(peerId, { kind: 'hello', agent: describeAgent() }).catch(() => {})
+  const { provider } = logbook.context
+
+  sendTo(peerId, {
+    kind: 'hello',
+    agent: describeAgent(),
+    // Omitted rather than sent empty, so a peer that never typed one is
+    // distinguishable from one that typed nothing into it.
+    ...(provider ? { provider } : {})
+  }).catch(() => {})
 }
 
 function announcePeers (toPeerId) {
@@ -1285,7 +1304,9 @@ async function handleMeshMessage (message, from) {
     // most worth telling apart are the ones that deliberately admit to being
     // something else - a Vanadium peer says Chrome. Where the two disagree, the
     // disagreement is the finding.
-    logbook.amend(recordedAttempts.get(from), { reported: message.agent })
+    logbook.amend(recordedAttempts.get(from), {
+      reported: { ...message.agent, provider: message.provider ?? null }
+    })
 
     return true
   }
