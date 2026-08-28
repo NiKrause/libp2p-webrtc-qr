@@ -52,6 +52,12 @@ test.describe('the logbook', () => {
       await open(alice)
       await open(bob)
 
+      // Bob's own network, typed on Bob's phone. Neither end can see the
+      // other's side of a connection without being told, and two peers on the
+      // same two browsers behave differently on cable and on carrier-grade NAT.
+      await bob.locator('#logbook-provider').fill('Vodafone')
+      await bob.locator('#logbook-place').fill('a place that must not travel')
+
       // The three fields no browser can know, typed before the attempt.
       await alice.locator('#logbook-provider').fill('Telekom')
       await alice.locator('#logbook-place').fill('hotel lobby')
@@ -78,9 +84,26 @@ test.describe('the logbook', () => {
       // The typed context rides along, which is the whole reason it is typed.
       expect(entry.provider).toBe('Telekom')
       expect(entry.place).toBe('hotel lobby')
-      // The far end, which no measurement here can reach: this attempt did
-      // connect, and even so the only honest source is the person.
+      // The far end, typed. It stays the person's answer even here, where the
+      // attempt connected and the far end could be asked.
       expect(entry.peer).toBe('Vanadium on GrapheneOS')
+
+      // And what the far end says about itself, which arrives after the entry
+      // was closed and so has to find its way back to the right row.
+      await expect.poll(() => entries(alice).then(([e]) => e.reported), { timeout: 30000 })
+        .toEqual(expect.objectContaining({ platform: expect.any(String) }))
+
+      const [amended] = await entries(alice)
+
+      expect(amended.reported.engine).toBeTruthy()
+      // The far end's network, which is half of every useful row.
+      expect(amended.reported.provider).toBe('Vodafone')
+      // And not the far end's place. That one is a note somebody wrote for
+      // themselves, and it stays on the phone it was typed on.
+      expect(JSON.stringify(amended)).not.toContain('a place that must not travel')
+      // Never instead of the typed one: the two are different claims about the
+      // same device, and the disagreement is the finding.
+      expect(amended.peer).toBe('Vanadium on GrapheneOS')
       // And the measured part, which decides whether a code was readable.
       expect(entry.format).toMatch(/^v[23]$/)
       expect(entry.frames).toBeGreaterThan(0)
@@ -92,6 +115,61 @@ test.describe('the logbook', () => {
       await expect(alice.locator('.logbook-entry.is-connected')).toHaveCount(1)
       // And on its own line, so the two ends never read as one device.
       await expect(alice.locator('.logbook-entry .logbook-peer')).toContainText('Vanadium on GrapheneOS')
+      await expect(alice.locator('.logbook-entry .logbook-peer')).toContainText(/reports itself as/)
+    } finally {
+      await alice.close()
+      await bob.close()
+    }
+  })
+
+  test('a peer that keeps no logbook describes itself to nobody', async ({ browser, browserName, baseURL }) => {
+    test.skip(
+      browserName === 'webkit' && process.platform === 'linux',
+      'Playwright WebKit on Linux cannot establish a WebRTC connection'
+    )
+
+    const alice = await (await browser.newContext({ baseURL })).newPage()
+    const bob = await (await browser.newContext({ baseURL })).newPage()
+
+    try {
+      await open(alice)
+      // Bob is not taking part in the measurement, so Bob sends nothing about
+      // himself. The switch that decides is the sender's own: Alice ticking a
+      // box on her phone must not make Bob's device describe itself.
+      await open(bob, { record: false })
+
+      await alice.locator('#create-offer').click()
+      await expect(alice.locator('#invite-box')).toBeVisible({ timeout: 60000 })
+
+      const invite = await alice.locator('#invite-link').inputValue()
+      await bob.goto(invite.replace(/^https?:\/\/[^/]+/, ''))
+      await expect(bob.locator('#invite-link')).toHaveValue(/#r=/, { timeout: 60000 })
+
+      const reply = await bob.locator('#invite-link').inputValue()
+      await alice.locator('#paste-reply').click()
+      await alice.locator('#payload-display').fill(reply)
+      await alice.locator('#process-payload').click()
+
+      await expect.poll(() => entries(alice).then(list => list.length), { timeout: 60000 }).toBe(1)
+
+      // The connection is up and the chat stream is live, so a greeting had
+      // every chance to arrive. Asserted after a message crosses, rather than
+      // after a bare wait, so this fails when a greeting is sent rather than
+      // when the test machine is slow.
+      await alice.locator('#message').fill('a message that had to cross first')
+      await alice.locator('#message').press('Enter')
+      await expect.poll(
+        () => bob.evaluate(() => window.__libp2pQrTest.getLastReceivedMessage()),
+        { timeout: 30000 }
+      ).toBe('a message that had to cross first')
+
+      const [entry] = await entries(alice)
+
+      expect(entry.outcome).toBe('connected')
+      expect(entry.reported).toBeNull()
+
+      // And Bob, who is not recording, has no entry to amend either way.
+      expect(await entries(bob)).toEqual([])
     } finally {
       await alice.close()
       await bob.close()
