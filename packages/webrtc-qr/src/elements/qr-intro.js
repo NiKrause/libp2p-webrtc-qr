@@ -1,3 +1,4 @@
+import { CANDIDATE_STRINGS, CANDIDATE_STYLE, createCandidateList } from './candidates.js'
 import { offNetworkRisk, probeNetwork, summariseNetwork } from './network.js'
 import { readRelayOptIn, writeRelayOptIn } from './relay-choice.js'
 import { mergeStrings, resolveText } from './strings.js'
@@ -75,6 +76,10 @@ export const QR_INTRO_STRINGS = {
   unreliable: 'This network maps a new port per destination and offers no IPv6, so a direct connection usually works only to someone on this same network.',
   none: 'No path off this network was found. You can still connect to someone on this same network.',
   sameNetwork: 'Two devices on the same Wi-Fi connect regardless of any of this.',
+  // The addresses behind the one-sentence verdict above, in the technical half
+  // only. Shared with `<qr-status>` rather than restated: the same word for the
+  // same thing in two tables is how a translation drifts.
+  ...CANDIDATE_STRINGS,
   technicalHeading: 'Worth knowing',
   technical: [
     'A phone closes a waiting invite within seconds of you leaving the app. Only DuckDuckGo and Safari have been seen to hold one for about ten.',
@@ -148,6 +153,10 @@ const STYLE = `
   .relay-result[data-state="checking"] { color: var(--qr-intro-muted, #97a1b3); }
   .relay-result[data-state="baked"], .relay-result[data-state="aleph"] { color: var(--qr-intro-accent, #3edc97); }
   .relay-result[data-state="none"] { color: #ffc24b; font-weight: 600; }
+
+  /* ---------- the addresses behind the verdict ---------- */
+
+  ${CANDIDATE_STYLE}
 `
 
 export class QrIntroElement extends HTMLElement {
@@ -219,7 +228,18 @@ export class QrIntroElement extends HTMLElement {
     const techList = document.createElement('ul')
 
     tech.className = 'tech'
-    tech.append(techHeading, techList)
+
+    // Under the caveats, in the technical half only. The verdict above says
+    // whether a connection looks possible; this says what it was measured from,
+    // which is the question a VPN raises and a sentence cannot answer.
+    //
+    // The button re-runs the probe, so the intro can answer it without being
+    // closed and reopened - which is the whole shape of "turn the VPN on and
+    // check again".
+    const candidates = createCandidateList({ onRecheck: () => this.recheck().catch(() => {}) })
+
+    this.__candidateList = candidates
+    tech.append(techHeading, techList, candidates.element)
 
     const foot = document.createElement('div')
     const label = document.createElement('label')
@@ -475,6 +495,8 @@ export class QrIntroElement extends HTMLElement {
       return li
     }))
 
+    this.__candidateList.render(this.#result?.candidates ?? null, s)
+
     this.#paintVerdict()
 
     if (this.__ways == null) return
@@ -547,12 +569,37 @@ export class QrIntroElement extends HTMLElement {
     }
 
     this.#paintVerdict()
+    // Not `#paint()`: that rebuilds the caveat list and the relay half too, and
+    // the first check has no reason to disturb either. Only the addresses are
+    // new here.
+    this.__candidateList.render(this.#result?.candidates ?? null, this.#strings)
     this.dispatchEvent(new CustomEvent('check', { detail: this.#result }))
 
     // A remembered yes is checked here rather than on assignment, so the first
     // outbound call of the session happens when somebody is looking at the
     // answer.
     if (this.relayOptIn && this.#relayState === 'idle') void this.#runRelayCheck()
+
+    return this.#result
+  }
+
+  /**
+   * Measure again, deliberately.
+   *
+   * `check()` runs once and remembers, which is right for opening a dialog and
+   * wrong for the button beside the addresses: somebody who has just switched a
+   * VPN on is asking for a *second* answer, and being handed the first one back
+   * would look like nothing changed.
+   */
+  async recheck () {
+    try {
+      this.#result = await probeNetwork(this.rtcConfiguration)
+    } catch {
+      this.#result = { overall: summariseNetwork({ state: 'blocked' }, { state: 'blocked' }) }
+    }
+
+    this.#paint()
+    this.dispatchEvent(new CustomEvent('check', { detail: this.#result }))
 
     return this.#result
   }

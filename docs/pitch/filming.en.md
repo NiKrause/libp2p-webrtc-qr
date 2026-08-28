@@ -57,8 +57,10 @@ after ten minutes, so you can film a real one with nothing hidden — and that i
 saying if somebody asks in the comments: pause the video, scan the code, and you get
 nothing. That is not the video being careless, it is the system working.
 
-What you should **not** show: the logbook after a location lookup (it holds the public
-IP) and the *network provider* field if you filled it in.
+What you should **not** show: the logbook after a location lookup — it holds the public
+IP, and now the coordinates and a map link with them — and the *network provider* field if
+you filled it in. The coordinates go away on reload, so the simplest fix is to reload the
+page before shooting.
 
 ## Cutting
 

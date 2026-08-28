@@ -26,6 +26,8 @@
  * English ones do, so a string added upstream cannot silently stay English.
  */
 
+import { CANDIDATE_STRINGS_DE } from './candidates.js'
+
 /** @type {typeof import('./qr-status.js').QR_STATUS_STRINGS} */
 export const QR_STATUS_STRINGS_DE = {
   browser: 'Browser',
@@ -40,17 +42,7 @@ export const QR_STATUS_STRINGS_DE = {
   measuring: 'Prüfe, was dieses Netz zulässt…',
   alarm: 'Dieses Netz erreicht keinen Peer in einem anderen Netz. Eine hier erzeugte Einladung verbindet sich nicht, bis Sie ins WLAN wechseln, IPv6 aktivieren oder ein Relay benutzen.',
   alarmUnreliable: 'Dieses Netz vergibt pro Ziel einen neuen Port und hat kein IPv6. Eine hier erzeugte Einladung erreicht Peers in diesem Netz, zu allen anderen scheitert sie meistens. WLAN, IPv6 oder ein Relay macht es verlässlich.',
-  details: 'Gefundene Adressen anzeigen',
-  detailsHint: 'Welche Wege zu diesem Gerät einer Gegenstelle angeboten würden. Schalten Sie ein VPN ein oder aus und prüfen Sie erneut — wenn sich etwas geändert hat, dann hier.',
-  recheck: 'Erneut prüfen',
-  detailsEmpty: 'Es wurden keine Kandidaten gefunden.',
-  candidateHost: 'dieses Gerät',
-  candidateSrflx: 'von außen gesehen',
-  candidateRelay: 'über ein Relay',
-  candidatePrflx: 'während des Verbindens entdeckt',
-  candidateMdns: 'Adressen, die auf .local enden, sind Platzhalter, die der Browser anstelle der echten Adresse dieses Geräts einsetzt, damit eine Webseite sie nicht lesen kann. Das ist kein Fehler und nicht das VPN.',
-  candidateNew: 'neu',
-  candidateGone: 'weg'
+  ...CANDIDATE_STRINGS_DE
 }
 
 /** @type {typeof import('./qr-scanner.js').QR_SCANNER_STRINGS} */
@@ -90,6 +82,7 @@ export const QR_INTRO_STRINGS_DE = {
   unreliable: 'Dieses Netz vergibt pro Ziel einen neuen Port und bietet kein IPv6. Eine Direktverbindung klappt daher meist nur zu jemandem im selben Netz.',
   none: 'Es wurde kein Weg aus diesem Netz heraus gefunden. Zu jemandem im selben Netz können Sie sich trotzdem verbinden.',
   sameNetwork: 'Zwei Geräte im selben WLAN verbinden sich unabhängig von alledem.',
+  ...CANDIDATE_STRINGS_DE,
   technicalHeading: 'Wissenswert',
   technical: [
     'Ein Telefon schließt eine wartende Einladung wenige Sekunden nach dem Verlassen der App. Nur bei DuckDuckGo und Safari wurde beobachtet, dass sie etwa zehn Sekunden hält.',

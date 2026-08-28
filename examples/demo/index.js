@@ -444,6 +444,38 @@ for (const [el, key] of [[logbookProviderEl, 'provider'], [logbookPlaceEl, 'plac
  * refused, and a refusal or a rate limit leaves the typed fields exactly as they
  * were rather than clearing them.
  */
+/**
+ * The coordinates, and a map that shows them.
+ *
+ * OpenStreetMap because it is the map that can be linked to without handing a
+ * tracker the position as the price of looking. `mlat`/`mlon` drop a marker;
+ * the fragment sets the zoom, and a fragment is not sent to the server at all.
+ *
+ * `noreferrer` as well as `noopener`: following the link is a deliberate act
+ * and tells OSM the position by definition, but it need not also tell them
+ * which page it came from.
+ *
+ * Five decimals is about a metre - finer than the accuracy figure beside it in
+ * every case, so more would be arithmetic rather than information.
+ */
+function coordinateLink ({ latitude, longitude, accuracy }) {
+  const lat = latitude.toFixed(5)
+  const lon = longitude.toFixed(5)
+  const link = document.createElement('a')
+
+  link.href = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=17/${lat}/${lon}`
+  link.target = '_blank'
+  link.rel = 'noopener noreferrer'
+  link.className = 'logbook-coords'
+  link.textContent = t('logbook.coords', {
+    lat,
+    lon,
+    accuracy: accuracy == null ? '' : Math.round(accuracy)
+  })
+
+  return link
+}
+
 document.getElementById('logbook-locate').addEventListener('click', async () => {
   const button = document.getElementById('logbook-locate')
   const state = document.getElementById('logbook-locate-state')
@@ -485,6 +517,18 @@ document.getElementById('logbook-locate').addEventListener('click', async () => 
       where: [network.city, network.country].filter(Boolean).join(', ') || '?',
       precise: position == null ? t('logbook.noPosition') : t('logbook.withPosition')
     })
+
+    // "Position added" says a measurement happened and not what it found, which
+    // is the one part of this panel somebody cannot check. So the numbers go on
+    // screen, with a link to a map that shows them.
+    //
+    // Only here, and only now: the line is written when the button is pressed
+    // and is gone after a reload, so coordinates never sit on screen because a
+    // tab was left open. The stored value is unchanged - the export has always
+    // dropped it, and still does.
+    if (position != null) {
+      state.append(document.createElement('br'), coordinateLink(position))
+    }
   } catch (error) {
     // A free service is entitled to say no, and offline is a case this app is
     // *for*. Neither is worth more than a sentence.

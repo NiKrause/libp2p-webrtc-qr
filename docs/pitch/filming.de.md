@@ -59,8 +59,10 @@ genau das ist erwähnenswert, falls jemand in den Kommentaren fragt: Wer das Vid
 und den Code scannt, bekommt nichts. Das ist keine Nachlässigkeit des Videos, das ist die
 Eigenschaft des Systems.
 
-Was du **nicht** zeigen solltest: das Logbuch nach einer Ortsabfrage (dort steht die
-öffentliche IP) und das Feld „Netzanbieter", falls du es ausgefüllt hast.
+Was du **nicht** zeigen solltest: das Logbuch nach einer Ortsabfrage — dort stehen die
+öffentliche IP und seit Neuestem auch die Koordinaten mitsamt Kartenlink — sowie das Feld
+„Netzanbieter", falls du es ausgefüllt hast. Die Koordinaten verschwinden beim Neuladen,
+der einfachste Weg ist also: Seite neu laden, dann drehen.
 
 ## Schnitt
 

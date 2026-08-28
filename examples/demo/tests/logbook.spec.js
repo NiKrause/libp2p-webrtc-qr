@@ -486,6 +486,57 @@ test.describe('the logbook', () => {
   })
 
   /**
+   * "Position added" says a measurement happened, not what it found.
+   *
+   * That is the one line in this panel a person cannot check, and checking it is
+   * the reason to press the button at all - a coordinate that is quietly the
+   * middle of the country is worth knowing about.
+   */
+  test('shows the coordinates it found, and a map that shows them', async ({ browser, baseURL }) => {
+    const context = await browser.newContext({
+      baseURL,
+      permissions: ['geolocation'],
+      geolocation: { latitude: 52.4751234, longitude: 13.3587654, accuracy: 12 }
+    })
+    const page = await context.newPage()
+
+    try {
+      await open(page)
+      const hits = await answerWith(page, {
+        ip: '203.0.113.7',
+        isp: { isp: 'Example Telecom' },
+        location: { country_code: 'DE', state: 'Berlin', city: 'Tempelhof' }
+      })
+
+      await page.locator('#logbook-locate').click()
+      await usedStub(page, hits)
+
+      const link = page.locator('#logbook-locate-state a.logbook-coords')
+
+      await expect(link).toBeVisible()
+      // Five decimals is about a metre, which is finer than the accuracy beside
+      // it - more digits would be arithmetic rather than information.
+      await expect(link).toContainText('52.47512, 13.35877')
+      await expect(link).toContainText('±12 m')
+
+      const href = await link.getAttribute('href')
+
+      expect(href).toContain('openstreetmap.org')
+      expect(href).toContain('mlat=52.47512')
+      // Following it tells OSM the position by definition; it need not also
+      // tell them which page it came from.
+      expect(await link.getAttribute('rel')).toContain('noreferrer')
+
+      // Written when the button is pressed, and gone after a reload. Coordinates
+      // must not sit on screen because a tab was left open.
+      await page.reload()
+      await expect(page.locator('#logbook-locate-state a.logbook-coords')).toHaveCount(0)
+    } finally {
+      await context.close()
+    }
+  })
+
+  /**
    * A greeting may carry exactly what an export may carry.
    *
    * Two questions that look different - what a file may hold, what a peer may

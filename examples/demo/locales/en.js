@@ -65,6 +65,8 @@ export default {
     locating: 'Asking…',
     located: ({ where, precise }) => `${where} — ${precise}`,
     withPosition: 'position added',
+    coords: ({ lat, lon, accuracy }) =>
+      accuracy === '' ? `${lat}, ${lon} — on the map ↗` : `${lat}, ${lon} ±${accuracy} m — on the map ↗`,
     askingPosition: 'asking for a position…',
     noPosition: 'no position (refused, or not available here)',
     locateFailed: ({ reason }) => `Could not work it out: ${reason}. Type it instead.`,
