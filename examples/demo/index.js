@@ -325,13 +325,6 @@ qrImage.addEventListener('render', event => {
   logbook.note({ frames, modules, characters })
 })
 
-/**
- * Draw the log, newest first.
- *
- * Rebuilt wholesale on every change rather than patched. The list is bounded at
- * 200 entries and changes once per connection attempt, so the cheap thing to do
- * is also the correct one.
- */
 /** The far end's own description, in the same words the local one uses. */
 const describePeer = agent => [
   agent.browser ? `${agent.browser} (${agent.engine} ${agent.version})`.trim() : `${agent.engine} ${agent.version}`.trim(),
@@ -339,6 +332,13 @@ const describePeer = agent => [
   agent.provider || null
 ].filter(Boolean).join(' · ')
 
+/**
+ * Draw the log, newest first.
+ *
+ * Rebuilt wholesale on every change rather than patched. The list is bounded at
+ * 200 entries and changes once per connection attempt, so the cheap thing to do
+ * is also the correct one.
+ */
 function renderLogbook () {
   const entries = logbook.entries().reverse()
 
