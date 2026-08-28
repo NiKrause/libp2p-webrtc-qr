@@ -382,7 +382,7 @@ and noise suppression in particular is built to remove exactly this kind of tone
 | methods | `probe()`, `renderResult(result)` |
 | event | `probe` → the result |
 | reflected | `blocked`, `off-network-risk="blocked\|unreliable"` |
-| strings | `browser`, `ipv4`, `ipv6`, `camera`, `overall`, `open`, `relay`, `symmetric`, `blocked`, `measuring`, `alarm`, `alarmUnreliable`, `details`, `detailsHint`, `detailsDecides`, `recheck`, `detailsEmpty`, `candidateHost`, `candidateSrflx`, `candidateRelay`, `candidatePrflx`, `candidateMdns`, `candidateNew`, `candidateGone` |
+| strings | `browser`, `ipv4`, `ipv6`, `camera`, `overall`, `open`, `relay`, `symmetric`, `unproven`, `blocked`, `measuring`, `alarm`, `alarmUnreliable`, `details`, `detailsHint`, `detailsDecides`, `recheck`, `detailsEmpty`, `candidateHost`, `candidateSrflx`, `candidateRelay`, `candidatePrflx`, `candidateMdns`, `candidateNew`, `candidateGone` |
 
 Shows a progress bar while measuring, and raises an alarm when the network
 cannot reach a peer elsewhere. `renderResult` displays a verdict you measured

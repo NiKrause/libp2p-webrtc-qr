@@ -161,19 +161,40 @@ const probeWith = async candidates => {
 const host = (address, port = 5000) => ({ type: 'host', protocol: 'udp', address, port })
 const srflx = (address, port = 5000) => ({ type: 'srflx', protocol: 'udp', address, port })
 
-test('a device with global IPv6 and no answer over it is told the address is not the problem', async () => {
+test('a device with global IPv6 and no answer over it is untested, not blocked', async () => {
   // The reported case: a phone on mobile data, Chrome, holding two global IPv6
   // prefixes of its own while no IPv6 came back from any STUN server.
+  //
+  // Amber rather than red, because the two explanations are indistinguishable
+  // from here and only one of them means it cannot work. The address is offered
+  // to a peer either way - this panel advises, it never filters candidates.
   const result = await probeWith([
     host('2a02:3033:268:538e::1'),
     host('10.175.44.142'),
     srflx('176.2.191.44', 36998)
   ])
 
-  assert.equal(result.ipv6.state, 'blocked')
-  assert.match(result.ipv6.text, /holds a global IPv6 address/)
-  // The actionable half: it is the path or the browser, not a missing address.
-  assert.match(result.ipv6.text, /route|suppressed/)
+  assert.equal(result.ipv6.state, 'unproven')
+  assert.match(result.ipv6.text, /a peer will be offered it/)
+  // Both readings named, because guessing between them is what the old sentence
+  // did. And the reason one of them is fatal: WebRTC is UDP, not only its
+  // address discovery.
+  assert.match(result.ipv6.text, /UDP not leaving this network/)
+  assert.match(result.ipv6.text, /unreachable over IPv6 while everything else is fine/)
+})
+
+test('an untested IPv6 never makes the summary green', async () => {
+  // The overclaim this panel exists to avoid: a green summary resting on an
+  // address nobody has reached. Symmetric IPv4 plus untested IPv6 is amber.
+  const result = await probeWith([
+    host('2a02:3033:268:538e::1'),
+    srflx('176.2.191.44', 36998),
+    srflx('176.2.191.44', 36893)
+  ])
+
+  assert.equal(result.ipv6.state, 'unproven')
+  assert.equal(result.ipv4.state, 'symmetric')
+  assert.notEqual(result.overall.state, 'open')
 })
 
 test('a device behind mDNS stand-ins is told what cannot be read, rather than a guess', async () => {
