@@ -146,9 +146,25 @@ export function offNetworkRisk (result) {
  * the pessimistic label, which is the safer direction given nothing is disabled
  * on the strength of it.
  */
+/** Enough to see every interface that matters, few enough to read. */
+const CANDIDATE_LIMIT = 24
+
 export async function probeNetwork (rtcConfiguration = DEFAULT_RTC_CONFIGURATION) {
   const probe = new RTCPeerConnection(rtcConfiguration)
   const ports = { v4: new Set(), v6: new Set() }
+  /**
+   * Every candidate, not only the ones the verdict turns on.
+   *
+   * The verdict answers "will this work"; the list answers "what changed" -
+   * which is the question somebody has after switching a VPN on, and one no
+   * summary can answer. Two probes either show the same addresses or they do
+   * not.
+   *
+   * Deduplicated because several STUN servers routinely report the same
+   * mapping, and bounded because a machine with many interfaces can gather
+   * dozens of host candidates and nobody reads a wall.
+   */
+  const seen = new Map()
   let relay = false
 
   probe.createDataChannel('probe')
@@ -168,6 +184,24 @@ export async function probeNetwork (rtcConfiguration = DEFAULT_RTC_CONFIGURATION
 
       if (candidate.type === 'relay') {
         relay = true
+      }
+
+      if (candidate.address != null && seen.size < CANDIDATE_LIMIT) {
+        const family = candidate.address.includes(':') ? 'v6' : 'v4'
+        const key = `${candidate.type}|${candidate.protocol}|${candidate.address}|${candidate.port}`
+
+        if (!seen.has(key)) {
+          seen.set(key, {
+            type: candidate.type,
+            protocol: candidate.protocol ?? null,
+            address: candidate.address,
+            port: candidate.port ?? null,
+            // `.local` is an mDNS name a browser substitutes for the real one,
+            // so a page cannot read the machine's address off a candidate. It
+            // is not a failure and it is not the VPN: it looks like both.
+            family: candidate.address.endsWith('.local') ? 'mdns' : family
+          })
+        }
       }
 
       if (candidate.type !== 'srflx' || candidate.address == null) {
@@ -207,7 +241,7 @@ export async function probeNetwork (rtcConfiguration = DEFAULT_RTC_CONFIGURATION
     ? { state: 'open', text: 'Global IPv6 confirmed by STUN - no NAT in the way on this family.' }
     : { state: 'blocked', text: 'No IPv6 reflexive candidate from this browser - it may have no IPv6 route here, or its WebRTC settings suppressed one. Another browser on the same network can differ.' }
 
-  return { ipv4, ipv6, overall: summariseNetwork(ipv4, ipv6) }
+  return { ipv4, ipv6, overall: summariseNetwork(ipv4, ipv6), candidates: [...seen.values()] }
 }
 
 /**

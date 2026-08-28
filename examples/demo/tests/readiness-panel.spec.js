@@ -155,3 +155,87 @@ test.describe('the panel when the language changes under it', () => {
     expect(seen.settled).toBe('')
   })
 })
+
+/**
+ * The addresses behind the verdict.
+ *
+ * "A direct connection off this network looks possible" is a summary, and a
+ * summary cannot answer the question somebody has after switching a VPN on:
+ * *did anything change*. Two probes either show the same addresses or they do
+ * not, so the panel keeps the list and marks what moved.
+ */
+test.describe('the addresses behind the verdict', () => {
+  test('lists what was gathered, and is closed until somebody asks', async ({ page }) => {
+    await page.goto('/?ice=host&view=technical&intro=off')
+    await page.waitForFunction(() => customElements.get('qr-status') != null)
+    await makeStatus(page)
+
+    await page.evaluate(() => document.getElementById('probe-under-test').probe().catch(() => {}))
+
+    const details = page.locator('#probe-under-test').locator('css=.details')
+
+    await expect(details).toBeVisible()
+    // Closed, and that is a safety property rather than a tidiness one: a
+    // reflexive candidate carries the public IP of whoever is looking at the
+    // screen, and a panel nobody opened stays safe to screenshot.
+    expect(await details.evaluate(el => el.open)).toBe(false)
+
+    await details.locator('summary').click()
+
+    // `?ice=host` gathers host candidates without a STUN round trip, so this
+    // asserts the list is populated without depending on a network CI may not
+    // have. What kind of candidate it is, is the network's business.
+    await expect(page.locator('#probe-under-test').locator('css=.candidates li')).not.toHaveCount(0)
+  })
+
+  test('says what changed since the last check, and keeps what vanished', async ({ page }) => {
+    await page.goto('/?ice=host&view=technical&intro=off')
+    await page.waitForFunction(() => customElements.get('qr-status') != null)
+    await makeStatus(page)
+
+    // Two probes with a result assigned by hand rather than two real ones: a
+    // second gathering on the same machine finds the same addresses, which is
+    // the one case where the diff has nothing to say. What is under test is
+    // that a changed list is reported as changed - the VPN case - and that
+    // cannot be staged by measuring the same network twice.
+    const flags = await page.evaluate(() => {
+      const el = document.getElementById('probe-under-test')
+      const verdict = { state: 'open', text: 'staged' }
+      const at = address => ({ type: 'srflx', protocol: 'udp', address, port: 50000, family: 'v4' })
+
+      el.renderResult({ ipv4: verdict, ipv6: verdict, overall: verdict, candidates: [at('203.0.113.7')] })
+      el.renderResult({ ipv4: verdict, ipv6: verdict, overall: verdict, candidates: [at('198.51.100.9')] })
+
+      return [...el.shadowRoot.querySelectorAll('.candidates li')]
+        .map(li => `${li.className}:${li.querySelector('.candidate-address')?.textContent ?? ''}`)
+    })
+
+    // The address that appeared is marked new; the one that disappeared is
+    // still on screen, struck through. A row that vanishes between two probes
+    // is the most interesting thing this panel can show, and dropping it hides
+    // exactly that.
+    expect(flags).toEqual(['is-new:198.51.100.9:50000', 'is-gone:203.0.113.7:50000'])
+  })
+
+  test('a language switch does not count as a new measurement', async ({ page }) => {
+    await page.goto('/?ice=host&view=technical&intro=off')
+    await page.waitForFunction(() => customElements.get('qr-status') != null)
+    await makeStatus(page)
+
+    const flags = await page.evaluate(() => {
+      const el = document.getElementById('probe-under-test')
+      const verdict = { state: 'open', text: 'staged' }
+      const at = address => ({ type: 'srflx', protocol: 'udp', address, port: 50000, family: 'v4' })
+
+      el.renderResult({ ipv4: verdict, ipv6: verdict, overall: verdict, candidates: [at('203.0.113.7')] })
+      el.renderResult({ ipv4: verdict, ipv6: verdict, overall: verdict, candidates: [at('198.51.100.9')] })
+      // Repainting is what a consumer's language switch does. It must not wipe
+      // the marks off the screen.
+      el.strings = { details: 'Adressen' }
+
+      return [...el.shadowRoot.querySelectorAll('.candidates li')].map(li => li.className)
+    })
+
+    expect(flags).toEqual(['is-new', 'is-gone'])
+  })
+})

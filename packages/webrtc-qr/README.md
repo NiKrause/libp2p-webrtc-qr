@@ -382,11 +382,24 @@ and noise suppression in particular is built to remove exactly this kind of tone
 | methods | `probe()`, `renderResult(result)` |
 | event | `probe` → the result |
 | reflected | `blocked`, `off-network-risk="blocked\|unreliable"` |
-| strings | `browser`, `ipv4`, `ipv6`, `camera`, `overall`, `open`, `relay`, `symmetric`, `blocked`, `measuring`, `alarm`, `alarmUnreliable` |
+| strings | `browser`, `ipv4`, `ipv6`, `camera`, `overall`, `open`, `relay`, `symmetric`, `blocked`, `measuring`, `alarm`, `alarmUnreliable`, `details`, `detailsHint`, `recheck`, `detailsEmpty`, `candidateHost`, `candidateSrflx`, `candidateRelay`, `candidatePrflx`, `candidateMdns`, `candidateNew`, `candidateGone` |
 
 Shows a progress bar while measuring, and raises an alarm when the network
 cannot reach a peer elsewhere. `renderResult` displays a verdict you measured
 yourself.
+
+**The addresses behind the verdict** sit in a `<details>` under the chips, with
+a button that measures again. A verdict says whether a connection looks
+possible; the list says what changed - which is the question after switching a
+VPN on, and one no summary can answer. A second probe marks what is new and
+keeps what vanished, struck through.
+
+It is closed by default, and that is a safety property rather than a tidiness
+one: a reflexive candidate carries the public IP of whoever is looking at the
+screen. `probeNetwork` returns the same list as `result.candidates`, each entry
+`{ type, protocol, address, port, family }`, where `family` is `v4`, `v6` or
+`mdns` - the last for the `.local` stand-in a browser substitutes so a page
+cannot read the device's own address.
 
 **A verdict is an observation about this browser, not about the network.** The
 same phone on the same Wi-Fi can report IPv6 as usable in one browser and absent

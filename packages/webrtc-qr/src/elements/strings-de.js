@@ -39,7 +39,18 @@ export const QR_STATUS_STRINGS_DE = {
   blocked: 'keins',
   measuring: 'Prüfe, was dieses Netz zulässt…',
   alarm: 'Dieses Netz erreicht keinen Peer in einem anderen Netz. Eine hier erzeugte Einladung verbindet sich nicht, bis Sie ins WLAN wechseln, IPv6 aktivieren oder ein Relay benutzen.',
-  alarmUnreliable: 'Dieses Netz vergibt pro Ziel einen neuen Port und hat kein IPv6. Eine hier erzeugte Einladung erreicht Peers in diesem Netz, zu allen anderen scheitert sie meistens. WLAN, IPv6 oder ein Relay macht es verlässlich.'
+  alarmUnreliable: 'Dieses Netz vergibt pro Ziel einen neuen Port und hat kein IPv6. Eine hier erzeugte Einladung erreicht Peers in diesem Netz, zu allen anderen scheitert sie meistens. WLAN, IPv6 oder ein Relay macht es verlässlich.',
+  details: 'Gefundene Adressen anzeigen',
+  detailsHint: 'Welche Wege zu diesem Gerät einer Gegenstelle angeboten würden. Schalten Sie ein VPN ein oder aus und prüfen Sie erneut — wenn sich etwas geändert hat, dann hier.',
+  recheck: 'Erneut prüfen',
+  detailsEmpty: 'Es wurden keine Kandidaten gefunden.',
+  candidateHost: 'dieses Gerät',
+  candidateSrflx: 'von außen gesehen',
+  candidateRelay: 'über ein Relay',
+  candidatePrflx: 'während des Verbindens entdeckt',
+  candidateMdns: 'Adressen, die auf .local enden, sind Platzhalter, die der Browser anstelle der echten Adresse dieses Geräts einsetzt, damit eine Webseite sie nicht lesen kann. Das ist kein Fehler und nicht das VPN.',
+  candidateNew: 'neu',
+  candidateGone: 'weg'
 }
 
 /** @type {typeof import('./qr-scanner.js').QR_SCANNER_STRINGS} */
