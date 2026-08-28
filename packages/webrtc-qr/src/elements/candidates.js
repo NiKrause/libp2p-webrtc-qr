@@ -23,6 +23,10 @@ import { resolveText } from './strings.js'
 export const CANDIDATE_STRINGS = {
   details: 'Show the addresses this check found',
   detailsHint: 'What a peer would be offered as a route to this device. Turn a VPN on or off and check again - if anything changed, it changed here.',
+  // Without this the panel appears to contradict itself: a phone can hold global
+  // IPv6 addresses of its own and still gather no IPv6 candidate from a STUN
+  // server, so the chip says none while the list is full of them.
+  detailsDecides: 'Only the "seen from outside" rows decide the verdict above. The rest are this device\'s own addresses, which exist whether or not anything gets out.',
   recheck: 'Check again',
   detailsEmpty: 'No candidates were gathered.',
   // Named rather than abbreviated: "srflx" is the word in the specification and
@@ -39,6 +43,7 @@ export const CANDIDATE_STRINGS = {
 export const CANDIDATE_STRINGS_DE = {
   details: 'Gefundene Adressen anzeigen',
   detailsHint: 'Welche Wege zu diesem Gerät einer Gegenstelle angeboten würden. Schalten Sie ein VPN ein oder aus und prüfen Sie erneut — wenn sich etwas geändert hat, dann hier.',
+  detailsDecides: 'Nur die Zeilen „von außen gesehen" entscheiden das Urteil oben. Die übrigen sind eigene Adressen dieses Geräts — die gibt es auch dann, wenn nichts hinausfindet.',
   recheck: 'Erneut prüfen',
   detailsEmpty: 'Es wurden keine Kandidaten gefunden.',
   candidateHost: 'dieses Gerät',
@@ -144,6 +149,7 @@ export function createCandidateList ({ onRecheck } = {}) {
   const summary = document.createElement('summary')
   const body = document.createElement('div')
   const hint = document.createElement('p')
+  const decides = document.createElement('p')
   const items = document.createElement('ul')
   const note = document.createElement('p')
 
@@ -151,11 +157,12 @@ export function createCandidateList ({ onRecheck } = {}) {
   details.hidden = true
   body.className = 'details-body'
   hint.className = 'details-hint'
+  decides.className = 'details-hint'
   items.className = 'candidates'
   note.className = 'details-note'
   note.hidden = true
 
-  body.append(hint, items, note)
+  body.append(hint, decides, items, note)
 
   let recheck = null
 
@@ -181,7 +188,15 @@ export function createCandidateList ({ onRecheck } = {}) {
 
     item.className = state == null ? '' : `is-${state}`
     kind.className = 'candidate-kind'
-    kind.textContent = `${resolveText(strings[KIND_KEYS[candidate.type] ?? 'candidateHost'])} · `
+    // The protocol is part of the identity, not decoration: the same address is
+    // gathered once over UDP and once over TCP, and the TCP one carries port 9 -
+    // the discard port, which ICE uses as a placeholder for an active TCP
+    // candidate. Without the protocol those two rows read as one address
+    // duplicated, and the port looks like a bug.
+    kind.textContent = [
+      resolveText(strings[KIND_KEYS[candidate.type] ?? 'candidateHost']),
+      candidate.protocol
+    ].filter(Boolean).join(' · ') + ' · '
     address.className = 'candidate-address'
     address.textContent = candidate.port == null
       ? candidate.address
@@ -226,6 +241,7 @@ export function createCandidateList ({ onRecheck } = {}) {
 
       summary.textContent = resolveText(strings.details)
       hint.textContent = resolveText(strings.detailsHint)
+      decides.textContent = resolveText(strings.detailsDecides)
       if (recheck != null) recheck.textContent = resolveText(strings.recheck)
 
       items.replaceChildren(

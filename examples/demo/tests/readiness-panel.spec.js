@@ -217,6 +217,55 @@ test.describe('the addresses behind the verdict', () => {
     expect(flags).toEqual(['is-new:198.51.100.9:50000', 'is-gone:203.0.113.7:50000'])
   })
 
+  /**
+   * The report that prompted this: a phone on mobile data, Chrome, showing the
+   * IPv6 chip as `none` while the list held two global IPv6 addresses. Not a
+   * contradiction - the chip is about reflexive candidates and those rows were
+   * the device's own - but the panel said nothing to distinguish them, which is
+   * a display fault rather than a measurement one.
+   */
+  test('separates what this device has from what got out', async ({ page }) => {
+    await page.goto('/?ice=host&view=technical&intro=off')
+    await page.waitForFunction(() => customElements.get('qr-status') != null)
+    await makeStatus(page)
+
+    const rows = await page.evaluate(() => {
+      const el = document.getElementById('probe-under-test')
+      const blocked = { state: 'blocked', text: 'no reflexive IPv6' }
+      const open = { state: 'open', text: 'ok' }
+
+      el.renderResult({
+        ipv4: open,
+        ipv6: blocked,
+        overall: open,
+        candidates: [
+          // The device's own global IPv6, over both protocols. The TCP one
+          // carries port 9, and without the protocol shown the two rows read as
+          // one address duplicated with a nonsense port.
+          { type: 'host', protocol: 'udp', address: '2a02:3033:268:538e::1', port: 50322, family: 'v6' },
+          { type: 'host', protocol: 'tcp', address: '2a02:3033:268:538e::1', port: 9, family: 'v6' },
+          { type: 'srflx', protocol: 'udp', address: '176.2.191.44', port: 36998, family: 'v4' }
+        ]
+      })
+
+      return {
+        // `textContent`, not `innerText`: the block is closed by default and
+        // innerText returns nothing for what is not rendered - which is the
+        // property under test elsewhere in this file.
+        text: el.shadowRoot.querySelector('.details-body').textContent,
+        first: el.shadowRoot.querySelector('.candidates li').textContent
+      }
+    })
+
+    // The protocol is part of the identity, not decoration.
+    expect(rows.first).toContain('udp')
+    expect(rows.text).toContain('tcp')
+
+    // And the sentence that keeps the chip and the list from looking like a
+    // contradiction: a device can hold IPv6 of its own and still get none out.
+    expect(rows.text).toMatch(/seen from outside.+decide the verdict/is)
+  })
+
   test('a language switch does not count as a new measurement', async ({ page }) => {
     await page.goto('/?ice=host&view=technical&intro=off')
     await page.waitForFunction(() => customElements.get('qr-status') != null)
