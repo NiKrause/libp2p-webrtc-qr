@@ -50,7 +50,16 @@ export function isGlobalUnicastV6 (address) {
  * Either family being usable is enough - the peers negotiate over whichever
  * one works, and IPv6 does not care that IPv4 sits behind a carrier NAT.
  */
-const NETWORK_RANK = { open: 3, relay: 3, symmetric: 2, blocked: 1 }
+/**
+ * `unproven` ranks with `symmetric`, not with `open`.
+ *
+ * A device holding a global IPv6 address will have it offered to a peer whatever
+ * this panel says - the verdict advises, it never filters candidates. What it
+ * must not do is call an untested path usable: a summary that goes green on an
+ * address nobody has reached would be the one overclaim this whole panel exists
+ * to avoid.
+ */
+const NETWORK_RANK = { open: 3, relay: 3, symmetric: 2, unproven: 2, blocked: 1 }
 
 export function summariseNetwork (ipv4, ipv6) {
   const best = NETWORK_RANK[ipv4.state] >= NETWORK_RANK[ipv6.state] ? ipv4 : ipv6
@@ -257,7 +266,10 @@ export async function probeNetwork (rtcConfiguration = DEFAULT_RTC_CONFIGURATION
   const ipv6 = ports.v6.size > 0
     ? { state: 'open', text: 'Global IPv6 confirmed by STUN - no NAT in the way on this family.' }
     : hasGlobalV6Host
-      ? { state: 'blocked', text: 'This device holds a global IPv6 address, and nothing came back over IPv6 from a STUN server. So the address is not the problem: either this network has no working IPv6 route to those servers, or this browser suppressed the candidate. Another browser on the same network can differ.' }
+      ? {
+          state: 'unproven',
+          text: 'This device holds a global IPv6 address, and a peer will be offered it. What could not be shown is whether anything reaches it: no STUN server answered over IPv6. That is either IPv6 UDP not leaving this network at all - in which case it will not work, because WebRTC itself runs over UDP and not only its address discovery - or those particular servers being unreachable over IPv6 while everything else is fine. The two look identical from here, so the address is offered and the claim is not made.'
+        }
       : hasMdnsHost
         ? { state: 'blocked', text: 'No IPv6 reflexive candidate from this browser, and its host addresses are hidden behind mDNS stand-ins, so whether this device has IPv6 at all cannot be read here. Another browser on the same network can differ.' }
         : { state: 'blocked', text: 'No IPv6 at all was seen from this browser - no global address on the device and nothing back from a STUN server.' }

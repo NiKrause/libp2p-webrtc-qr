@@ -37,6 +37,10 @@ export const QR_STATUS_STRINGS = {
   open: 'usable',
   relay: 'via TURN',
   symmetric: 'local only',
+  // An address exists and a peer will be offered it; whether anything reaches it
+  // could not be shown. Not "none" - the device has one - and not "usable",
+  // which would be a claim nobody tested.
+  unproven: 'untested',
   blocked: 'none',
   // Shown while the probe runs. The network check waits on STUN round trips, so
   // a still panel reads as a frozen one without this.
@@ -183,7 +187,7 @@ const STYLE = `
   }
 
   .line.open, .line.relay { --dot: var(--qr-status-open); }
-  .line.symmetric { --dot: var(--qr-status-degraded); }
+  .line.symmetric, .line.unproven { --dot: var(--qr-status-degraded); }
   .line.blocked { --dot: var(--qr-status-blocked); }
 
   button {
