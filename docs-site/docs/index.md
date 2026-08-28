@@ -7,7 +7,8 @@ slug: /
 
 Two browsers connect directly as libp2p peers with **no relay and no signaling
 server**. The WebRTC offer and answer travel out-of-band as signed, compressed QR
-codes — one phone scans them off another screen.
+codes — each phone scans one off the other's screen, once in each direction, because
+there is no server to carry the answer back.
 
 **[Live demo](https://webrtc-qr.le-space.de)** · [npm](https://www.npmjs.com/package/@le-space/libp2p-webrtc-qr) · [GitHub](https://github.com/NiKrause/libp2p-webrtc-qr)
 
