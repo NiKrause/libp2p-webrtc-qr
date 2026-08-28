@@ -484,5 +484,71 @@ test.describe('the logbook', () => {
     const parsed = JSON.parse(exported)
     expect(parsed.redacted).toContain('public IP')
   })
+
+  /**
+   * A greeting may carry exactly what an export may carry.
+   *
+   * Two questions that look different - what a file may hold, what a peer may
+   * be told - are the same question: what may leave this device. Answering it
+   * twice is how the answers drift, so this asserts the greeting against the
+   * projection's own rule rather than against a list written here.
+   */
+  test('tells a peer what an export would carry, and nothing finer', async ({ browser, browserName, baseURL }) => {
+    test.skip(
+      browserName === 'webkit' && process.platform === 'linux',
+      'Playwright WebKit on Linux cannot establish a WebRTC connection'
+    )
+
+    const alice = await (await browser.newContext({ baseURL })).newPage()
+    const bob = await (await browser.newContext({ baseURL })).newPage()
+
+    try {
+      await open(alice)
+      await open(bob)
+
+      // Bob looks himself up, so he has all of it to send: provider, country,
+      // region, city and a public IP.
+      const hits = await answerWith(bob, {
+        ip: '203.0.113.7',
+        isp: { isp: 'Example Telecom' },
+        location: { country_code: 'DE', state: 'Bavaria', city: 'Munich' }
+      })
+
+      await bob.locator('#logbook-locate').click()
+      await usedStub(bob, hits)
+      await expect(bob.locator('#logbook-provider')).toHaveValue('Example Telecom')
+
+      await alice.locator('#create-offer').click()
+      await expect(alice.locator('#invite-box')).toBeVisible({ timeout: 60000 })
+
+      const invite = await alice.locator('#invite-link').inputValue()
+      await bob.goto(invite.replace(/^https?:\/\/[^/]+/, ''))
+      await expect(bob.locator('#invite-link')).toHaveValue(/#r=/, { timeout: 60000 })
+
+      const reply = await bob.locator('#invite-link').inputValue()
+      await alice.locator('#paste-reply').click()
+      await alice.locator('#payload-display').fill(reply)
+      await alice.locator('#process-payload').click()
+
+      await expect.poll(() => entries(alice).then(([e]) => e?.reported?.provider), { timeout: 60000 })
+        .toBe('Example Telecom')
+
+      const [entry] = await entries(alice)
+
+      expect(entry.reported.country).toBe('DE')
+      expect(entry.reported.region).toBe('Bavaria')
+
+      // The two the projection withholds. Asserted against the whole entry
+      // rather than the named fields, so a payload that grows a city under some
+      // other name fails here too.
+      const written = JSON.stringify(entry)
+
+      expect(written, 'the greeting leaked the far end\'s city').not.toContain('Munich')
+      expect(written, 'the greeting leaked the far end\'s public IP').not.toContain('203.0.113.7')
+    } finally {
+      await alice.close()
+      await bob.close()
+    }
+  })
 })
 

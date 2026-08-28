@@ -325,6 +325,14 @@ qrImage.addEventListener('render', event => {
   logbook.note({ frames, modules, characters })
 })
 
+/** The far end's own description, in the same words the local one uses. */
+const describePeer = agent => [
+  agent.browser ? `${agent.browser} (${agent.engine} ${agent.version})`.trim() : `${agent.engine} ${agent.version}`.trim(),
+  agent.platform,
+  agent.provider || null,
+  [agent.region, agent.country].filter(Boolean).join(', ') || null
+].filter(Boolean).join(' · ')
+
 /**
  * Draw the log, newest first.
  *
@@ -332,13 +340,6 @@ qrImage.addEventListener('render', event => {
  * 200 entries and changes once per connection attempt, so the cheap thing to do
  * is also the correct one.
  */
-/** The far end's own description, in the same words the local one uses. */
-const describePeer = agent => [
-  agent.browser ? `${agent.browser} (${agent.engine} ${agent.version})`.trim() : `${agent.engine} ${agent.version}`.trim(),
-  agent.platform,
-  agent.provider || null
-].filter(Boolean).join(' · ')
-
 function renderLogbook () {
   const entries = logbook.entries().reverse()
 
@@ -1139,30 +1140,37 @@ const recordedAttempts = new Map()
  * not the recipient's - somebody else ticking a box on their phone must not
  * cause this device to describe itself.
  *
- * Coarse on purpose: browser, engine, system - the same description this device
- * writes about itself, and nothing that is not already in a user agent - plus
- * the network provider, which is typed rather than measured and is half of every
- * useful row in the matrix. Two peers on the same two browsers behave differently
- * on cable and on carrier-grade NAT, and neither end can see the other's side of
- * that without being told.
+ * ## What may leave is already decided
  *
- * The *place* is not sent, though it sits in the same panel and is typed by the
- * same person. "Home office wifi" is a note somebody wrote for themselves; the
- * provider is a fact about a network, and one the far end can already infer from
- * the address ICE handed them. The line is drawn where the data stops being
- * about the connection and starts being about the person.
+ * `export()` in logbook.js draws this line once: country and region are what the
+ * public dataset in #27 asks for, and the address, the coordinates and the city
+ * are what the projection exists to withhold. A greeting is the same question -
+ * what may leave this device - so it gets the same answer rather than a second
+ * rule of its own. One rule can be audited; two drift.
+ *
+ * So: browser, engine and system, which is nothing a user agent does not already
+ * carry. The network provider, because two peers on the same two browsers behave
+ * differently on cable and behind carrier-grade NAT, and neither end can see the
+ * other's side of that without being told. Country and region, at the export's
+ * granularity.
+ *
+ * Not the city, not the coordinates, not the address. And not the *place*, which
+ * sits in the same panel and is typed by the same person: "home office wifi" is a
+ * note somebody wrote for themselves, and it never travels.
  */
 function greet (peerId) {
   if (!logbook.enabled) return
 
-  const { provider } = logbook.context
+  const { provider, country, region } = logbook.context
 
   sendTo(peerId, {
     kind: 'hello',
     agent: describeAgent(),
-    // Omitted rather than sent empty, so a peer that never typed one is
-    // distinguishable from one that typed nothing into it.
-    ...(provider ? { provider } : {})
+    // Omitted rather than sent empty, so a peer who never filled a field is
+    // distinguishable from one who typed nothing into it.
+    ...(provider ? { provider } : {}),
+    ...(country ? { country } : {}),
+    ...(region ? { region } : {})
   }).catch(() => {})
 }
 
@@ -1305,7 +1313,12 @@ async function handleMeshMessage (message, from) {
     // something else - a Vanadium peer says Chrome. Where the two disagree, the
     // disagreement is the finding.
     logbook.amend(recordedAttempts.get(from), {
-      reported: { ...message.agent, provider: message.provider ?? null }
+      reported: {
+        ...message.agent,
+        provider: message.provider ?? null,
+        country: message.country ?? null,
+        region: message.region ?? null
+      }
     })
 
     return true

@@ -58,7 +58,7 @@ export default {
   logbook: {
     heading: 'What worked here',
     enable: 'Record what happens here',
-    enableHint: 'Off by default. Nothing is written until this is ticked, and turning it off again keeps what is already recorded - use Clear for that. What is recorded stays on this device, and the export leaves addresses behind. One thing does leave: while this is on, a peer you connect to is told which browser, system and network provider this is on, and tells you the same. Where you are is never sent.',
+    enableHint: 'Off by default. Nothing is written until this is ticked, and turning it off again keeps what is already recorded - use Clear for that. What is recorded stays on this device, and the export leaves addresses behind. One thing does leave: while this is on, a peer you connect to is told exactly what the export carries - browser, system, provider, country and region - and tells you the same. Your address, your city and the notes you typed never travel.',
     hint: 'Every attempt is recorded and closed when it connects or fails. Both are kept - a log of successes says nothing about what is broken.',
     provider: 'Network provider',
     locate: 'Work out where I am',
