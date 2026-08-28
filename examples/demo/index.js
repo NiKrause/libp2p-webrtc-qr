@@ -212,6 +212,7 @@ let outboundPayload = null
 const logbookEntriesEl = document.getElementById('logbook-entries')
 const logbookProviderEl = document.getElementById('logbook-provider')
 const logbookPlaceEl = document.getElementById('logbook-place')
+const logbookPeerEl = document.getElementById('logbook-peer')
 
 const logbook = createLogbook()
 
@@ -346,8 +347,11 @@ function renderLogbook () {
     what.className = 'logbook-what'
     // The combination is the row of the matrix: browser, system, network, and
     // the two nobody can measure.
+    // `browser` is the shell where it is not the engine's own name - DuckDuckGo
+    // over Chrome 130. Entries recorded before the log knew the difference have
+    // no such field and read exactly as they did.
     what.textContent = [
-      `${entry.engine} ${entry.version}`.trim(),
+      entry.browser ? `${entry.browser} (${entry.engine} ${entry.version})`.trim() : `${entry.engine} ${entry.version}`.trim(),
       entry.platform,
       entry.provider || null,
       entry.place || null
@@ -365,6 +369,15 @@ function renderLogbook () {
     ].filter(Boolean).join(' · ')
 
     row.append(verdict, what, how)
+
+    // On its own line, and marked as the far end. Everything above describes
+    // this device, and a matrix is only useful while the two ends stay apart.
+    if (entry.peer) {
+      const peer = document.createElement('span')
+      peer.className = 'logbook-peer'
+      peer.textContent = t('logbook.peerRow', { peer: entry.peer })
+      row.append(peer)
+    }
 
     // The reason is the field that makes a failure worth keeping. "It did not
     // work" is not a finding.
@@ -397,7 +410,7 @@ logbookEnabledEl.addEventListener('change', () => {
     : 'Logbook off: nothing further is recorded.')
 })
 
-for (const [el, key] of [[logbookProviderEl, 'provider'], [logbookPlaceEl, 'place']]) {
+for (const [el, key] of [[logbookProviderEl, 'provider'], [logbookPlaceEl, 'place'], [logbookPeerEl, 'peer']]) {
   el.value = logbook.context[key] ?? ''
   // On `input` rather than `change`: somebody who types a provider and goes
   // straight to pressing the invite button never fires a change event, and the

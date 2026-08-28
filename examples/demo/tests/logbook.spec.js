@@ -52,9 +52,10 @@ test.describe('the logbook', () => {
       await open(alice)
       await open(bob)
 
-      // The two fields no browser can know, typed before the attempt.
+      // The three fields no browser can know, typed before the attempt.
       await alice.locator('#logbook-provider').fill('Telekom')
       await alice.locator('#logbook-place').fill('hotel lobby')
+      await alice.locator('#logbook-peer').fill('Vanadium on GrapheneOS')
 
       await alice.locator('#create-offer').click()
       await expect(alice.locator('#invite-box')).toBeVisible({ timeout: 60000 })
@@ -77,6 +78,9 @@ test.describe('the logbook', () => {
       // The typed context rides along, which is the whole reason it is typed.
       expect(entry.provider).toBe('Telekom')
       expect(entry.place).toBe('hotel lobby')
+      // The far end, which no measurement here can reach: this attempt did
+      // connect, and even so the only honest source is the person.
+      expect(entry.peer).toBe('Vanadium on GrapheneOS')
       // And the measured part, which decides whether a code was readable.
       expect(entry.format).toMatch(/^v[23]$/)
       expect(entry.frames).toBeGreaterThan(0)
@@ -86,6 +90,8 @@ test.describe('the logbook', () => {
 
       // Visible at a glance, which is what the panel is for.
       await expect(alice.locator('.logbook-entry.is-connected')).toHaveCount(1)
+      // And on its own line, so the two ends never read as one device.
+      await expect(alice.locator('.logbook-entry .logbook-peer')).toContainText('Vanadium on GrapheneOS')
     } finally {
       await alice.close()
       await bob.close()
@@ -112,15 +118,53 @@ test.describe('the logbook', () => {
     await expect(page.locator('.logbook-why')).toContainText(/./)
   })
 
+  /**
+   * A real captured string, because the point is that it lies convincingly:
+   * it carries "Chrome" and "Safari" like every other Chromium fork, and asking
+   * `userAgentData.brands` returns "Google Chrome" too. DuckDuckGo is one of the
+   * two browsers this project has field results about, so recording it as Chrome
+   * lost the very row the log exists for.
+   */
+  const DDG_ANDROID = 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/130.0.6723.106 Mobile DuckDuckGo/5 Safari/537.36'
+
+  test('names the browser somebody chose, not the engine it is built on', async ({ browser, baseURL }) => {
+    const context = await browser.newContext({ baseURL, userAgent: DDG_ANDROID })
+    const page = await context.newPage()
+
+    try {
+      await open(page)
+
+      await page.locator('.paste-fallback summary').click()
+      await page.locator('#payload-display').fill('https://example.org/#r=q3:not-a-real-payload')
+      await page.locator('#process-payload').click()
+
+      await expect.poll(() => entries(page).then(list => list.length), { timeout: 30000 }).toBe(1)
+
+      const [entry] = await entries(page)
+
+      expect(entry.browser).toBe('DuckDuckGo')
+      // The engine underneath is kept, not replaced: the shell is what a person
+      // installs, and the engine number is what predicts whether WebRTC behaves.
+      expect(entry.engine).toMatch(/Chrom/i)
+      await expect(page.locator('.logbook-what')).toContainText('DuckDuckGo')
+    } finally {
+      await context.close()
+    }
+  })
+
   test('the typed context survives a reload, because a location does', async ({ page }) => {
     await open(page)
     await page.locator('#logbook-provider').fill('Vodafone')
     await page.locator('#logbook-place').fill('office')
+    await page.locator('#logbook-peer').fill('iPhone 12, Safari')
 
     await page.reload()
 
     // Somebody testing all evening in one place types this once.
     await expect(page.locator('#logbook-provider')).toHaveValue('Vodafone')
+    // The peer is stickiest of the three in practice: a testing session is two
+    // devices for an evening, not a new pair every attempt.
+    await expect(page.locator('#logbook-peer')).toHaveValue('iPhone 12, Safari')
     await expect(page.locator('#logbook-place')).toHaveValue('office')
   })
 
