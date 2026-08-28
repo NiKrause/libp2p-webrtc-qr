@@ -13,12 +13,19 @@
  * but no AAAA leaves a machine with working IPv6 gathering no IPv6 candidate at
  * all - and the peers then never exchange the addresses that would have beaten
  * carrier NAT without a relay.
+ *
+ * The literals are the AAAA records of the two servers above and were measured,
+ * not copied. `2606:4700:4700::1111` sat here for a while and answers nothing:
+ * it is Cloudflare's public *resolver* - the IPv6 twin of 1.1.1.1 - and not
+ * their STUN service, which is `2606:4700:49::`. A dead entry costs nothing
+ * visible and quietly halves the evidence behind an IPv6 verdict, which is the
+ * worst way for a mistake to sit.
  */
 export const DEFAULT_RTC_CONFIGURATION = {
   iceServers: [
     { urls: 'stun:stun.cloudflare.com:3478' },
     { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:[2606:4700:4700::1111]:3478' },
+    { urls: 'stun:[2606:4700:49::]:3478' },
     { urls: 'stun:[2001:4860:4864:5:8000::1]:19302' }
   ]
 }

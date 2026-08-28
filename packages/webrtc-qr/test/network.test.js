@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { isGlobalUnicastV6, offNetworkBlocked, offNetworkRisk, probeBrowser, probeCamera, summariseNetwork } from '../src/elements/network.js'
+import { DEFAULT_RTC_CONFIGURATION, isGlobalUnicastV6, offNetworkBlocked, offNetworkRisk, probeBrowser, probeCamera, summariseNetwork } from '../src/elements/network.js'
 
 /**
  * The two pure parts of the network check.
@@ -202,4 +202,25 @@ test('two reflexive ports on one address is what symmetric means', async () => {
   ])
 
   assert.equal(result.ipv4.state, 'symmetric')
+})
+
+test('every default STUN entry is a STUN endpoint, not a resolver that happens to be nearby', () => {
+  // `2606:4700:4700::1111` sat in this list and answered nothing: it is
+  // Cloudflare's public resolver, the IPv6 twin of 1.1.1.1, and not their STUN
+  // service. Measured with a peer connection against both, one answered.
+  //
+  // Asserted rather than trusted because the failure is invisible: a dead entry
+  // costs no error and no delay, it only halves the evidence behind a verdict.
+  // The literals must stay the AAAA records of the named servers above them.
+  const urls = DEFAULT_RTC_CONFIGURATION.iceServers.map(s => s.urls)
+
+  assert.ok(urls.includes('stun:[2606:4700:49::]:3478'), 'the Cloudflare literal must be its STUN AAAA')
+  assert.ok(!urls.some(u => u.includes('4700:4700')), 'a resolver address is not a STUN server')
+
+  // One literal per named server, so a resolver returning no AAAA cannot leave
+  // the check with no IPv6 transaction at all.
+  const byName = urls.filter(u => !u.includes('['))
+  const literals = urls.filter(u => u.includes('['))
+
+  assert.equal(literals.length, byName.length)
 })
