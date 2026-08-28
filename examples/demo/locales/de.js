@@ -55,6 +55,8 @@ export default {
     locating: 'Frage nach…',
     located: ({ where, precise }) => `${where} — ${precise}`,
     withPosition: 'Position ergänzt',
+    coords: ({ lat, lon, accuracy }) =>
+      accuracy === '' ? `${lat}, ${lon} — auf der Karte ↗` : `${lat}, ${lon} ±${accuracy} m — auf der Karte ↗`,
     askingPosition: 'frage nach der Position…',
     noPosition: 'keine Position (abgelehnt oder hier nicht verfügbar)',
     locateFailed: ({ reason }) => `Ließ sich nicht ermitteln: ${reason}. Bitte eintippen.`,

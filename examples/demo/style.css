@@ -1487,6 +1487,16 @@ button.is-busy::before {
 
 /* ---------- the logbook ---------- */
 
+/* The numbers behind "position added". Monospace because they are read digit by
+   digit, and only ever on screen right after the button was pressed. */
+.logbook-coords {
+  display: inline-block;
+  margin-top: 3px;
+  font-family: var(--ls-font-mono);
+  font-size: 0.76rem;
+  color: var(--ls-accent);
+}
+
 .logbook-context {
   display: flex;
   flex-wrap: wrap;
