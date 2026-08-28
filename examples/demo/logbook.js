@@ -101,7 +101,7 @@ const FORK_NAMES = {
  * that - a test, or a call before the stamp - it is worked out from the same
  * detector directly, minus Brave.
  */
-function describeAgent ({ browser = document.documentElement.dataset.browser } = {}) {
+export function describeAgent ({ browser = document.documentElement.dataset.browser } = {}) {
   const ua = navigator.userAgent
   const brands = navigator.userAgentData?.brands ?? []
   const known = brands.find(b => !/Not.?A.?Brand/i.test(b.brand))
@@ -227,6 +227,9 @@ export function createLogbook ({ now = () => Date.now() } = {}) {
         ...describeAgent(),
         ...context,
         network: null,
+        // What the far end said about itself, when there was a connection to
+        // say it over. Null on every failure, by nature.
+        reported: null,
         payload: null,
         ice: null,
         outcome: null,
@@ -271,6 +274,31 @@ export function createLogbook ({ now = () => Date.now() } = {}) {
     /** Whether an attempt is in flight, for a panel that shows it. */
     pending () {
       return open == null ? null : { ...open }
+    },
+
+    /**
+     * Add to an entry that is already closed.
+     *
+     * The far end's own description of itself arrives *after* the connection
+     * does - it needs the connection to arrive over. Holding the entry open
+     * until it came would misreport how long the attempt took, and would leave
+     * it dangling for a peer that never answers. So the attempt is recorded when
+     * it finished, and this fills in what could only be known later.
+     *
+     * Silently ignores an id that is no longer there: two hundred entries is a
+     * ring, and a slow peer on a busy evening can answer after its own row has
+     * aged out.
+     */
+    amend (id, patch) {
+      const index = entries.findIndex(entry => entry.id === id)
+
+      if (index < 0) return
+
+      // `Array.prototype.with` would read better and is ES2023. This project
+      // exists because old and odd mobile browsers break things, so it is the
+      // wrong place to spend a compatibility cliff on a one-line tidy.
+      entries = entries.map((entry, at) => at === index ? { ...entry, ...patch } : entry)
+      persist()
     },
 
     clear () {

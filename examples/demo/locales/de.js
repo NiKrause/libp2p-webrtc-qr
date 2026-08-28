@@ -48,7 +48,7 @@ export default {
   logbook: {
     heading: 'Was hier funktioniert hat',
     enable: 'Aufzeichnen, was hier passiert',
-    enableHint: 'Standardmäßig aus. Es wird nichts geschrieben, bis dies angehakt ist, und das Abschalten behält, was bereits aufgezeichnet ist — dafür gibt es „Protokoll leeren". Alles bleibt auf diesem Gerät; der Export lässt Adressen zurück.',
+    enableHint: 'Standardmäßig aus. Es wird nichts geschrieben, bis dies angehakt ist, und das Abschalten behält, was bereits aufgezeichnet ist — dafür gibt es „Protokoll leeren". Das Aufgezeichnete bleibt auf diesem Gerät, und der Export lässt Adressen zurück. Eines verlässt es doch: Solange dies an ist, erfährt eine verbundene Gegenstelle, welcher Browser und welches System hier laufen — und nennt Ihnen dasselbe.',
     hint: 'Jeder Versuch wird aufgezeichnet und geschlossen, wenn er verbindet oder scheitert. Beides bleibt — ein Protokoll der Erfolge sagt nichts darüber, was kaputt ist.',
     provider: 'Netzanbieter',
     locate: 'Ermitteln, wo ich bin',
@@ -64,6 +64,7 @@ export default {
     peer: 'Das andere Gerät',
     peerHint: 'Vanadium auf GrapheneOS, iPhone 12 Safari…',
     peerRow: ({ peer }) => `Gegenstelle: ${peer}`,
+    peerReported: ({ peer }) => `meldet sich als ${peer}`,
     empty: 'Noch keine Versuche aufgezeichnet.',
     export: 'Als JSON exportieren',
     clear: 'Protokoll leeren',

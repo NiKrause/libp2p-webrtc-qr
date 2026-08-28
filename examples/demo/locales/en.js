@@ -58,7 +58,7 @@ export default {
   logbook: {
     heading: 'What worked here',
     enable: 'Record what happens here',
-    enableHint: 'Off by default. Nothing is written until this is ticked, and turning it off again keeps what is already recorded - use Clear for that. Everything stays on this device; the export leaves addresses behind.',
+    enableHint: 'Off by default. Nothing is written until this is ticked, and turning it off again keeps what is already recorded - use Clear for that. What is recorded stays on this device, and the export leaves addresses behind. One thing does leave: while this is on, a peer you connect to is told which browser and system this is, and tells you the same.',
     hint: 'Every attempt is recorded and closed when it connects or fails. Both are kept - a log of successes says nothing about what is broken.',
     provider: 'Network provider',
     locate: 'Work out where I am',
@@ -74,6 +74,7 @@ export default {
     peer: 'The other device',
     peerHint: 'Vanadium on GrapheneOS, iPhone 12 Safari…',
     peerRow: ({ peer }) => `other end: ${peer}`,
+    peerReported: ({ peer }) => `reports itself as ${peer}`,
     empty: 'No attempts recorded yet.',
     export: 'Export as JSON',
     clear: 'Clear the log',

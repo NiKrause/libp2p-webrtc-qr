@@ -20,7 +20,7 @@ import {
 import { createIntroPolicy } from '@le-space/libp2p-webrtc-qr/elements'
 import { applyBrowserTheme } from './browser-theme.js'
 import { elementStrings, initialLocale, locale, setLocale, t, translateDocument } from './i18n.js'
-import { createLogbook } from './logbook.js'
+import { createLogbook, describeAgent } from './logbook.js'
 import { lookUpNetwork, lookUpPosition } from './whereabouts.js'
 import { previewStore } from './previews.js'
 import { applyViewMode, isSimple } from './view-mode.js'
@@ -332,6 +332,12 @@ qrImage.addEventListener('render', event => {
  * 200 entries and changes once per connection attempt, so the cheap thing to do
  * is also the correct one.
  */
+/** The far end's own description, in the same words the local one uses. */
+const describePeer = agent => [
+  agent.browser ? `${agent.browser} (${agent.engine} ${agent.version})`.trim() : `${agent.engine} ${agent.version}`.trim(),
+  agent.platform
+].filter(Boolean).join(' · ')
+
 function renderLogbook () {
   const entries = logbook.entries().reverse()
 
@@ -372,10 +378,16 @@ function renderLogbook () {
 
     // On its own line, and marked as the far end. Everything above describes
     // this device, and a matrix is only useful while the two ends stay apart.
-    if (entry.peer) {
+    if (entry.peer || entry.reported) {
       const peer = document.createElement('span')
       peer.className = 'logbook-peer'
-      peer.textContent = t('logbook.peerRow', { peer: entry.peer })
+      // Both, when there are both. The typed one is what the person knows; the
+      // reported one is what the far end's user agent would admit to, and those
+      // are different claims about the same device.
+      peer.textContent = [
+        entry.peer ? t('logbook.peerRow', { peer: entry.peer }) : null,
+        entry.reported ? t('logbook.peerReported', { peer: describePeer(entry.reported) }) : null
+      ].filter(Boolean).join(' · ')
       row.append(peer)
     }
 
@@ -871,8 +883,12 @@ function attachChatStream (stream, peerId, message) {
   // The attempt ended the way it was supposed to. Recorded before anything else
   // here, because everything else here can throw.
   logbook.note({ network: networkVerdicts(), ice: describeConnection(peerId), candidates: candidatesOf(peerId) })
-  logbook.finish({ outcome: 'connected' })
+  const recorded = logbook.finish({ outcome: 'connected' })
   incomingCarrier = null
+
+  // The entry is closed, but the far end has not said what it is yet - it needs
+  // this connection to say it over. Keep the id so the answer can find its row.
+  if (recorded != null) recordedAttempts.set(peerId, recorded.id)
 
   const existing = [...chatStreams.keys()]
 
@@ -893,6 +909,7 @@ function attachChatStream (stream, peerId, message) {
 
   // Both directions, so a mesh closes itself no matter who joined last.
   announcePeers(peerId)
+  greet(peerId)
 
   for (const other of existing) {
     sendTo(other, { kind: 'peers', peers: [peerId] }).catch(() => {})
@@ -1103,6 +1120,33 @@ async function sendTo (peerId, payload) {
   return true
 }
 
+/**
+ * Which logbook entry a peer's answer belongs to.
+ *
+ * Keyed by peer rather than held in one variable: two connections can be made
+ * within a second of each other on the same evening, and the second one's hello
+ * must not land on the first one's row.
+ */
+const recordedAttempts = new Map()
+
+/**
+ * Say what this browser is, to a peer that is now connected.
+ *
+ * Only while the logbook is on, and that is the whole of the consent story: a
+ * person keeping a record of what connects is participating in the measurement,
+ * and one who is not sends nothing. It is deliberately the *sender's* switch and
+ * not the recipient's - somebody else ticking a box on their phone must not
+ * cause this device to describe itself.
+ *
+ * Coarse on purpose, and the same description this device writes about itself:
+ * browser, engine, system. Nothing that is not already in a user agent.
+ */
+function greet (peerId) {
+  if (!logbook.enabled) return
+
+  sendTo(peerId, { kind: 'hello', agent: describeAgent() }).catch(() => {})
+}
+
 function announcePeers (toPeerId) {
   const peers = [...chatStreams.keys()].filter(peerId => peerId !== toPeerId)
 
@@ -1235,6 +1279,17 @@ function tryNextRoute (target) {
 }
 
 async function handleMeshMessage (message, from) {
+  if (message.kind === 'hello') {
+    // Recorded as reported, beside whatever was typed, and never instead of it.
+    // A peer answers with what its user agent will admit to, and the browsers
+    // most worth telling apart are the ones that deliberately admit to being
+    // something else - a Vanadium peer says Chrome. Where the two disagree, the
+    // disagreement is the finding.
+    logbook.amend(recordedAttempts.get(from), { reported: message.agent })
+
+    return true
+  }
+
   if (message.kind === 'peers') {
     for (const peerId of message.peers) {
       if (shouldInitiateTo(peerId)) {
