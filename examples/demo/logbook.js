@@ -100,6 +100,19 @@ const FORK_NAMES = {
  * because that one has already resolved Brave, whose check is a promise. Absent
  * that - a test, or a call before the stamp - it is worked out from the same
  * detector directly, minus Brave.
+ *
+ * ## The time zone, which is the only location worth having
+ *
+ * It costs nothing: no request, no permission, no third party, and every website
+ * already has it. It is correct where an IP is not - a lookup on this connection
+ * answered Frankfurt over IPv4 and Berlin over IPv6, 423 km apart and neither of
+ * them right - and it is coarse by nature, which is the property a location
+ * field in a shared dataset needs.
+ *
+ * It is also the free half of a VPN check. A time zone that disagrees with the
+ * country an IP claims means the connection leaves somewhere the device is not,
+ * and a VPN moves both ends of a WebRTC connection somewhere else - which the
+ * intro dialog already warns about and nothing here could otherwise detect.
  */
 export function describeAgent ({ browser = document.documentElement.dataset.browser } = {}) {
   const ua = navigator.userAgent
@@ -120,7 +133,16 @@ export function describeAgent ({ browser = document.documentElement.dataset.brow
     version,
     browser: FORK_NAMES[slug] ?? null,
     platform,
-    mobile: navigator.userAgentData?.mobile ?? /Mobi/i.test(ua)
+    mobile: navigator.userAgentData?.mobile ?? /Mobi/i.test(ua),
+    // Wrapped because a browser with no Intl data at all would otherwise throw
+    // inside the one call that opens a logbook entry.
+    timeZone: (() => {
+      try {
+        return Intl.DateTimeFormat().resolvedOptions().timeZone ?? null
+      } catch {
+        return null
+      }
+    })()
   }
 }
 

@@ -330,6 +330,7 @@ const describePeer = agent => [
   agent.browser ? `${agent.browser} (${agent.engine} ${agent.version})`.trim() : `${agent.engine} ${agent.version}`.trim(),
   agent.platform,
   agent.provider || null,
+  agent.timeZone || null,
   agent.country || null
 ].filter(Boolean).join(' · ')
 
@@ -362,6 +363,7 @@ function renderLogbook () {
       entry.browser ? `${entry.browser} (${entry.engine} ${entry.version})`.trim() : `${entry.engine} ${entry.version}`.trim(),
       entry.platform,
       entry.provider || null,
+      entry.timeZone || null,
       entry.place || null
     ].filter(Boolean).join(' · ')
 
@@ -1240,10 +1242,11 @@ const recordedAttempts = new Map()
  * rule of its own. One rule can be audited; two drift.
  *
  * So: browser, engine and system, which is nothing a user agent does not already
- * carry. The network provider, because two peers on the same two browsers behave
- * differently on cable and behind carrier-grade NAT, and neither end can see the
- * other's side of that without being told. And the country, which is the one
- * thing an IP answers reliably.
+ * carry - now including the time zone, which is the only location here that is
+ * both correct and free. The network provider, because two peers on the same two
+ * browsers behave differently on cable and behind carrier-grade NAT, and neither
+ * end can see the other's side of that without being told. And the country,
+ * which is the one thing an IP answers reliably.
  *
  * **Not the region**, which used to travel here and has been withdrawn. IP
  * geolocation places a customer at their provider's egress: this was measured on
