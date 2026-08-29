@@ -1497,6 +1497,10 @@ button.is-busy::before {
   color: var(--ls-accent);
 }
 
+/* The consent sits with the button it gates, not with the switch above, so the
+   disclosure is read where the request is made. */
+.logbook-consent { margin-top: 10px; }
+
 .logbook-context {
   display: flex;
   flex-wrap: wrap;

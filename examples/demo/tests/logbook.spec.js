@@ -409,6 +409,7 @@ test.describe('the logbook', () => {
       location: { country_code: 'DE', state: 'Bavaria', city: 'Munich' }
     })
 
+    await page.locator('#logbook-lookup-consent').check()
     await page.locator('#logbook-locate').click()
     await usedStub(page, hits)
 
@@ -434,6 +435,7 @@ test.describe('the logbook', () => {
       location: { country_code: 'DE', state: 'Bavaria', city: 'Munich' }
     })
 
+    await page.locator('#logbook-lookup-consent').check()
     await page.locator('#logbook-locate').click()
     await usedStub(page, hits)
     await expect(page.locator('#logbook-provider')).toHaveValue('Example Telecom')
@@ -448,6 +450,7 @@ test.describe('the logbook', () => {
     await page.locator('#logbook-provider').fill('typed by hand')
     const hits = await answerWith(page, { error: true, reason: 'RateLimited' })
 
+    await page.locator('#logbook-lookup-consent').check()
     await page.locator('#logbook-locate').click()
     await usedStub(page, hits)
 
@@ -462,6 +465,7 @@ test.describe('the logbook', () => {
       isp: { isp: 'Example Telecom' },
       location: { country_code: 'DE', state: 'Bavaria', city: 'Munich' }
     })
+    await page.locator('#logbook-lookup-consent').check()
     await page.locator('#logbook-locate').click()
     await usedStub(page, hits)
     await expect(page.locator('#logbook-provider')).toHaveValue('Example Telecom')
@@ -483,6 +487,59 @@ test.describe('the logbook', () => {
 
     const parsed = JSON.parse(exported)
     expect(parsed.redacted).toContain('public IP')
+  })
+
+  /**
+   * Asking costs something, and the button never said what.
+   *
+   * Determining a provider means asking a service, and asking tells that service
+   * this device's address by the act of asking - there is no version without it.
+   * A button labelled "work out where I am" says what it will find and not what
+   * it costs, so the consent is its own box and the box names the disclosure.
+   */
+  test('asks nobody anything until the disclosure is accepted', async ({ page }) => {
+    await open(page)
+
+    const hits = await answerWith(page, {
+      ip: '203.0.113.7',
+      isp: { isp: 'Example Telecom' },
+      location: { country_code: 'DE', state: 'Berlin', city: 'Tempelhof' }
+    })
+
+    // Unticked by default, and the button cannot be pressed.
+    await expect(page.locator('#logbook-lookup-consent')).not.toBeChecked()
+    await expect(page.locator('#logbook-locate')).toBeDisabled()
+
+    // Forced past the disabled attribute, which is a convenience for a person
+    // and not the thing that decides. What decides is checked in the handler,
+    // and this is the assertion that would catch a future caller bypassing it.
+    await page.locator('#logbook-locate').evaluate(el => { el.disabled = false; el.click() })
+    await page.waitForTimeout(500)
+
+    expect(hits.count, 'a request went out before anyone agreed to it').toBe(0)
+    await expect(page.locator('#logbook-provider')).toHaveValue('')
+
+    // And with consent, the same press works.
+    await page.locator('#logbook-lookup-consent').check()
+    await expect(page.locator('#logbook-locate')).toBeEnabled()
+    await page.locator('#logbook-locate').click()
+    await usedStub(page, hits)
+    await expect(page.locator('#logbook-provider')).toHaveValue('Example Telecom')
+  })
+
+  test('the consent survives a reload, and withdrawing it disables the button again', async ({ page }) => {
+    await open(page)
+
+    await page.locator('#logbook-lookup-consent').check()
+    await page.reload()
+
+    // Somebody testing all evening in one place should not re-tick a box whose
+    // answer has not changed.
+    await expect(page.locator('#logbook-lookup-consent')).toBeChecked()
+    await expect(page.locator('#logbook-locate')).toBeEnabled()
+
+    await page.locator('#logbook-lookup-consent').uncheck()
+    await expect(page.locator('#logbook-locate')).toBeDisabled()
   })
 
   /**
@@ -508,7 +565,8 @@ test.describe('the logbook', () => {
         location: { country_code: 'DE', state: 'Berlin', city: 'Tempelhof' }
       })
 
-      await page.locator('#logbook-locate').click()
+      await page.locator('#logbook-lookup-consent').check()
+    await page.locator('#logbook-locate').click()
       await usedStub(page, hits)
 
       const link = page.locator('#logbook-locate-state a.logbook-coords')
@@ -565,6 +623,7 @@ test.describe('the logbook', () => {
         location: { country_code: 'DE', state: 'Bavaria', city: 'Munich' }
       })
 
+      await bob.locator('#logbook-lookup-consent').check()
       await bob.locator('#logbook-locate').click()
       await usedStub(bob, hits)
       await expect(bob.locator('#logbook-provider')).toHaveValue('Example Telecom')

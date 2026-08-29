@@ -476,8 +476,49 @@ function coordinateLink ({ latitude, longitude, accuracy }) {
   return link
 }
 
-document.getElementById('logbook-locate').addEventListener('click', async () => {
-  const button = document.getElementById('logbook-locate')
+/**
+ * Consent to a disclosure, kept beside the switch it belongs to.
+ *
+ * Persisted rather than asked each session: somebody testing all evening in one
+ * place should not re-tick a box whose answer has not changed, and the logbook
+ * it sits in persists too. Off is the default and an absent value reads as off,
+ * so a storage that refuses to answer refuses in the safe direction.
+ */
+const LOOKUP_CONSENT_KEY = 'webrtc-qr.logbook.lookupConsent.v1'
+const lookupConsentEl = document.getElementById('logbook-lookup-consent')
+const locateButtonEl = document.getElementById('logbook-locate')
+
+const readConsent = () => {
+  try {
+    return localStorage.getItem(LOOKUP_CONSENT_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+lookupConsentEl.checked = readConsent()
+locateButtonEl.disabled = !lookupConsentEl.checked
+
+lookupConsentEl.addEventListener('change', () => {
+  try {
+    localStorage.setItem(LOOKUP_CONSENT_KEY, String(lookupConsentEl.checked))
+  } catch {
+    // The choice still holds for this page; a storage that refuses to write is
+    // not a reason to refuse the consent somebody just gave.
+  }
+
+  locateButtonEl.disabled = !lookupConsentEl.checked
+})
+
+locateButtonEl.addEventListener('click', async () => {
+  // Checked here as well as reflected in `disabled`. The attribute is a
+  // convenience for a person; this is the one that decides whether a request
+  // goes out, and it is the one a future caller will not accidentally bypass.
+  if (!lookupConsentEl.checked) {
+    return
+  }
+
+  const button = locateButtonEl
   const state = document.getElementById('logbook-locate-state')
 
   button.disabled = true
@@ -534,7 +575,7 @@ document.getElementById('logbook-locate').addEventListener('click', async () => 
     // *for*. Neither is worth more than a sentence.
     state.textContent = t('logbook.locateFailed', { reason: error.message })
   } finally {
-    button.disabled = false
+    button.disabled = !lookupConsentEl.checked
   }
 })
 
