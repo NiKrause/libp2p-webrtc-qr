@@ -812,6 +812,67 @@ argument for keeping it in the demo, small, and clearly marked.
 
 ---
 
+## 18. A tap instead of a scan
+
+Web NFC was proposed as a fourth carrier for the SDP, beside the code, the link
+and the sound. **It cannot be that**, and the reason has to come before anything
+else here: Web NFC has no peer-to-peer mode and no card emulation. Android's own
+P2P API is deprecated and gone, the Web NFC group
+[closed the P2P request](https://github.com/w3c/web-nfc/issues/529) rather than
+implementing it, and Chrome's documentation is explicit that the API is limited
+to NDEF. A browser reads and writes **passive tags**. Two phones cannot hand each
+other an offer and an answer over NFC, however close they are held.
+
+What survives is narrower and fits the case that prompted it better than the
+symmetrical version would have.
+
+### What it costs before it does anything
+
+Chrome on Android, 89 and up. Not desktop Chrome, not Firefox, and **not iOS at
+all** - an iPhone reads tags only through a native app, never through a web page.
+HTTPS, top-level frame, a user gesture, and a permission prompt. The radio is
+blocked while the display is off or the device locked, and reading is suspended
+whenever the page is not visible.
+
+That last rule is the useful one: once permission is granted and `scan()` is
+running, taps keep arriving for as long as the page is on screen. A counter
+device with the app open reads card after card without touching anything.
+
+### What fits
+
+An NTAG213 holds 144 bytes, an NTAG215 504, an NTAG216 888. The compact payload
+is about 284; the full one about 995. So a handshake over NFC needs the compact
+format, which puts this behind
+[#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83) exactly as the
+mixnet is. A tag carrying only an *identifier* needs none of that, and the
+smallest tag is plenty.
+
+### The version worth building
+
+Not a tag as the medium for a whole handshake - that is three physical taps where
+two camera scans do the same job. The two that earn their place are a tag holding
+the **invite link**, which replaces aiming a camera at a printed code with
+touching the counter, and a **card the member carries** that the studio's phone
+reads. The second is the strongest because it dodges the platform problem
+outright: the member's phone is not involved, so it does not matter that half the
+room is on iOS.
+
+**A tag is a pointer, never a proof.** NDEF has no authentication and no secrets,
+and anyone who can hold a reader near a card can copy its bytes. An identifier on
+a card may say *who to talk to*; it must never say *this person may redeem a
+class*. The moment a card is sufficient on its own, the system has a bearer token
+printed on plastic and left in a jacket pocket.
+
+### What it does not solve
+
+The return leg. NFC gives the offer direction a nicer gesture and leaves the
+answer exactly where it was - which is why item 16 exists. And it cannot be
+tested here: there is no fake NFC radio the way there is a fake camera and a
+loopback `AudioContext`, so this would be the second thing in the repository with
+no automated coverage, after the mixnet.
+
+---
+
 ## Not planned
 
 - **Replacing WebRTC.** The point of this project is that libp2p can use a
