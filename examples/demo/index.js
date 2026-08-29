@@ -21,7 +21,7 @@ import { createIntroPolicy } from '@le-space/libp2p-webrtc-qr/elements'
 import { applyBrowserTheme } from './browser-theme.js'
 import { elementStrings, initialLocale, locale, setLocale, t, translateDocument } from './i18n.js'
 import { createLogbook, describeAgent } from './logbook.js'
-import { lookUpNetwork, lookUpPosition } from './whereabouts.js'
+import { lookUpNetwork, lookUpPlace, lookUpPosition } from './whereabouts.js'
 import { previewStore } from './previews.js'
 import { applyViewMode, isSimple } from './view-mode.js'
 import { forgetIdentity, launchedStandalone, loadOrCreateIdentity } from './identity.js'
@@ -330,7 +330,7 @@ const describePeer = agent => [
   agent.browser ? `${agent.browser} (${agent.engine} ${agent.version})`.trim() : `${agent.engine} ${agent.version}`.trim(),
   agent.platform,
   agent.provider || null,
-  [agent.region, agent.country].filter(Boolean).join(', ') || null
+  agent.country || null
 ].filter(Boolean).join(' · ')
 
 /**
@@ -539,6 +539,12 @@ locateButtonEl.addEventListener('click', async () => {
       // measured value past the projection - and it fails the field's purpose
       // anyway, since "hotel lobby" is what a pattern is made of and "Munich"
       // is not.
+      //
+      // City and region are kept here and nowhere else. Locally they are a
+      // record of what the service said, which is worth having beside the
+      // position that contradicts it; the export and the greeting drop both,
+      // because an IP places a customer at their provider and not at
+      // themselves.
       country: network.country,
       region: network.region,
       city: network.city,
@@ -554,10 +560,39 @@ locateButtonEl.addEventListener('click', async () => {
     const position = await lookUpPosition()
 
     logbook.setContext({ ...logbook.context, coords: position })
-    state.textContent = t('logbook.located', {
-      where: [network.city, network.country].filter(Boolean).join(', ') || '?',
-      precise: position == null ? t('logbook.noPosition') : t('logbook.withPosition')
-    })
+
+    // With a position in hand, the place comes from the position rather than
+    // from the IP: geocoded by OpenStreetMap from coordinates rounded to about
+    // a kilometre before they leave the device. Where the two disagree, the
+    // geocoded one wins the display and overwrites the claimed one in the
+    // context - it is derived from a measurement, not from routing.
+    //
+    // Best effort like everything else here: a geocoder that says no leaves the
+    // IP's claim standing, clearly worded as a claim.
+    let place = null
+
+    if (position != null) {
+      try {
+        place = await lookUpPlace(position)
+        logbook.setContext({
+          ...logbook.context,
+          city: place.city ?? logbook.context.city,
+          region: place.region ?? logbook.context.region,
+          country: place.country ?? logbook.context.country
+        })
+      } catch {
+        place = null
+      }
+    }
+
+    state.textContent = place != null
+      ? t('logbook.locatedGeo', {
+          where: [place.city, place.region, place.country].filter(Boolean).join(', ') || '?'
+        })
+      : t('logbook.located', {
+          where: [network.city, network.country].filter(Boolean).join(', ') || '?',
+          precise: position == null ? t('logbook.noPosition') : t('logbook.withPosition')
+        })
 
     // "Position added" says a measurement happened and not what it found, which
     // is the one part of this panel somebody cannot check. So the numbers go on
@@ -1236,8 +1271,14 @@ const recordedAttempts = new Map()
  * So: browser, engine and system, which is nothing a user agent does not already
  * carry. The network provider, because two peers on the same two browsers behave
  * differently on cable and behind carrier-grade NAT, and neither end can see the
- * other's side of that without being told. Country and region, at the export's
- * granularity.
+ * other's side of that without being told. And the country, which is the one
+ * thing an IP answers reliably.
+ *
+ * **Not the region**, which used to travel here and has been withdrawn. IP
+ * geolocation places a customer at their provider's egress: this was measured on
+ * a cable connection reported as Berlin while the device's own position was in
+ * Bavaria. A wrong region is not made acceptable by being coarser than a wrong
+ * city, and a peer receiving it has no way to know it is wrong.
  *
  * Not the city, not the coordinates, not the address. And not the *place*, which
  * sits in the same panel and is typed by the same person: "home office wifi" is a
@@ -1246,7 +1287,7 @@ const recordedAttempts = new Map()
 function greet (peerId) {
   if (!logbook.enabled) return
 
-  const { provider, country, region } = logbook.context
+  const { provider, country } = logbook.context
 
   sendTo(peerId, {
     kind: 'hello',
@@ -1254,8 +1295,7 @@ function greet (peerId) {
     // Omitted rather than sent empty, so a peer who never filled a field is
     // distinguishable from one who typed nothing into it.
     ...(provider ? { provider } : {}),
-    ...(country ? { country } : {}),
-    ...(region ? { region } : {})
+    ...(country ? { country } : {})
   }).catch(() => {})
 }
 
@@ -1401,8 +1441,7 @@ async function handleMeshMessage (message, from) {
       reported: {
         ...message.agent,
         provider: message.provider ?? null,
-        country: message.country ?? null,
-        region: message.region ?? null
+        country: message.country ?? null
       }
     })
 

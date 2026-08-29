@@ -40,6 +40,60 @@
 export const DEFAULT_LOOKUP = 'https://api.ipquery.io/?format=json'
 
 /**
+ * Nominatim, which is OpenStreetMap's own geocoder.
+ *
+ * Chosen over the IP for the reason the IP was demoted: it answers from the
+ * position the device measured, not from a guess about the provider's routing.
+ * The same connection that ipquery placed in Frankfurt over IPv4 and Berlin over
+ * IPv6 geocodes to the town the device was actually in.
+ */
+export const DEFAULT_REVERSE = 'https://nominatim.openstreetmap.org/reverse'
+
+/**
+ * The place a position is in, from OpenStreetMap.
+ *
+ * **The coordinates are rounded to two decimals before they leave.** That is
+ * about a kilometre - enough for the right town, measured - and it is the
+ * difference between telling a service which building you are in and telling it
+ * which town. Nominatim's `zoom` parameter only limits what comes back; the
+ * rounding is what limits what was sent, so the rounding is the one that counts.
+ *
+ * One request per button press, which is far inside Nominatim's usage policy
+ * (one per second, attribution, no bulk). The browser identifies the page to
+ * the service through its ordinary Referer header.
+ *
+ * @param {object} options
+ * @param {number} options.latitude
+ * @param {number} options.longitude
+ * @param {string} [options.endpoint]
+ * @param {typeof globalThis.fetch} [options.fetch]
+ * @param {number} [options.timeout]
+ * @returns {Promise<{ city: string | null, region: string | null, country: string | null }>}
+ */
+export async function lookUpPlace ({ latitude, longitude, endpoint = DEFAULT_REVERSE, fetch = globalThis.fetch, timeout = 8000 }) {
+  const lat = latitude.toFixed(2)
+  const lon = longitude.toFixed(2)
+  const response = await fetch(
+    `${endpoint}?lat=${lat}&lon=${lon}&format=jsonv2&zoom=10`,
+    { signal: AbortSignal.timeout(timeout) }
+  )
+
+  if (!response.ok) {
+    throw new Error(`The geocoder answered ${response.status}`)
+  }
+
+  const body = await response.json()
+  const address = body?.address ?? {}
+
+  return {
+    // Nominatim names the settlement by its kind; take the first that exists.
+    city: address.city ?? address.town ?? address.village ?? address.municipality ?? null,
+    region: address.state ?? null,
+    country: (address.country_code ?? '').toUpperCase() || null
+  }
+}
+
+/**
  * @param {object} [options]
  * @param {string} [options.endpoint]
  * @param {typeof globalThis.fetch} [options.fetch]

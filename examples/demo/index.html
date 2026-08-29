@@ -323,13 +323,14 @@
           -->
           <label class="option logbook-consent">
             <input id="logbook-lookup-consent" type="checkbox">
-            <span data-i18n="logbook.consent">Let an outside service see this device's IP address</span>
+            <span data-i18n="logbook.consent">Ask outside services, which learn something by being asked</span>
           </label>
           <p class="hint" data-i18n="logbook.consentHint">
-            The provider and the country cannot be worked out from here. Asking api.ipquery.io
-            means it learns the address the request came from - that is what makes an answer
-            possible, and there is no version without it. Leave this off and type the provider
-            yourself; the field is the same either way.
+            Two requests, two disclosures. api.ipquery.io learns this device's IP address -
+            that is what makes its answer possible. If a position is granted,
+            nominatim.openstreetmap.org is asked what place it is in, and learns the coordinates
+            rounded to about a kilometre - the town, not the building. Leave this off and type
+            the fields yourself; they are the same either way.
           </p>
 
           <div class="actions logbook-lookup">

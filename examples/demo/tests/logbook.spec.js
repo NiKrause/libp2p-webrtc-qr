@@ -477,13 +477,16 @@ test.describe('the logbook', () => {
 
     const exported = await page.evaluate(() => window.__libp2pQrTest.logbookExport())
 
-    // Country and region are what #27 asks for; the address is the thing this
-    // projection exists to withhold, and a city is fine on a laptop and too
-    // fine in a file that travels.
+    // The country survives, because it is the one thing an IP answers reliably.
     expect(exported).toContain('DE')
-    expect(exported).toContain('Bavaria')
     expect(exported, 'the export leaked the public IP').not.toContain('203.0.113.7')
     expect(exported, 'the export leaked the city').not.toContain('Munich')
+    // The region is dropped for a different reason than fineness: it is wrong.
+    // IP geolocation places a customer at their provider's egress, measured on a
+    // cable connection reported as Berlin from Bavaria. A dataset about where
+    // WebRTC works is worse than useless with a confidently wrong location in
+    // it, and a wrong value is not improved by being coarse.
+    expect(exported, 'the export carried an IP-derived region').not.toContain('Bavaria')
 
     const parsed = JSON.parse(exported)
     expect(parsed.redacted).toContain('public IP')
@@ -540,6 +543,96 @@ test.describe('the logbook', () => {
 
     await page.locator('#logbook-lookup-consent').uncheck()
     await expect(page.locator('#logbook-locate')).toBeDisabled()
+  })
+
+  /**
+   * The place from the position, and what leaves the device on the way.
+   *
+   * The IP lookup answered Frankfurt over IPv4 and Berlin over IPv6 for the
+   * same connection, so the place now comes from the measured position,
+   * geocoded by OpenStreetMap. What this spec pins down is the disclosure: the
+   * coordinates in the outbound URL are rounded to two decimals - the town,
+   * not the building - and the full-precision position never appears in any
+   * request.
+   */
+  test('geocodes the position it measured, sending the town and not the building', async ({ browser, baseURL }) => {
+    const context = await browser.newContext({
+      baseURL,
+      permissions: ['geolocation'],
+      geolocation: { latitude: 48.4116789, longitude: 12.7602888, accuracy: 10 }
+    })
+    const page = await context.newPage()
+
+    try {
+      await open(page)
+      const ipHits = await answerWith(page, {
+        ip: '203.0.113.7',
+        isp: { isp: 'Example Telecom' },
+        location: { country_code: 'DE', state: 'Berlin', city: 'Berlin' }
+      })
+
+      const geocoded = []
+      await page.route(url => url.hostname === 'nominatim.openstreetmap.org', route => {
+        geocoded.push(route.request().url())
+
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            address: { town: 'Eggenfelden', state: 'Bayern', country_code: 'de' }
+          })
+        })
+      })
+
+      await page.locator('#logbook-lookup-consent').check()
+      await page.locator('#logbook-locate').click()
+      await usedStub(page, ipHits)
+
+      // The status line carries the geocoded answer, not the IP's claim - and
+      // without the word "claims", because this one is the device's own.
+      await expect(page.locator('#logbook-locate-state')).toContainText('Eggenfelden, Bayern, DE')
+      await expect(page.locator('#logbook-locate-state')).not.toContainText(/claims/i)
+
+      expect(geocoded.length).toBeGreaterThan(0)
+      // Rounded before sending. The assertion is on the URL that actually left,
+      // which is the only place the promise can be kept or broken.
+      expect(geocoded[0]).toContain('lat=48.41')
+      expect(geocoded[0]).toContain('lon=12.76')
+      expect(geocoded[0], 'the full-precision position left the device').not.toContain('48.4116')
+      expect(geocoded[0], 'the full-precision position left the device').not.toContain('12.7602')
+    } finally {
+      await context.close()
+    }
+  })
+
+  test('a geocoder that says no leaves the IP\'s answer standing, worded as a claim', async ({ browser, baseURL }) => {
+    const context = await browser.newContext({
+      baseURL,
+      permissions: ['geolocation'],
+      geolocation: { latitude: 48.4116789, longitude: 12.7602888, accuracy: 10 }
+    })
+    const page = await context.newPage()
+
+    try {
+      await open(page)
+      const ipHits = await answerWith(page, {
+        ip: '203.0.113.7',
+        isp: { isp: 'Example Telecom' },
+        location: { country_code: 'DE', state: 'Berlin', city: 'Berlin' }
+      })
+
+      await page.route(url => url.hostname === 'nominatim.openstreetmap.org', route => route.fulfill({ status: 429, body: 'no' }))
+
+      await page.locator('#logbook-lookup-consent').check()
+      await page.locator('#logbook-locate').click()
+      await usedStub(page, ipHits)
+
+      // Best effort: the claim stays, and stays labelled as one.
+      await expect(page.locator('#logbook-locate-state')).toContainText(/claims/i)
+      await expect(page.locator('#logbook-provider')).toHaveValue('Example Telecom')
+    } finally {
+      await context.close()
+    }
   })
 
   /**
@@ -646,7 +739,6 @@ test.describe('the logbook', () => {
       const [entry] = await entries(alice)
 
       expect(entry.reported.country).toBe('DE')
-      expect(entry.reported.region).toBe('Bavaria')
 
       // The two the projection withholds. Asserted against the whole entry
       // rather than the named fields, so a payload that grows a city under some
@@ -654,6 +746,7 @@ test.describe('the logbook', () => {
       const written = JSON.stringify(entry)
 
       expect(written, 'the greeting leaked the far end\'s city').not.toContain('Munich')
+      expect(written, 'the greeting carried an IP-derived region').not.toContain('Bavaria')
       expect(written, 'the greeting leaked the far end\'s public IP').not.toContain('203.0.113.7')
     } finally {
       await alice.close()

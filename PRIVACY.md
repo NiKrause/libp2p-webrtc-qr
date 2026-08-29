@@ -44,9 +44,10 @@ needs an address, and the address has to travel.
 | **The web server** serving this page | your IP, as any web server does | every visit |
 | **STUN servers** — Cloudflare and Google | your IP, from the packet | on every readiness check and every connection attempt |
 | **api.ipquery.io** | your IP | **only** when you tick the disclosure box and press *Work out where I am* |
+| **nominatim.openstreetmap.org** | your position, rounded to about a kilometre before it leaves | only with the same tick, and only if you also granted a position |
 | **Your browser's location provider** | whatever it uses to place you | only if you grant the position permission |
 | **openstreetmap.org** | the coordinates, in the URL | only if you follow the map link |
-| **The peer you connect to** | your IP, unavoidably; plus browser, system, provider, country and region if your logbook is on | on connection |
+| **The peer you connect to** | your IP, unavoidably; plus browser, system, provider and country if your logbook is on | on connection |
 
 **No relay and no signalling server.** This is the claim the project exists to
 make and it is literally true: no request goes to either, and the network panel
@@ -58,10 +59,19 @@ a reflexive candidate is discovered at all. It is stated in the intro dialog for
 the same reason it is stated here: an honesty half-sentence buys more credibility
 than it costs, and a technical reader finds it in seconds anyway.
 
-**The lookup is the only optional third party**, and since it discloses an
-address rather than merely observing one, it needs a tick as well as a press. The
-box says what the request costs, because a button labelled *work out where I am*
-says what it will find and not what it gives away.
+**The lookup services are the only optional third parties**, and since asking
+them discloses something rather than merely observing it, they need a tick as
+well as a press. The box names both disclosures, because a button labelled *work
+out where I am* says what it will find and not what it gives away.
+
+**The place on screen comes from your position, not from your IP.** The IP's
+location claim proved wrong by hundreds of kilometres — the same connection was
+placed in Frankfurt over IPv4 and Berlin over IPv6 — so where a position exists,
+the place is geocoded from it by OpenStreetMap instead. The coordinates are
+**rounded to two decimals before they leave**: about a kilometre, the town and
+not the building. Nominatim's answer granularity is a parameter, but only the
+rounding limits what was *sent*, so the rounding is the promise — and a test
+asserts it against the URL that actually leaves.
 
 ---
 
@@ -112,14 +122,14 @@ measurements because they closed the tap would be its own surprise. *Clear the
 log* is the button that means that.
 
 **The export is a projection, not a copy.** Candidate addresses and ports, the
-public IP, the coordinates and the city are removed, and the file names what was
-removed so a recipient knows they are holding a projection. Country and region
-survive, because those are what a public dataset would ask for.
+public IP, the coordinates, the city and the region are removed, and the file
+names what was removed so a recipient knows they are holding a projection. The
+country survives, because it is the one thing an IP answers reliably.
 
 **What a peer is told follows the export's rule.** While the logbook is on, a
-peer you connect to receives browser, system, provider, country and region — the
-same set the export carries — and sends you the same. Your address, your city and
-the notes you typed never travel. One rule for both questions, because two rules
+peer you connect to receives browser, system, provider and country — the same set
+the export carries — and sends you the same. Your address, your city, your region
+and the notes you typed never travel. One rule for both questions, because two rules
 drift, and the drift is always discovered in the direction of having sent too
 much.
 
@@ -141,12 +151,22 @@ this device describe itself.
 
 ## Where the honest gaps are
 
-**The lookup can be confidently wrong.** It places you by IP, which is a guess
-about your provider's routing rather than a fact about you — a connection from
-Berlin has been seen reported as Berlin while the browser's own position was in
-Bavaria, several hundred kilometres away. That disagreement is now visible
-because the coordinates are printed beside the city, and it is worth knowing
-before either number is used for anything.
+**The lookup's location is wrong often enough that it no longer travels.**
+An IP places a customer at their provider's egress, not at themselves: measured
+on a cable connection, the service reported **Berlin** while the device's own
+position was in **Bavaria**, some four hundred kilometres away. The provider name
+was right — that is what an IP answers reliably.
+
+So the city and the region are kept locally, where they are a record of what the
+service claimed and are worth having beside the position that contradicts them,
+and they are dropped by **both** the export and the greeting a peer receives.
+Only the country travels. A dataset about where WebRTC works is worse than
+useless with a confidently wrong location in it, and a wrong value is not made
+acceptable by being coarser.
+
+The status line says *the lookup claims* rather than naming a place outright, and
+the coordinates sit underneath it — which is how the disagreement was noticed at
+all.
 
 **The coordinates are the sharpest thing on the screen.** They are shown after
 you press the button and are gone after a reload, and the export drops them. But
