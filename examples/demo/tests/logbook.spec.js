@@ -477,13 +477,16 @@ test.describe('the logbook', () => {
 
     const exported = await page.evaluate(() => window.__libp2pQrTest.logbookExport())
 
-    // Country and region are what #27 asks for; the address is the thing this
-    // projection exists to withhold, and a city is fine on a laptop and too
-    // fine in a file that travels.
+    // The country survives, because it is the one thing an IP answers reliably.
     expect(exported).toContain('DE')
-    expect(exported).toContain('Bavaria')
     expect(exported, 'the export leaked the public IP').not.toContain('203.0.113.7')
     expect(exported, 'the export leaked the city').not.toContain('Munich')
+    // The region is dropped for a different reason than fineness: it is wrong.
+    // IP geolocation places a customer at their provider's egress, measured on a
+    // cable connection reported as Berlin from Bavaria. A dataset about where
+    // WebRTC works is worse than useless with a confidently wrong location in
+    // it, and a wrong value is not improved by being coarse.
+    expect(exported, 'the export carried an IP-derived region').not.toContain('Bavaria')
 
     const parsed = JSON.parse(exported)
     expect(parsed.redacted).toContain('public IP')
@@ -646,7 +649,6 @@ test.describe('the logbook', () => {
       const [entry] = await entries(alice)
 
       expect(entry.reported.country).toBe('DE')
-      expect(entry.reported.region).toBe('Bavaria')
 
       // The two the projection withholds. Asserted against the whole entry
       // rather than the named fields, so a payload that grows a city under some
@@ -654,6 +656,7 @@ test.describe('the logbook', () => {
       const written = JSON.stringify(entry)
 
       expect(written, 'the greeting leaked the far end\'s city').not.toContain('Munich')
+      expect(written, 'the greeting carried an IP-derived region').not.toContain('Bavaria')
       expect(written, 'the greeting leaked the far end\'s public IP').not.toContain('203.0.113.7')
     } finally {
       await alice.close()
