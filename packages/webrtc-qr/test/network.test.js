@@ -245,3 +245,25 @@ test('every default STUN entry is a STUN endpoint, not a resolver that happens t
 
   assert.equal(literals.length, byName.length)
 })
+
+test('an untested IPv6 beside a blocked IPv4 warns, but does not claim a failure', () => {
+  // `unproven` was given rank 2 so it would never be treated as blocked, and
+  // the summary then tested for the literal word `symmetric` and sent it to the
+  // red verdict anyway. An address was being offered that might well reach a
+  // peer, and the panel said the network could reach nobody.
+  const overall = summariseNetwork({ state: 'blocked', text: '' }, { state: 'unproven', text: '' })
+
+  assert.equal(overall.state, 'unproven')
+  assert.equal(offNetworkBlocked({ overall }), false)
+  // Quieter than red and louder than silence: an address exists, and nothing
+  // was shown to reach it.
+  assert.equal(offNetworkRisk({ overall }), 'unreliable')
+  assert.match(overall.text, /was not demonstrated/)
+})
+
+test('a usable IPv4 is unaffected by an untested IPv6', () => {
+  const overall = summariseNetwork({ state: 'open', text: '' }, { state: 'unproven', text: '' })
+
+  assert.equal(overall.state, 'open')
+  assert.equal(offNetworkRisk({ overall }), null)
+})

@@ -80,10 +80,17 @@ export function summariseNetwork (ipv4, ipv6) {
     }
   }
 
-  if (best.state === 'symmetric') {
+  // Rank, not the literal state. `unproven` was given rank 2 so it would never
+  // be treated as blocked, and this branch then tested for the word `symmetric`
+  // and sent it to the red one anyway - so an untested IPv6 beside a blocked
+  // IPv4 produced "this network cannot reach a peer elsewhere" while an address
+  // was being offered that might well reach one.
+  if (NETWORK_RANK[best.state] === 2) {
     return {
-      state: 'symmetric',
-      text: 'Peers on this same network are fine. Reaching anyone else needs IPv6 on both sides, or a relay.'
+      state: best.state,
+      text: best.state === 'unproven'
+        ? 'Peers on this same network are fine. Off it, the only candidate is an IPv6 address nothing was shown to reach - it may work and it was not demonstrated, so treat a failure elsewhere as expected rather than surprising.'
+        : 'Peers on this same network are fine. Reaching anyone else needs IPv6 on both sides, or a relay.'
     }
   }
 
@@ -136,7 +143,10 @@ export function offNetworkRisk (result) {
   const state = result?.overall?.state
 
   if (state === 'blocked') return 'blocked'
-  if (state === 'symmetric') return 'unreliable'
+  // `unproven` warns at the quieter level for the same reason it exists: an
+  // address is being offered, so silence would be wrong, and red would claim a
+  // failure nobody observed.
+  if (state === 'symmetric' || state === 'unproven') return 'unreliable'
 
   return null
 }
