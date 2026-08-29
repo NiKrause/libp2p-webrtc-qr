@@ -224,13 +224,7 @@
           <div class="actions">
             <button id="create-offer" class="primary" data-i18n="step.connect.invite" disabled>Create invite link</button>
             <button id="scan-offer" data-i18n="step.connect.scan" disabled>Scan their code</button>
-            <!-- Chrome on Android only, and only shown there: unhidden by JS
-                 where NDEFReader exists. A tag is the invite link delivered by
-                 touch, so what it reads goes down the exact path a scanned code
-                 does - see nfc.js for what a tag is allowed to mean. -->
-            <button id="read-tag" data-i18n="step.connect.tag" disabled hidden>Read a tag</button>
           </div>
-          <p id="tag-state" class="hint" role="status" aria-live="polite" hidden></p>
 
           <!-- Off by default while issue #6 is open: a connection built from a
                reconstructed SDP goes silent under load often enough that a
