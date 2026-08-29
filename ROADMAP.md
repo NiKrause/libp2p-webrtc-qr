@@ -814,6 +814,8 @@ argument for keeping it in the demo, small, and clearly marked.
 
 ## 18. A tap instead of a scan
 
+**Tracked in [#152](https://github.com/NiKrause/libp2p-webrtc-qr/issues/152).**
+
 Web NFC was proposed as a fourth carrier for the SDP, beside the code, the link
 and the sound. **It cannot be that**, and the reason has to come before anything
 else here: Web NFC has no peer-to-peer mode and no card emulation. Android's own
