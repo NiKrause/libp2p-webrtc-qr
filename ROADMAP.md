@@ -812,6 +812,42 @@ argument for keeping it in the demo, small, and clearly marked.
 
 ---
 
+## 18. A courier over LoRa: signalling through a Meshtastic mesh
+
+**Tracked in [#161](https://github.com/NiKrause/libp2p-webrtc-qr/issues/161).**
+
+The same shape as item 17, on the ground instead of in the mixnet: offer and
+answer are small, signed, self-verifying payloads, and a LoRa mesh is a slow,
+discrete-message channel that carries a couple of hundred bytes for kilometres
+through walls. The browser reaches a Meshtastic node over Web Bluetooth - one
+node per device, because a node serves a single BLE client - and the two nodes
+carry the handshake: `phone ↔ BLE ↔ own node ↔ LoRa ↔ peer node ↔ BLE ↔ tablet`.
+
+What it earns that no other carrier here has: the **return leg without a camera,
+a messenger or a speaker**, working across floors; and an **unattended
+endpoint** - a counter tablet that stays connected to its node can answer with
+nobody standing there.
+
+What it does not do, said louder than anywhere else because this carrier invites
+the misreading: **LoRa carries the handshake, not the connection.** WebRTC still
+needs an IP path between the peers - same Wi-Fi, or both online. Two peers
+linked only by mesh verify signatures perfectly and never connect.
+
+Three constraints checked before designing (the #152 lesson): Web Bluetooth
+cannot scan silently - the first pairing is a gesture and a browser chooser, and
+only *re*connection can be automatic, via `getDevices()`; one BLE client per
+node, so a visitor brings their own; and the compact format is a hard dependency
+- ~284 bytes is two LoRa packets where the full payload is five or six, under a
+10 % duty cycle. Behind [#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83),
+like the mixnet, and for the same arithmetic.
+
+The build order in the issue starts with a **shared courier seam** that item 17
+would use too - the audio channel's payload-id framing, extracted to be
+carrier-neutral - so the mixnet and the mesh become two connectors on one path
+rather than two features.
+
+---
+
 ## Not planned
 
 - **NFC.** Considered, built as far as reading a tag, and withdrawn (#152,
