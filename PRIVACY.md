@@ -44,6 +44,7 @@ needs an address, and the address has to travel.
 | **The web server** serving this page | your IP, as any web server does | every visit |
 | **STUN servers** — Cloudflare and Google | your IP, from the packet | on every readiness check and every connection attempt |
 | **api.ipquery.io** | your IP | **only** when you tick the disclosure box and press *Work out where I am* |
+| **nominatim.openstreetmap.org** | your position, rounded to about a kilometre before it leaves | only with the same tick, and only if you also granted a position |
 | **Your browser's location provider** | whatever it uses to place you | only if you grant the position permission |
 | **openstreetmap.org** | the coordinates, in the URL | only if you follow the map link |
 | **The peer you connect to** | your IP, unavoidably; plus browser, system, provider and country if your logbook is on | on connection |
@@ -58,10 +59,19 @@ a reflexive candidate is discovered at all. It is stated in the intro dialog for
 the same reason it is stated here: an honesty half-sentence buys more credibility
 than it costs, and a technical reader finds it in seconds anyway.
 
-**The lookup is the only optional third party**, and since it discloses an
-address rather than merely observing one, it needs a tick as well as a press. The
-box says what the request costs, because a button labelled *work out where I am*
-says what it will find and not what it gives away.
+**The lookup services are the only optional third parties**, and since asking
+them discloses something rather than merely observing it, they need a tick as
+well as a press. The box names both disclosures, because a button labelled *work
+out where I am* says what it will find and not what it gives away.
+
+**The place on screen comes from your position, not from your IP.** The IP's
+location claim proved wrong by hundreds of kilometres — the same connection was
+placed in Frankfurt over IPv4 and Berlin over IPv6 — so where a position exists,
+the place is geocoded from it by OpenStreetMap instead. The coordinates are
+**rounded to two decimals before they leave**: about a kilometre, the town and
+not the building. Nominatim's answer granularity is a parameter, but only the
+rounding limits what was *sent*, so the rounding is the promise — and a test
+asserts it against the URL that actually leaves.
 
 ---
 

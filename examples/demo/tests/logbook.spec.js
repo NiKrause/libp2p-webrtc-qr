@@ -546,6 +546,96 @@ test.describe('the logbook', () => {
   })
 
   /**
+   * The place from the position, and what leaves the device on the way.
+   *
+   * The IP lookup answered Frankfurt over IPv4 and Berlin over IPv6 for the
+   * same connection, so the place now comes from the measured position,
+   * geocoded by OpenStreetMap. What this spec pins down is the disclosure: the
+   * coordinates in the outbound URL are rounded to two decimals - the town,
+   * not the building - and the full-precision position never appears in any
+   * request.
+   */
+  test('geocodes the position it measured, sending the town and not the building', async ({ browser, baseURL }) => {
+    const context = await browser.newContext({
+      baseURL,
+      permissions: ['geolocation'],
+      geolocation: { latitude: 48.4116789, longitude: 12.7602888, accuracy: 10 }
+    })
+    const page = await context.newPage()
+
+    try {
+      await open(page)
+      const ipHits = await answerWith(page, {
+        ip: '203.0.113.7',
+        isp: { isp: 'Example Telecom' },
+        location: { country_code: 'DE', state: 'Berlin', city: 'Berlin' }
+      })
+
+      const geocoded = []
+      await page.route(url => url.hostname === 'nominatim.openstreetmap.org', route => {
+        geocoded.push(route.request().url())
+
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            address: { town: 'Eggenfelden', state: 'Bayern', country_code: 'de' }
+          })
+        })
+      })
+
+      await page.locator('#logbook-lookup-consent').check()
+      await page.locator('#logbook-locate').click()
+      await usedStub(page, ipHits)
+
+      // The status line carries the geocoded answer, not the IP's claim - and
+      // without the word "claims", because this one is the device's own.
+      await expect(page.locator('#logbook-locate-state')).toContainText('Eggenfelden, Bayern, DE')
+      await expect(page.locator('#logbook-locate-state')).not.toContainText(/claims/i)
+
+      expect(geocoded.length).toBeGreaterThan(0)
+      // Rounded before sending. The assertion is on the URL that actually left,
+      // which is the only place the promise can be kept or broken.
+      expect(geocoded[0]).toContain('lat=48.41')
+      expect(geocoded[0]).toContain('lon=12.76')
+      expect(geocoded[0], 'the full-precision position left the device').not.toContain('48.4116')
+      expect(geocoded[0], 'the full-precision position left the device').not.toContain('12.7602')
+    } finally {
+      await context.close()
+    }
+  })
+
+  test('a geocoder that says no leaves the IP\'s answer standing, worded as a claim', async ({ browser, baseURL }) => {
+    const context = await browser.newContext({
+      baseURL,
+      permissions: ['geolocation'],
+      geolocation: { latitude: 48.4116789, longitude: 12.7602888, accuracy: 10 }
+    })
+    const page = await context.newPage()
+
+    try {
+      await open(page)
+      const ipHits = await answerWith(page, {
+        ip: '203.0.113.7',
+        isp: { isp: 'Example Telecom' },
+        location: { country_code: 'DE', state: 'Berlin', city: 'Berlin' }
+      })
+
+      await page.route(url => url.hostname === 'nominatim.openstreetmap.org', route => route.fulfill({ status: 429, body: 'no' }))
+
+      await page.locator('#logbook-lookup-consent').check()
+      await page.locator('#logbook-locate').click()
+      await usedStub(page, ipHits)
+
+      // Best effort: the claim stays, and stays labelled as one.
+      await expect(page.locator('#logbook-locate-state')).toContainText(/claims/i)
+      await expect(page.locator('#logbook-provider')).toHaveValue('Example Telecom')
+    } finally {
+      await context.close()
+    }
+  })
+
+  /**
    * "Position added" says a measurement happened, not what it found.
    *
    * That is the one line in this panel a person cannot check, and checking it is

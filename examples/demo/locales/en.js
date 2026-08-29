@@ -69,6 +69,9 @@ export default {
     // correction: what follows is a claim by a service, and the coordinates
     // underneath are the measurement to check it against.
     located: ({ where, precise }) => `the lookup claims ${where} — ${precise}`,
+    // No "claims": this one is geocoded from the measured position, so it is
+    // this device's own answer rather than a service's guess about routing.
+    locatedGeo: ({ where }) => `${where} — from this device's own position`,
     withPosition: 'position added',
     coords: ({ lat, lon, accuracy }) =>
       accuracy === '' ? `${lat}, ${lon} — on the map ↗` : `${lat}, ${lon} ±${accuracy} m — on the map ↗`,
@@ -78,8 +81,8 @@ export default {
     providerHint: 'Telekom, Vodafone, the hotel…',
     place: 'Where you are',
     placeHint: 'home wifi, office, hotel lobby…',
-    consent: 'Let an outside service see this device\'s IP address',
-    consentHint: 'The provider and the country cannot be worked out from here. Asking api.ipquery.io means it learns the address the request came from - that is what makes an answer possible, and there is no version without it. Leave this off and type the provider yourself; the field is the same either way.',
+    consent: 'Ask outside services, which learn something by being asked',
+    consentHint: 'Two requests, two disclosures. api.ipquery.io learns this device\'s IP address - that is what makes its answer possible. If a position is granted, nominatim.openstreetmap.org is asked what place it is in, and learns the coordinates rounded to about a kilometre - the town, not the building. Leave this off and type the fields yourself; they are the same either way.',
     peer: 'The other device',
     peerHint: 'Vanadium on GrapheneOS, iPhone 12 Safari…',
     peerRow: ({ peer }) => `other end: ${peer}`,

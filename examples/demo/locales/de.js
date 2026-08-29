@@ -54,6 +54,7 @@ export default {
     locate: 'Ermitteln, wo ich bin',
     locating: 'Frage nach…',
     located: ({ where, precise }) => `Die Abfrage behauptet ${where} — ${precise}`,
+    locatedGeo: ({ where }) => `${where} — aus der eigenen Position dieses Geräts`,
     withPosition: 'Position ergänzt',
     coords: ({ lat, lon, accuracy }) =>
       accuracy === '' ? `${lat}, ${lon} — auf der Karte ↗` : `${lat}, ${lon} ±${accuracy} m — auf der Karte ↗`,
@@ -63,8 +64,8 @@ export default {
     providerHint: 'Telekom, Vodafone, das Hotel…',
     place: 'Wo Sie sind',
     placeHint: 'WLAN zu Hause, Büro, Hotellobby…',
-    consent: 'Einem fremden Dienst die IP-Adresse dieses Geräts zeigen',
-    consentHint: 'Netzanbieter und Land lassen sich von hier aus nicht ermitteln. api.ipquery.io zu fragen heißt, dass dieser Dienst die Adresse erfährt, von der die Anfrage kam — genau das macht eine Antwort erst möglich, und ohne geht es nicht. Lassen Sie dies aus und tippen Sie den Anbieter selbst; das Feld ist dasselbe.',
+    consent: 'Fremde Dienste fragen, die durch die Frage etwas erfahren',
+    consentHint: 'Zwei Anfragen, zwei Preisgaben. api.ipquery.io erfährt die IP-Adresse dieses Geräts — genau das macht seine Antwort erst möglich. Liegt eine Position vor, wird nominatim.openstreetmap.org gefragt, welcher Ort das ist, und erfährt die auf etwa einen Kilometer gerundeten Koordinaten — den Ort, nicht das Haus. Lassen Sie dies aus und tippen Sie die Felder selbst; sie sind dieselben.',
     peer: 'Das andere Gerät',
     peerHint: 'Vanadium auf GrapheneOS, iPhone 12 Safari…',
     peerRow: ({ peer }) => `Gegenstelle: ${peer}`,

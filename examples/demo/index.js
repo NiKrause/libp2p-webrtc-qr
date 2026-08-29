@@ -21,7 +21,7 @@ import { createIntroPolicy } from '@le-space/libp2p-webrtc-qr/elements'
 import { applyBrowserTheme } from './browser-theme.js'
 import { elementStrings, initialLocale, locale, setLocale, t, translateDocument } from './i18n.js'
 import { createLogbook, describeAgent } from './logbook.js'
-import { lookUpNetwork, lookUpPosition } from './whereabouts.js'
+import { lookUpNetwork, lookUpPlace, lookUpPosition } from './whereabouts.js'
 import { previewStore } from './previews.js'
 import { applyViewMode, isSimple } from './view-mode.js'
 import { forgetIdentity, launchedStandalone, loadOrCreateIdentity } from './identity.js'
@@ -560,10 +560,39 @@ locateButtonEl.addEventListener('click', async () => {
     const position = await lookUpPosition()
 
     logbook.setContext({ ...logbook.context, coords: position })
-    state.textContent = t('logbook.located', {
-      where: [network.city, network.country].filter(Boolean).join(', ') || '?',
-      precise: position == null ? t('logbook.noPosition') : t('logbook.withPosition')
-    })
+
+    // With a position in hand, the place comes from the position rather than
+    // from the IP: geocoded by OpenStreetMap from coordinates rounded to about
+    // a kilometre before they leave the device. Where the two disagree, the
+    // geocoded one wins the display and overwrites the claimed one in the
+    // context - it is derived from a measurement, not from routing.
+    //
+    // Best effort like everything else here: a geocoder that says no leaves the
+    // IP's claim standing, clearly worded as a claim.
+    let place = null
+
+    if (position != null) {
+      try {
+        place = await lookUpPlace(position)
+        logbook.setContext({
+          ...logbook.context,
+          city: place.city ?? logbook.context.city,
+          region: place.region ?? logbook.context.region,
+          country: place.country ?? logbook.context.country
+        })
+      } catch {
+        place = null
+      }
+    }
+
+    state.textContent = place != null
+      ? t('logbook.locatedGeo', {
+          where: [place.city, place.region, place.country].filter(Boolean).join(', ') || '?'
+        })
+      : t('logbook.located', {
+          where: [network.city, network.country].filter(Boolean).join(', ') || '?',
+          precise: position == null ? t('logbook.noPosition') : t('logbook.withPosition')
+        })
 
     // "Position added" says a measurement happened and not what it found, which
     // is the one part of this panel somebody cannot check. So the numbers go on
