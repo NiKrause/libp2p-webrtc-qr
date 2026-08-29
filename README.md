@@ -42,7 +42,7 @@ server**. The WebRTC offer and answer are exchanged out-of-band as signed,
 compressed QR codes that the two phones scan off each other's screens - once in each
 direction, because there is no server to carry the answer back.
 
-**Live demo: <https://webrtc-qr.le-space.de>** · **[Documentation](https://nikrause.github.io/libp2p-webrtc-qr/)** · **[Roadmap](ROADMAP.md)** · **[Notes for agents](AGENTS.md)**
+**Live demo: <https://webrtc-qr.le-space.de>** · **[Documentation](https://nikrause.github.io/libp2p-webrtc-qr/)** · **[Roadmap](ROADMAP.md)** · **[Privacy](PRIVACY.md)** · **[Notes for agents](AGENTS.md)**
 
 | Package | Description |
 | --- | --- |

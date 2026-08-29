@@ -48,7 +48,7 @@ ausgetauscht: als signierte, komprimierte QR-Codes, die beide Telefone vom
 Bildschirm des jeweils anderen abscannen — einmal in jede Richtung, weil kein
 Server die Answer zurückträgt.
 
-**Live-Demo: <https://webrtc-qr.le-space.de>** · **[Dokumentation](https://nikrause.github.io/libp2p-webrtc-qr/de/)** · **[Roadmap](ROADMAP.md)** · **[Hinweise für KI-Agenten](AGENTS.md)**
+**Live-Demo: <https://webrtc-qr.le-space.de>** · **[Dokumentation](https://nikrause.github.io/libp2p-webrtc-qr/de/)** · **[Roadmap](ROADMAP.md)** · **[Datenschutz](PRIVACY.md)** · **[Hinweise für KI-Agenten](AGENTS.md)**
 
 | Paket | Beschreibung |
 | --- | --- |

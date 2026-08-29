@@ -73,6 +73,8 @@ export default {
     providerHint: 'Telekom, Vodafone, the hotel…',
     place: 'Where you are',
     placeHint: 'home wifi, office, hotel lobby…',
+    consent: 'Let an outside service see this device\'s IP address',
+    consentHint: 'The provider and the country cannot be worked out from here. Asking api.ipquery.io means it learns the address the request came from - that is what makes an answer possible, and there is no version without it. Leave this off and type the provider yourself; the field is the same either way.',
     peer: 'The other device',
     peerHint: 'Vanadium on GrapheneOS, iPhone 12 Safari…',
     peerRow: ({ peer }) => `other end: ${peer}`,

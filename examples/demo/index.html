@@ -314,8 +314,26 @@
             </div>
           </div>
 
+          <!--
+            The button was already a deliberate act, and that was not enough: it
+            says what it will find out and not what it costs. Determining a
+            provider means asking a service, and asking tells that service this
+            device's address by the act of asking. Consent to a disclosure has to
+            name the disclosure.
+          -->
+          <label class="option logbook-consent">
+            <input id="logbook-lookup-consent" type="checkbox">
+            <span data-i18n="logbook.consent">Let an outside service see this device's IP address</span>
+          </label>
+          <p class="hint" data-i18n="logbook.consentHint">
+            The provider and the country cannot be worked out from here. Asking api.ipquery.io
+            means it learns the address the request came from - that is what makes an answer
+            possible, and there is no version without it. Leave this off and type the provider
+            yourself; the field is the same either way.
+          </p>
+
           <div class="actions logbook-lookup">
-            <button id="logbook-locate" type="button" data-i18n="logbook.locate">Work out where I am</button>
+            <button id="logbook-locate" type="button" disabled data-i18n="logbook.locate">Work out where I am</button>
             <span id="logbook-locate-state" class="logbook-locate-state" role="status" aria-live="polite"></span>
           </div>
 

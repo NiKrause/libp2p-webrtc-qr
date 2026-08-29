@@ -63,6 +63,8 @@ export default {
     providerHint: 'Telekom, Vodafone, das Hotel…',
     place: 'Wo Sie sind',
     placeHint: 'WLAN zu Hause, Büro, Hotellobby…',
+    consent: 'Einem fremden Dienst die IP-Adresse dieses Geräts zeigen',
+    consentHint: 'Netzanbieter und Land lassen sich von hier aus nicht ermitteln. api.ipquery.io zu fragen heißt, dass dieser Dienst die Adresse erfährt, von der die Anfrage kam — genau das macht eine Antwort erst möglich, und ohne geht es nicht. Lassen Sie dies aus und tippen Sie den Anbieter selbst; das Feld ist dasselbe.',
     peer: 'Das andere Gerät',
     peerHint: 'Vanadium auf GrapheneOS, iPhone 12 Safari…',
     peerRow: ({ peer }) => `Gegenstelle: ${peer}`,
