@@ -493,6 +493,35 @@ test.describe('the logbook', () => {
   })
 
   /**
+   * The one location that is correct, free, and asks nobody.
+   *
+   * An IP lookup on this connection answered Frankfurt over IPv4 and Berlin over
+   * IPv6 - 423 km apart, neither of them right. The browser knew the time zone
+   * the whole time, without a request, a permission or a third party.
+   */
+  test('records the time zone the browser already knew', async ({ browser, baseURL }) => {
+    // Set on the context rather than read from the machine, so this asserts the
+    // value is carried rather than that CI happens to sit in one place.
+    const context = await browser.newContext({ baseURL, timezoneId: 'Europe/Berlin' })
+    const page = await context.newPage()
+
+    try {
+      await open(page)
+      await page.locator('.paste-fallback summary').click()
+      await page.locator('#payload-display').fill('https://example.org/#r=q3:nonsense')
+      await page.locator('#process-payload').click()
+      await expect.poll(() => entries(page).then(list => list.length), { timeout: 30000 }).toBe(1)
+
+      const [entry] = await entries(page)
+
+      expect(entry.timeZone).toBe('Europe/Berlin')
+      await expect(page.locator('.logbook-what')).toContainText('Europe/Berlin')
+    } finally {
+      await context.close()
+    }
+  })
+
+  /**
    * Asking costs something, and the button never said what.
    *
    * Determining a provider means asking a service, and asking tells that service
@@ -649,6 +678,9 @@ test.describe('the logbook', () => {
       const [entry] = await entries(alice)
 
       expect(entry.reported.country).toBe('DE')
+      // Correct, free, and from the far end's own browser rather than from a
+      // guess about its provider's routing.
+      expect(entry.reported.timeZone).toBeTruthy()
 
       // The two the projection withholds. Asserted against the whole entry
       // rather than the named fields, so a payload that grows a city under some

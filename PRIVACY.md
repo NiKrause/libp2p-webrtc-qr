@@ -46,7 +46,7 @@ needs an address, and the address has to travel.
 | **api.ipquery.io** | your IP | **only** when you tick the disclosure box and press *Work out where I am* |
 | **Your browser's location provider** | whatever it uses to place you | only if you grant the position permission |
 | **openstreetmap.org** | the coordinates, in the URL | only if you follow the map link |
-| **The peer you connect to** | your IP, unavoidably; plus browser, system, provider and country if your logbook is on | on connection |
+| **The peer you connect to** | your IP, unavoidably; plus browser, system, time zone, provider and country if your logbook is on | on connection |
 
 **No relay and no signalling server.** This is the claim the project exists to
 make and it is literally true: no request goes to either, and the network panel
@@ -117,8 +117,8 @@ names what was removed so a recipient knows they are holding a projection. The
 country survives, because it is the one thing an IP answers reliably.
 
 **What a peer is told follows the export's rule.** While the logbook is on, a
-peer you connect to receives browser, system, provider and country — the same set
-the export carries — and sends you the same. Your address, your city, your region
+peer you connect to receives browser, system, time zone, provider and country —
+the same set the export carries — and sends you the same. Your address, your city, your region
 and the notes you typed never travel. One rule for both questions, because two rules
 drift, and the drift is always discovered in the direction of having sent too
 much.
@@ -142,10 +142,14 @@ this device describe itself.
 ## Where the honest gaps are
 
 **The lookup's location is wrong often enough that it no longer travels.**
-An IP places a customer at their provider's egress, not at themselves: measured
-on a cable connection, the service reported **Berlin** while the device's own
-position was in **Bavaria**, some four hundred kilometres away. The provider name
-was right — that is what an IP answers reliably.
+An IP places a customer at their provider's egress, not at themselves. Measured
+from one machine, in one moment, against the same service: asked over IPv4 it
+answered **Frankfurt am Main**, asked over IPv6 it answered **Berlin** — 423 km
+apart, and the device was in **Bavaria**, 350 and 454 km from those two. The
+provider was identical and correct both times.
+
+Which family a `fetch` uses is not something a page chooses or can even observe,
+so that field is not merely inaccurate — it is not reproducible.
 
 So the city and the region are kept locally, where they are a record of what the
 service claimed and are worth having beside the position that contradicts them,
@@ -157,6 +161,15 @@ acceptable by being coarser.
 The status line says *the lookup claims* rather than naming a place outright, and
 the coordinates sit underneath it — which is how the disagreement was noticed at
 all.
+
+**Reverse geocoding was considered and rejected.** Turning correct coordinates
+into a correct place name means handing those coordinates to a service, and a
+precise position is a far larger disclosure than an IP. The **time zone** is used
+instead: the browser already knows it, no request is made, no permission is
+asked, every website has it anyway, and it is coarse by nature — which is what a
+location field in a shared dataset should be. It is also the free half of a VPN
+check, since a time zone that disagrees with the country an IP claims means the
+connection leaves somewhere the device is not.
 
 **The coordinates are the sharpest thing on the screen.** They are shown after
 you press the button and are gone after a reload, and the export drops them. But
