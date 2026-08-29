@@ -5,37 +5,30 @@
 > ### ⚠️ Experimental
 >
 > This works, and it is not finished. Use it where a failed connection is an
-> inconvenience rather than a loss.
+> inconvenience rather than a loss. The security property holds - a signature
+> binds the DTLS fingerprint to the Peer ID, traced end to end in a review - but
+> the API still moves, and most failures live in the environment rather than in
+> this code.
 >
-> **What is solid.** The security property is: a signature binds the DTLS
-> fingerprint to a Peer ID, which is the only reason the usual encryption
-> handshake can be skipped. That chain was traced end to end in a review and
-> holds at every point where it could have been skipped.
+> <details>
+> <summary><strong>What browsers and networks do not provide</strong></summary>
 >
-> **What cannot be promised, and not by us.** Exchanging an SDP as a QR code
-> removes the signalling server. It does not remove everything else a direct
-> connection needs, and browsers and networks frequently do not provide it:
+> Exchanging an SDP as a QR code removes the signalling server. It does not
+> remove everything else a direct connection needs:
 >
-> - a **NAT that allows hole punching**. Symmetric and carrier-grade NAT do not,
->   and with no relay in the design there is nowhere else to go
-> - a **network that lets two clients address each other**. Conference, hotel and
->   café Wi-Fi routinely forbid exactly that, and the QR half visibly worked
-> - a **secure origin**, without which there is no camera and no microphone - a
->   LAN address over plain http has none, which is how two devices get tested
-> - a **page that survives being left**, because sending the invite means
->   switching to a messenger and phones suspend what is not in front
+> - a **NAT that allows hole punching** - symmetric and carrier-grade NAT do
+>   not, and with no relay in the design there is nowhere else to go
+> - a **network that lets two clients address each other** - conference, hotel
+>   and café Wi-Fi routinely forbid exactly that
+> - a **secure origin**, without which there is no camera and no microphone
+> - a **page that survives being left** - sending the invite means switching to
+>   a messenger, and phones suspend what is not in front
 >
 > Where any of those is missing, the handshake still verifies and the connection
-> still never forms. That failure is in the environment rather than in this
-> code, and no amount of work here removes it.
+> still never forms. Bug reports from real devices are the most useful thing
+> anybody can send - most of this list was found that way rather than by a test.
 >
-> **What is ours, and known.** Compact payloads are **off by default** because a connection built from a reconstructed SDP goes
-> silent under load - four runs in eight
-> ([#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83)). And the API
-> still moves: the acoustic frame format changed between `0.11.0` and `0.12.0`.
->
-> Bug reports from real devices are the most useful thing anybody can send. Most
-> of what is listed above was found that way rather than by a test.
+> </details>
 
 Two browsers connect directly as libp2p peers with **no relay and no signaling
 server**. The WebRTC offer and answer are exchanged out-of-band as signed,
