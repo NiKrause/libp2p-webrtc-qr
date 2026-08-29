@@ -22,6 +22,7 @@ import { applyBrowserTheme } from './browser-theme.js'
 import { elementStrings, initialLocale, locale, setLocale, t, translateDocument } from './i18n.js'
 import { createLogbook, describeAgent } from './logbook.js'
 import { lookUpNetwork, lookUpPlace, lookUpPosition } from './whereabouts.js'
+import { startTagReader, supportsWebNfc } from './nfc.js'
 import { previewStore } from './previews.js'
 import { applyViewMode, isSimple } from './view-mode.js'
 import { forgetIdentity, launchedStandalone, loadOrCreateIdentity } from './identity.js'
@@ -178,6 +179,8 @@ const payloadDisplay = document.getElementById('payload-display')
 const startButton = document.getElementById('start-client')
 const createOfferButton = document.getElementById('create-offer')
 const scanOfferButton = document.getElementById('scan-offer')
+const readTagButton = document.getElementById('read-tag')
+const tagStateEl = document.getElementById('tag-state')
 const scanAnswerButton = document.getElementById('scan-answer')
 const processPayloadButton = document.getElementById('process-payload')
 const copyPayloadButton = document.getElementById('copy-payload')
@@ -2526,6 +2529,7 @@ function updateControls () {
   // started a peer for them is exactly the one that view hides. `beginScan`
   // starts one.
   scanOfferButton.disabled = !started && !isSimple()
+  readTagButton.disabled = !started && !isSimple()
   scanAnswerButton.disabled = !started || session.offers.size === 0
   // The same shape as `create-offer` above, and for the same reason: in the
   // simple view step 1 is not on screen, so a peer that has not started cannot
@@ -2578,6 +2582,74 @@ scanModalEl.addEventListener('camera', event => {
   const { label, settings } = event.detail
 
   appendLog(`Camera: ${settings.width ?? '?'}×${settings.height ?? '?'}${label ? ` - ${label}` : ''}`)
+})
+
+/**
+ * The tag reader: shown only where the API exists, listening only while asked.
+ *
+ * One press starts listening and the second stops it, because `scan()` never
+ * ends on its own and a radio nobody meant to leave on is a surprise. What a
+ * tag yields goes down the exact path a scanned code does - same verification,
+ * same failure messages, same logbook shape, carrier `tag`.
+ */
+let tagReader = null
+
+if (supportsWebNfc()) {
+  readTagButton.hidden = false
+}
+
+async function stopTagReader () {
+  tagReader?.stop()
+  tagReader = null
+  readTagButton.textContent = t('step.connect.tag')
+  tagStateEl.hidden = true
+}
+
+readTagButton.addEventListener('click', async () => {
+  if (tagReader != null) {
+    await stopTagReader()
+    return
+  }
+
+  try {
+    await ensureNode()
+
+    tagReader = await startTagReader({
+      onReading: async text => {
+        incomingCarrier = 'tag'
+        setStatus(t('status.verifying'))
+
+        try {
+          if (logbook.pending() == null) {
+            logbook.start({ role: 'answering', carrier: 'tag' })
+          }
+
+          await handleReceivedPayload(text)
+          await stopTagReader()
+          updateControls()
+        } catch (error) {
+          logbook.note({ network: networkVerdicts() })
+          logbook.finish({ outcome: 'failed', reason: error.message })
+          setStatus(t('status.qrFailed', { reason: error.message }))
+          appendLog(`Tag processing failed: ${error.message}`)
+        }
+      },
+      onError: error => {
+        // A tag that cannot be read is worth a line, not a failure: the person
+        // is standing there and will simply tap again.
+        tagStateEl.textContent = t('tag.unreadable', { reason: error.message })
+      }
+    })
+
+    readTagButton.textContent = t('tag.listening')
+    tagStateEl.textContent = t('tag.hold')
+    tagStateEl.hidden = false
+  } catch (error) {
+    // NFC off, or the permission refused. Said where the button is, because a
+    // button that silently does nothing reads as broken.
+    tagStateEl.textContent = t('tag.unavailable', { reason: error.message })
+    tagStateEl.hidden = false
+  }
 })
 
 scanModalEl.addEventListener('scan', async event => {

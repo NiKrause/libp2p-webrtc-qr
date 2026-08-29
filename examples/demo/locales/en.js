@@ -116,6 +116,7 @@ export default {
       hint: 'Invite someone, or scan the code they are showing you. Either one gets you to the same place.',
       invite: 'Create invite link',
       scan: 'Scan their code',
+      tag: 'Read a tag',
       reconnect: 'Reconnect'
     },
     data: {
@@ -140,6 +141,12 @@ export default {
     stale: 'This invite is probably too old to connect - create a new one.'
   },
   hurryBack: 'Come straight back - within seconds. While you are in another app this phone suspends the page, and the invite stops working.',
+  tag: {
+    listening: 'Listening… touch the tag',
+    hold: 'Hold the phone to the tag. The invite on it is checked exactly like a scanned code.',
+    unreadable: ({ reason }) => `That tag could not be read - ${reason}. Try again.`,
+    unavailable: ({ reason }) => `Tag reading is unavailable: ${reason}. NFC may be off, or the permission was refused.`
+  },
   invite: {
     heading: 'Show this to the other person',
     scanHelp: 'Their phone camera opens the same link - or send it to them.',
