@@ -99,6 +99,7 @@ export default {
       hint: 'Laden Sie jemanden ein, oder scannen Sie den Code, den er Ihnen zeigt. Beides führt an dieselbe Stelle.',
       invite: 'Einladungslink erzeugen',
       scan: 'Anderen Code scannen',
+      tag: 'Tag antippen',
       reconnect: 'Neu verbinden'
     },
     data: {
@@ -126,6 +127,12 @@ export default {
     stale: 'Diese Einladung ist vermutlich zu alt zum Verbinden — erzeugen Sie eine neue.'
   },
   hurryBack: 'Kommen Sie sofort zurück — innerhalb von Sekunden. Solange Sie in einer anderen App sind, hält dieses Telefon die Seite an, und die Einladung verfällt.',
+  tag: {
+    listening: 'Höre… Tag berühren',
+    hold: 'Telefon an den Tag halten. Die Einladung darauf wird genau wie ein gescannter Code geprüft.',
+    unreadable: ({ reason }) => `Dieser Tag ließ sich nicht lesen — ${reason}. Noch einmal versuchen.`,
+    unavailable: ({ reason }) => `Tag-Lesen nicht verfügbar: ${reason}. NFC ist vielleicht aus, oder die Berechtigung wurde abgelehnt.`
+  },
   invite: {
     heading: 'Zeigen Sie das der anderen Person',
     scanHelp: 'Die Telefonkamera der anderen Person öffnet denselben Link — oder schicken Sie ihn ihr.',
