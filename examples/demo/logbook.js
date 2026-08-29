@@ -320,11 +320,17 @@ export function createLogbook ({ now = () => Date.now() } = {}) {
      * recipient knows they are holding a projection rather than a copy.
      */
     export () {
-      // Everything measured about *where* is dropped except the two fields the
-      // public dataset in #27 actually asks for. A city is fine on a laptop and
-      // too fine in a file that travels; coordinates are too fine anywhere but
-      // here; the IP is the address this whole projection exists to withhold.
-      const projected = entries.map(({ candidates, ip, coords, city, ...rest }) => ({
+      // Everything measured about *where* is dropped except the country, which is
+      // the one field an IP answers reliably. Coordinates are too fine anywhere
+      // but here, the IP is the address this whole projection exists to
+      // withhold, and the city and the region are dropped for a different reason
+      // than fineness: they are **wrong**. IP geolocation places a customer at
+      // their provider's egress, and this was measured on a cable connection
+      // reported as Berlin while the device's own position was in Bavaria, some
+      // four hundred kilometres away. A dataset about where WebRTC works is worse
+      // than useless with a confidently wrong location in it - and a wrong value
+      // is not improved by being coarse.
+      const projected = entries.map(({ candidates, ip, coords, city, region, ...rest }) => ({
         ...rest,
         // The shape survives, the addresses do not: counts by type answer "what
         // kind of network was this" without answering "whose".
@@ -334,7 +340,7 @@ export function createLogbook ({ now = () => Date.now() } = {}) {
       return JSON.stringify({
         v: 1,
         exportedAt: new Date(now()).toISOString(),
-        redacted: ['candidate addresses and ports', 'public IP', 'coordinates', 'city'],
+        redacted: ['candidate addresses and ports', 'public IP', 'coordinates', 'city and region (IP geolocation places a device at its provider, not at itself)'],
         entries: projected
       }, null, 2)
     }

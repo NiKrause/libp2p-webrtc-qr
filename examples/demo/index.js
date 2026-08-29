@@ -330,7 +330,7 @@ const describePeer = agent => [
   agent.browser ? `${agent.browser} (${agent.engine} ${agent.version})`.trim() : `${agent.engine} ${agent.version}`.trim(),
   agent.platform,
   agent.provider || null,
-  [agent.region, agent.country].filter(Boolean).join(', ') || null
+  agent.country || null
 ].filter(Boolean).join(' · ')
 
 /**
@@ -539,6 +539,12 @@ locateButtonEl.addEventListener('click', async () => {
       // measured value past the projection - and it fails the field's purpose
       // anyway, since "hotel lobby" is what a pattern is made of and "Munich"
       // is not.
+      //
+      // City and region are kept here and nowhere else. Locally they are a
+      // record of what the service said, which is worth having beside the
+      // position that contradicts it; the export and the greeting drop both,
+      // because an IP places a customer at their provider and not at
+      // themselves.
       country: network.country,
       region: network.region,
       city: network.city,
@@ -1236,8 +1242,14 @@ const recordedAttempts = new Map()
  * So: browser, engine and system, which is nothing a user agent does not already
  * carry. The network provider, because two peers on the same two browsers behave
  * differently on cable and behind carrier-grade NAT, and neither end can see the
- * other's side of that without being told. Country and region, at the export's
- * granularity.
+ * other's side of that without being told. And the country, which is the one
+ * thing an IP answers reliably.
+ *
+ * **Not the region**, which used to travel here and has been withdrawn. IP
+ * geolocation places a customer at their provider's egress: this was measured on
+ * a cable connection reported as Berlin while the device's own position was in
+ * Bavaria. A wrong region is not made acceptable by being coarser than a wrong
+ * city, and a peer receiving it has no way to know it is wrong.
  *
  * Not the city, not the coordinates, not the address. And not the *place*, which
  * sits in the same panel and is typed by the same person: "home office wifi" is a
@@ -1246,7 +1258,7 @@ const recordedAttempts = new Map()
 function greet (peerId) {
   if (!logbook.enabled) return
 
-  const { provider, country, region } = logbook.context
+  const { provider, country } = logbook.context
 
   sendTo(peerId, {
     kind: 'hello',
@@ -1254,8 +1266,7 @@ function greet (peerId) {
     // Omitted rather than sent empty, so a peer who never filled a field is
     // distinguishable from one who typed nothing into it.
     ...(provider ? { provider } : {}),
-    ...(country ? { country } : {}),
-    ...(region ? { region } : {})
+    ...(country ? { country } : {})
   }).catch(() => {})
 }
 
@@ -1401,8 +1412,7 @@ async function handleMeshMessage (message, from) {
       reported: {
         ...message.agent,
         provider: message.provider ?? null,
-        country: message.country ?? null,
-        region: message.region ?? null
+        country: message.country ?? null
       }
     })
 

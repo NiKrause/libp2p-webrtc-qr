@@ -53,7 +53,7 @@ export default {
     provider: 'Netzanbieter',
     locate: 'Ermitteln, wo ich bin',
     locating: 'Frage nach…',
-    located: ({ where, precise }) => `${where} — ${precise}`,
+    located: ({ where, precise }) => `Die Abfrage behauptet ${where} — ${precise}`,
     withPosition: 'Position ergänzt',
     coords: ({ lat, lon, accuracy }) =>
       accuracy === '' ? `${lat}, ${lon} — auf der Karte ↗` : `${lat}, ${lon} ±${accuracy} m — auf der Karte ↗`,

@@ -63,7 +63,12 @@ export default {
     provider: 'Network provider',
     locate: 'Work out where I am',
     locating: 'Asking…',
-    located: ({ where, precise }) => `${where} — ${precise}`,
+    // "Claims" rather than "is". IP geolocation places a device at its
+    // provider's egress and can be hundreds of kilometres out - measured on a
+    // cable connection reported as Berlin from Bavaria. The word is the whole
+    // correction: what follows is a claim by a service, and the coordinates
+    // underneath are the measurement to check it against.
+    located: ({ where, precise }) => `the lookup claims ${where} — ${precise}`,
     withPosition: 'position added',
     coords: ({ lat, lon, accuracy }) =>
       accuracy === '' ? `${lat}, ${lon} — on the map ↗` : `${lat}, ${lon} ±${accuracy} m — on the map ↗`,
