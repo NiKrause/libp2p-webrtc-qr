@@ -99,7 +99,11 @@ export const QR_INTRO_STRINGS_DE = {
   relayChecking: 'Suche einen Relay, der antwortet…',
   relayReachable: ({ count }) => `${count === 1 ? 'Ein bekannter Relay hat' : count + ' bekannte Relays haben'} geantwortet. Es wurde kein Verzeichnis gefragt.`,
   relayDiscovered: ({ count }) => `${count === 1 ? 'Ein Relay' : count + ' Relays'} im Verzeichnis gefunden — die mitgelieferten schwiegen.`,
-  relayNone: 'Kein Relay hat geantwortet. Der Weg über den Code funktioniert weiter.'
+  relayNone: 'Kein Relay hat geantwortet. Der Weg über den Code funktioniert weiter.',
+
+  privacyHeading: 'Was das für Ihre Daten bedeutet',
+  privacyEmpty: 'Was hier steht, entscheiden die Angaben oben.',
+  privacyAccept: 'Ich habe das gelesen und bin einverstanden'
 }
 
 /** @type {typeof import('./qr-peers.js').QR_PEERS_STRINGS} */
