@@ -119,6 +119,21 @@ const STYLE = `
     font: inherit;
   }
   dialog::backdrop { background: var(--qr-intro-backdrop, rgba(0,0,0,0.55)); }
+  /* Taller than the screen, and the way out is off the bottom of it: the
+     technical view in German ran past the viewport and took the relay
+     checkbox, "do not show again" and the close button with it. Nothing could
+     be scrolled to, because a dialog has no height limit of its own.
+
+     Scoped to the open state, not to the element: the user-agent stylesheet
+     hides a closed dialog with display:none, and a bare display:flex here
+     would override that and show it always. No backticks in this comment
+     either - the stylesheet is a template literal, and one ends it.
+
+     The head and the foot stay; only the middle scrolls. Those are where the
+     close button and the two checkboxes live, and a dialog whose way out
+     scrolls away is the same bug one layer down. */
+  dialog[open] { display: flex; flex-direction: column; max-height: calc(100dvh - 2rem); }
+  .body { overflow: auto; min-height: 0; }
   .head { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
   h2 { margin: 0; font-size: 1.05rem; }
   .close {
