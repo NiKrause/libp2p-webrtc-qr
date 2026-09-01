@@ -475,9 +475,17 @@ export class QrIntroElement extends HTMLElement {
 
     relayBox.addEventListener('change', () => { void this.#onRelayToggle(relayBox.checked) })
 
-    // Before the footer, so the choice reads as part of the explanation rather
-    // than as an afterthought next to "do not show again".
-    this.__main.append(ways)
+    // Above the technical section, not after it.
+    //
+    // The order a person meets this in is: what the app is, what this network
+    // allows, and then the one decision they are asked to make. Appending put
+    // the decision last, behind four paragraphs of background reading - and in
+    // the technical view that pushed the relay checkbox off the bottom of the
+    // dialog, where somebody looking for it reported not finding it at all.
+    //
+    // Background reading can be scrolled to. A control cannot be scrolled to by
+    // somebody who does not know it is there.
+    this.__main.insertBefore(ways, this.__tech)
 
     Object.assign(this, {
       __ways: ways,
