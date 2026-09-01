@@ -97,7 +97,13 @@ export const QR_INTRO_STRINGS = {
   // Functions, because these carry a number and word order is not universal.
   relayReachable: ({ count }) => `${count} known relay${count === 1 ? '' : 's'} answered. No directory was queried.`,
   relayDiscovered: ({ count }) => `${count} relay${count === 1 ? '' : 's'} found in the directory - the ones shipped with this app stayed silent.`,
-  relayNone: 'No relay answered. Scanning a code still works.'
+  relayNone: 'No relay answered. Scanning a code still works.',
+
+  // The panel that follows the choices. A consumer supplies the clauses,
+  // because what an app does with data is the app's to state, not ours.
+  privacyHeading: 'What this means for your data',
+  privacyEmpty: 'The choices above decide what goes here.',
+  privacyAccept: 'I have read this and accept it'
 }
 
 const STYLE = `
@@ -154,6 +160,43 @@ const STYLE = `
   .relay-result[data-state="baked"], .relay-result[data-state="aleph"] { color: var(--qr-intro-accent, #3edc97); }
   .relay-result[data-state="none"] { color: #ffc24b; font-weight: 600; }
 
+  /* ---------- the statement that follows the choices ----------
+     Beside the explanation on a wide screen, under it on a narrow one. The
+     dialog widens only when there is a panel: a 52rem shell around 34rem of
+     content is a lot of empty for an app that passes no clauses.
+
+     Its own ground rather than the dialog's, because it is a different kind of
+     thing - a document, next to an explanation. Tokened rather than fixed: a
+     hard white panel is right in a light theme and a hole in a dark one, and
+     this element is dark by default. */
+  .body { display: grid; gap: 1rem; grid-template-columns: 1fr; }
+  dialog[data-privacy] { max-width: 52rem; }
+  @media (min-width: 46rem) {
+    dialog[data-privacy] .body { grid-template-columns: minmax(0, 1fr) 19rem; }
+  }
+  .privacy {
+    align-self: start;
+    border: 1px solid var(--qr-intro-panel-border, var(--qr-intro-border, rgba(255,255,255,0.14)));
+    border-radius: 10px;
+    background: var(--qr-intro-panel-background, rgba(255,255,255,0.04));
+    color: var(--qr-intro-panel-color, inherit);
+    padding: 0.7rem 0.85rem;
+    font-size: 0.86rem;
+  }
+  .privacy summary {
+    cursor: pointer; font-weight: 600; font-size: 0.78rem;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--qr-intro-muted, #97a1b3);
+  }
+  .privacy ul { margin: 0.6rem 0 0; padding-left: 1.1rem; }
+  .privacy li + li { margin-top: 0.4rem; }
+  .privacy .empty { margin: 0.6rem 0 0; color: var(--qr-intro-muted, #97a1b3); }
+  .privacy .accept {
+    display: flex; align-items: start; gap: 0.5rem;
+    margin-top: 0.8rem; padding-top: 0.7rem;
+    border-top: 1px solid var(--qr-intro-panel-border, var(--qr-intro-border, rgba(255,255,255,0.14)));
+  }
+
   /* ---------- the addresses behind the verdict ---------- */
 
   ${CANDIDATE_STYLE}
@@ -167,6 +210,10 @@ export class QrIntroElement extends HTMLElement {
   #result = null
   /** @type {{ check: (() => Promise<any>), storageKey?: string, storage?: Storage } | null} */
   #relay = null
+  /** @type {{ clauses: ((state: any) => string[]), accept?: boolean } | null} */
+  #privacyConfig = null
+  /** What the app has chosen, for the clauses to read. */
+  #choices = {}
   /** @type {'idle' | 'checking' | 'baked' | 'aleph' | 'none'} */
   #relayState = 'idle'
   #relayCount = 0
@@ -257,11 +304,29 @@ export class QrIntroElement extends HTMLElement {
     footerSlot.name = 'footer'
     foot.append(label, footerSlot)
 
-    dialog.append(head, story, check, tech, foot)
+    // The explanation and the statement about it, side by side on a wide
+    // screen. `ways` joins the explanation column later, when a consumer
+    // passes `relay`.
+    const body = document.createElement('div')
+    const main = document.createElement('div')
+    body.className = 'body'
+    main.append(story, check, tech)
+
+    // The panel is built when a consumer passes clauses, not before. Hiding it
+    // would not do: a hidden checkbox is still the first match for
+    // `querySelector('input[type=checkbox]')`, which is how this file and the
+    // demo reach "do not show again". An element nobody passed a privacy
+    // config to has to be exactly what it was before this existed.
+    body.append(main)
+    dialog.append(head, body, foot)
     root.append(style, dialog)
 
     Object.assign(this, {
       __dialog: dialog,
+      __main: main,
+      __body: body,
+      __privacy: null,
+      __acceptBox: null,
       __heading: heading,
       __close: close,
       __checkHeading: checkHeading,
@@ -397,7 +462,7 @@ export class QrIntroElement extends HTMLElement {
 
     // Before the footer, so the choice reads as part of the explanation rather
     // than as an afterthought next to "do not show again".
-    this.__dialog.insertBefore(ways, this.__foot)
+    this.__main.append(ways)
 
     Object.assign(this, {
       __ways: ways,
@@ -408,6 +473,156 @@ export class QrIntroElement extends HTMLElement {
       __relayHint: relayHint,
       __relayResult: relayResult
     })
+  }
+
+  /**
+   * The statement that follows the choices.
+   *
+   * `clauses` is the consumer's, deliberately: what an app does with somebody's
+   * data is the app's to state, and an element that shipped its own text would
+   * be putting words in its mouth. It is called with everything the dialog
+   * knows - `relayOptIn` plus whatever the app set through `choices` - and
+   * returns the sentences that are true for that combination.
+   *
+   * With `accept: true` the panel carries a tick, and the dialog cannot be
+   * closed until it is ticked. That is the point of assembling the statement
+   * rather than shipping one: what is consented to is what was configured.
+   *
+   * @param {{ clauses: ((state: any) => string[]), accept?: boolean } | null} value
+   */
+  set privacy (value) {
+    this.#privacyConfig = value ?? null
+
+    if (this.#privacyConfig == null) {
+      this.__privacy?.remove()
+      this.__privacy = null
+      this.__acceptBox = null
+      this.__dialog.removeAttribute('data-privacy')
+      this.#paintGate()
+      return
+    }
+
+    this.#buildPrivacy()
+    this.#paintPrivacy()
+  }
+
+  get privacy () {
+    return this.#privacyConfig
+  }
+
+  /**
+   * What the app has chosen, for the clauses to read. Merged rather than
+   * replaced, so an app can report one switch without restating the rest.
+   *
+   * @param {Record<string, any>} value
+   */
+  set choices (value) {
+    this.#choices = { ...this.#choices, ...(value ?? {}) }
+    this.#paintPrivacy()
+  }
+
+  get choices () {
+    return { ...this.#choices }
+  }
+
+  /** Everything the clauses are given: the app's choices and our own. */
+  get #privacyState () {
+    return { ...this.#choices, relayOptIn: this.relayOptIn, technical: this.technical }
+  }
+
+  /** Whether the statement has been accepted, or did not need to be. */
+  get accepted () {
+    if (this.#privacyConfig?.accept !== true) return true
+    return this.__acceptBox?.checked === true
+  }
+
+  /**
+   * Built on demand, and torn down when the config goes. The accept tick is
+   * built only when it is asked for, for the reason above: an unused checkbox
+   * in the shadow tree is not free, it is the first one a selector finds.
+   */
+  #buildPrivacy () {
+    if (this.__privacy != null) return
+
+    const privacy = document.createElement('details')
+    const summary = document.createElement('summary')
+    const list = document.createElement('ul')
+    const empty = document.createElement('p')
+    privacy.className = 'privacy'
+    // Open to begin with: a statement folded away on arrival is a statement
+    // nobody read, and the tick underneath would then mean nothing.
+    privacy.open = true
+    empty.className = 'empty'
+    privacy.append(summary, list, empty)
+    this.__body.append(privacy)
+
+    Object.assign(this, {
+      __privacy: privacy,
+      __privacySummary: summary,
+      __privacyList: list,
+      __privacyEmpty: empty
+    })
+  }
+
+  #buildAccept () {
+    if (this.__acceptBox != null) return
+
+    const label = document.createElement('label')
+    const box = document.createElement('input')
+    const text = document.createElement('span')
+    label.className = 'accept'
+    box.type = 'checkbox'
+    box.part = 'accept'
+    box.addEventListener('change', () => this.#paintGate())
+    label.append(box, text)
+    this.__privacy.append(label)
+
+    Object.assign(this, { __acceptLabel: label, __acceptBox: box, __acceptText: text })
+  }
+
+  #paintPrivacy () {
+    const config = this.#privacyConfig
+    if (config == null || this.__privacy == null) return
+
+    const strings = this.#strings
+    this.__privacySummary.textContent = resolveText(strings.privacyHeading)
+    this.__dialog.setAttribute('data-privacy', '')
+
+    if (config.accept === true) {
+      this.#buildAccept()
+      this.__acceptText.textContent = resolveText(strings.privacyAccept)
+    }
+
+    let clauses = []
+    try {
+      clauses = config.clauses?.(this.#privacyState) ?? []
+    } catch {
+      // A statement that throws is a statement nobody can read. Better an empty
+      // panel that says so than a dialog that will not open.
+      clauses = []
+    }
+
+    this.__privacyList.replaceChildren(
+      ...clauses.map(text => {
+        const item = document.createElement('li')
+        item.textContent = resolveText(text)
+        return item
+      })
+    )
+    this.__privacyEmpty.hidden = clauses.length > 0
+    this.__privacyEmpty.textContent = resolveText(strings.privacyEmpty)
+    this.#paintGate()
+  }
+
+  /**
+   * The close button follows the tick.
+   *
+   * Disabled rather than hidden: a person looking for the way out should see
+   * where it is and why it is not available yet, not hunt for a button that
+   * appears once they guess right.
+   */
+  #paintGate () {
+    this.__close.disabled = this.accepted !== true
   }
 
   /** Whether the relay box is ticked. `false` when there is no relay half. */
@@ -428,6 +643,8 @@ export class QrIntroElement extends HTMLElement {
   async #onRelayToggle (on) {
     writeRelayOptIn(this.#storage, this.#relay?.storageKey, on)
     this.dispatchEvent(new CustomEvent('relay-opt-in', { detail: { optIn: on } }))
+    // The statement is about the choices, and this is one of them.
+    this.#paintPrivacy()
 
     if (!on) {
       this.#relayState = 'idle'
@@ -479,6 +696,11 @@ export class QrIntroElement extends HTMLElement {
 
   #paint () {
     const s = this.#strings
+
+    // Repainted here too, so a language switch reaches the panel. Its clauses
+    // are the consumer's and change with `strings` only if the consumer says
+    // so - but the heading and the accept label are ours.
+    this.#paintPrivacy()
 
     this.__heading.textContent = resolveText(s.title)
     this.__close.setAttribute('aria-label', resolveText(s.close))
@@ -606,6 +828,12 @@ export class QrIntroElement extends HTMLElement {
 
   close () {
     if (!this.#open) return
+    // The gate. A dialog that can be dismissed with Escape while its statement
+    // is unaccepted has no gate, only a disabled button.
+    if (!this.accepted) {
+      if (!this.__dialog.open) this.__dialog.showModal()
+      return
+    }
 
     this.#open = false
     if (this.__dialog.open) this.__dialog.close()
