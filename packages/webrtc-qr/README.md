@@ -423,12 +423,23 @@ in another.
 | | |
 | --- | --- |
 | attribute | `technical` — show the caveats list |
-| properties | `strings`, `technical`, `isOpen`, `result`, `rtcConfiguration`, `relay`, `relayOptIn` |
+| properties | `strings`, `technical`, `isOpen`, `result`, `rtcConfiguration`, `relay`, `relayOptIn`, `privacy`, `choices`, `accepted` |
 | methods | `open()` → the measured result, `recheck()` → a fresh one, `close()` |
 | events | `check` → the result, `relay-check` → what the relay check found, `relay-opt-in` → `{ optIn }`, `close` → `{ remember }` |
 | slots | default — the app's own story; `header` — beside the title; `advice` — under the verdict; `footer` — beside "do not show again"; `relay` — prose next to the relay choice |
-| parts | `dont-show`, `relay-opt-in` — reach a checkbox by its part, never by `input[type=checkbox]`: with a relay configured there are two |
+| parts | `dont-show`, `relay-opt-in`, `accept` — reach a checkbox by its part, never by `input[type=checkbox]`: with a relay and a gate configured there are three. `clause` on every line of the statement, and `clause changed` on the ones a choice just rewrote |
 | strings | `title`, `close`, `checkHeading`, `checking`, `ok`, `unreliable`, `none`, `sameNetwork`, `technicalHeading`, `technical` (an array), `dontShow`, `waysHeading`, `wayQr`, `relayLabel`, `relayHint`, `relayChecking`, `relayReachable`, `relayDiscovered`, `relayNone`, plus the candidate-list keys shared with `<qr-status>` |
+
+**The statement follows the choices, and says which line moved.** `privacy`
+takes `{ accept, clauses }`, where `clauses` is a function of the app's
+`choices` — so the panel describes the app somebody has just configured rather
+than an app nobody is running, and `accept` gates the way out on that. When a
+switch rewrites a sentence, that line is marked and flashes twice: the panel is
+assembled from switches elsewhere in the dialog, and without the mark a reader
+has no way to see which one moved unless they had memorised the paragraph.
+Nothing is marked on the first paint, because every line is new then. Style it
+with `--qr-intro-changed`, or take `::part(clause changed)` and do something
+else; `prefers-reduced-motion` gets the tint without the blink.
 
 The technical half also carries **the addresses behind the verdict** — the same
 `<details>` `<qr-status>` shows, from the same module, whose **Check again**
