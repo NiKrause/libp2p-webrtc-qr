@@ -848,6 +848,64 @@ rather than two features.
 
 ---
 
+## 19. Where a carrier lives, and the framing they would share
+
+Three carriers are now on this list beyond the code and the link - sound (16),
+the mixnet (17) and LoRa (18) - with BLE proposed in
+[#163](https://github.com/NiKrause/libp2p-webrtc-qr/issues/163). That is enough
+of them to ask whether the package structure holds, and the answer is: **mostly
+yes, with one forced exception and one extraction that should wait.**
+
+### The licence decides where a carrier can live, and it splits them
+
+| carrier | needs | may live in the library? |
+|---|---|---|
+| sound | `ggwave`, MIT, optional peer dependency | yes - and does |
+| BLE | `navigator.bluetooth`, a browser API | yes, no dependency at all |
+| LoRa | `@meshtastic/core`, **GPL-3.0-only** | **no** |
+
+This package is `Apache-2.0 OR MIT`. A permissive library that pulls GPL-3.0
+into a consumer's build would be misrepresenting its own licence, and that holds
+for an optional peer dependency too - the pattern works for ggwave only because
+ggwave is MIT. Nor can the Meshtastic carrier sit in `examples/demo`: the demo
+is `private: true` but it *is* distributed, from webrtc-qr.le-space.de, and
+bundling GPL-3.0 would make the deployed app GPL-3.0.
+
+So the LoRa carrier goes to **its own repository**, GPL-3.0, depending on
+`@le-space/libp2p-webrtc-qr` - permissive flows into copyleft, the reverse is
+what fails. That is forced rather than chosen, and it is not a defect in the
+structure: a workspace that can host every carrier except one with a copyleft
+dependency is behaving correctly.
+
+### The framing is the real shared part, and extracting it should wait
+
+`frameForAudio` already does what every discrete-message carrier needs: split a
+payload into numbered chunks with an id, so loss, reordering and two
+transmissions overlapping are all survivable. LoRa needs exactly that. Writing
+it twice would be the mistake.
+
+But it is not generic yet, and not only in its name: the chunk limit is
+ggwave's 134 bytes, and the total is **one digit**, capping a payload at nine
+chunks - a decision that made sense when a tenth chunk meant thirty more seconds
+of tone, and that a mesh has no reason to inherit.
+
+The temptation is to extract it now. The better move is to extract it **with the
+second carrier**, not before: an interface designed against one real case and
+one imagined one gets the imagined one wrong. Two things are worth deciding at
+that point rather than assumed now - whether the carrier or the framing owns
+retry, and whether a carrier that already guarantees order should still pay for
+sequence numbers.
+
+Until then this is a note, not a task.
+
+### No new examples in this repository
+
+The demo is the showcase, and BLE can be added to it. The LoRa carrier will
+carry its own example in its own repository, because that is where its licence
+and its hardware both are.
+
+---
+
 ## Not planned
 
 - **NFC.** Considered, built as far as reading a tag, and withdrawn (#152,
