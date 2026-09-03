@@ -20,6 +20,7 @@ const open = async (page, url = '/?ice=host') => {
 
 const panel = page => page.locator('qr-intro').locator('css=.privacy')
 const clauses = page => panel(page).locator('li')
+const marked = page => panel(page).locator('li.changed')
 
 const configure = (page, { accept = false } = {}) =>
   page.evaluate(everything => {
@@ -60,6 +61,60 @@ test.describe('the statement that follows the choices', () => {
     })
 
     await expect(clauses(page).nth(1)).toContainText('passkey')
+  })
+
+  test('the line a choice rewrote is marked, and its neighbours are not', async ({ page }) => {
+    // The panel is the point of assembling a statement, and a switch elsewhere
+    // in the dialog was rewriting its sentences silently: unless somebody had
+    // memorised the paragraph they could not see which one moved.
+    await open(page)
+    await configure(page)
+
+    // Nothing on arrival. Every line is new on the first paint, and a statement
+    // that flashes in full tells nobody which one their choice moved.
+    await expect(marked(page)).toHaveCount(0)
+
+    await page.evaluate(() => {
+      document.getElementById('intro').choices = { identity: 'passkey' }
+    })
+
+    await expect(marked(page)).toHaveCount(1)
+    await expect(marked(page)).toContainText('passkey')
+  })
+
+  test('a repaint that changes no sentence marks nothing', async ({ page }) => {
+    // Repaints are frequent - `strings`, `technical` and every `choices`
+    // assignment causes one - and a panel that flashes on each of them stops
+    // meaning anything.
+    await open(page)
+    await configure(page)
+    await page.evaluate(() => {
+      document.getElementById('intro').choices = { identity: 'passkey' }
+    })
+    await expect(marked(page)).toHaveCount(1)
+
+    await page.evaluate(() => {
+      // Same answers, so the same sentences.
+      document.getElementById('intro').choices = { identity: 'passkey' }
+    })
+
+    await expect(marked(page)).toHaveCount(0)
+  })
+
+  test('what changed is exposed as a part, so an app can style it', async ({ page }) => {
+    // The reason this is in the element at all: the first consumer to want it
+    // reached into this shadow root for the list and injected a stylesheet.
+    // `::part` is the supported way to ask the same question.
+    await open(page)
+    await configure(page)
+    await page.evaluate(() => {
+      document.getElementById('intro').choices = { identity: 'passkey' }
+    })
+
+    const parts = await clauses(page).evaluateAll(items =>
+      items.map(item => item.getAttribute('part'))
+    )
+    expect(parts).toEqual(['clause', 'clause changed'])
   })
 
   test('choices are merged, so one switch does not erase the rest', async ({ page }) => {

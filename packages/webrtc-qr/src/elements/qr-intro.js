@@ -1,4 +1,5 @@
 import { CANDIDATE_STRINGS, CANDIDATE_STYLE, createCandidateList } from './candidates.js'
+import { changedClauses } from './clause-diff.js'
 import { offNetworkRisk, probeNetwork, summariseNetwork } from './network.js'
 import { readRelayOptIn, writeRelayOptIn } from './relay-choice.js'
 import { mergeStrings, resolveText } from './strings.js'
@@ -205,6 +206,40 @@ const STYLE = `
   }
   .privacy ul { margin: 0.6rem 0 0; padding-left: 1.1rem; }
   .privacy li + li { margin-top: 0.4rem; }
+  /*
+    The lines a choice just rewrote.
+
+    Shipped rather than left to consumers: the panel is assembled from their
+    switches, so every app that assembles one has the same problem, and the
+    first one to hit it reached into this shadow root to solve it.
+
+    Two pulses and done. A permanent tint would still be there next time
+    somebody looks and would stop meaning "this just changed"; the exposed
+    part is there for an app that wants something else entirely.
+
+    No backticks in here. This stylesheet is a template literal, and one in a
+    comment closes it - the failure surfaces as a SyntaxError ninety lines
+    below, pointing at whatever happens to follow.
+
+    The colour is a custom property because the default suits this element's own
+    dark panel and would be close to invisible on a light one.
+  */
+  .privacy li.changed {
+    border-radius: 0.2rem;
+    animation: qr-intro-clause-changed 900ms ease-in-out 2;
+  }
+  @keyframes qr-intro-clause-changed {
+    0%, 100% { background: transparent; }
+    50% { background: var(--qr-intro-changed, rgba(250, 204, 21, 0.4)); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    /* The same signal without the blink: the point is which line changed, and
+       a static tint says that just as well. */
+    .privacy li.changed {
+      animation: none;
+      background: var(--qr-intro-changed, rgba(250, 204, 21, 0.4));
+    }
+  }
   .privacy .empty { margin: 0.6rem 0 0; color: var(--qr-intro-muted, #97a1b3); }
   .privacy .accept {
     display: flex; align-items: start; gap: 0.5rem;
@@ -221,6 +256,15 @@ export class QrIntroElement extends HTMLElement {
   static observedAttributes = ['technical']
 
   #strings = { ...QR_INTRO_STRINGS }
+  /**
+   * The statement as it was last painted, so a choice can be told from a
+   * repaint. Repaints are frequent — every `strings`, `choices` or `technical`
+   * assignment causes one — and only a change in the sentences is worth
+   * showing.
+   *
+   * @type {string[]}
+   */
+  #paintedClauses = []
   #probed = false
   #result = null
   /** @type {{ check: (() => Promise<any>), storageKey?: string, storage?: Storage } | null} */
@@ -625,10 +669,21 @@ export class QrIntroElement extends HTMLElement {
       clauses = []
     }
 
+    // Resolved before the comparison, because a clause may be a function and
+    // two calls of one are not guaranteed to agree.
+    const texts = clauses.map(text => resolveText(text))
+    const changed = new Set(changedClauses(this.#paintedClauses, texts))
+    this.#paintedClauses = texts
+
     this.__privacyList.replaceChildren(
-      ...clauses.map(text => {
+      ...texts.map((text, index) => {
         const item = document.createElement('li')
-        item.textContent = resolveText(text)
+        item.textContent = text
+        // `part` as well as the class: the class drives the animation below,
+        // and the part lets an app style what changed without reaching into
+        // this shadow root — which is what the first consumer had to do.
+        item.setAttribute('part', changed.has(index) ? 'clause changed' : 'clause')
+        if (changed.has(index)) item.classList.add('changed')
         return item
       })
     )
