@@ -426,7 +426,7 @@ in another.
 | attribute | `technical` — show the caveats list |
 | properties | `strings`, `technical`, `isOpen`, `result`, `rtcConfiguration`, `relay`, `relayOptIn`, `privacy`, `choices`, `accepted` |
 | methods | `open()` → the measured result, `recheck()` → a fresh one, `close()` |
-| events | `check` → the result, `relay-check` → what the relay check found, `relay-opt-in` → `{ optIn }`, `close` → `{ remember }` |
+| events | `check` → the result, `relay-check` → what the relay check found, `relay-opt-in` → `{ optIn }`, `accept` → `{ accepted }`, `close` → `{ remember }` |
 | slots | default — the app's own story; `header` — beside the title; `advice` — under the verdict; `footer` — beside "do not show again"; `relay` — prose next to the relay choice |
 | parts | `dont-show`, `relay-opt-in`, `accept` — reach a checkbox by its part, never by `input[type=checkbox]`: with a relay and a gate configured there are three. `clause` on every line of the statement, and `clause changed` on the ones a choice just rewrote |
 | strings | `title`, `close`, `checkHeading`, `checking`, `ok`, `unreliable`, `none`, `sameNetwork`, `technicalHeading`, `technical` (an array), `dontShow`, `waysHeading`, `wayQr`, `relayLabel`, `relayHint`, `relayChecking`, `relayReachable`, `relayDiscovered`, `relayNone`, plus the candidate-list keys shared with `<qr-status>` |
@@ -441,6 +441,14 @@ has no way to see which one moved unless they had memorised the paragraph.
 Nothing is marked on the first paint, because every line is new then. Style it
 with `--qr-intro-changed`, or take `::part(clause changed)` and do something
 else; `prefers-reduced-motion` gets the tint without the blink.
+
+**`accept` fires when acceptance changes**, and only then. A host with its own
+footer button needs it: this element disables its own close control, and a
+host's "Get started" otherwise looks clickable while `close()` quietly refuses.
+Assigning a `privacy` config that demands acceptance is itself a change — the
+element moves from "did not need accepting" to "not accepted yet" — so a host
+that binds to this starts out right rather than a beat behind. Reading `accepted`
+gives the same answer at any moment.
 
 The technical half also carries **the addresses behind the verdict** — the same
 `<details>` `<qr-status>` shows, from the same module, whose **Check again**
