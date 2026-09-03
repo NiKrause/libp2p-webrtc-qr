@@ -46,6 +46,13 @@ Server die Answer zurückträgt.
 | [`examples/demo`](examples/demo) | Browser-Demo: QR-Scan per Kamera, Kopieren/Einfügen als Rückfall, Chat über einen libp2p-Stream |
 | [`examples/helia-file-transfer`](examples/helia-file-transfer) | Zwei Helia-Knoten (IPFS) übertragen eine Datei über die per QR verhandelte Verbindung, ausschließlich per Bitswap |
 
+**Anderswo:** [libp2p-webrtc-qr-meshtastic](https://github.com/NiKrause/libp2p-webrtc-qr-meshtastic)
+trägt den Handschlag über ein Meshtastic-LoRa-Mesh. Es liegt in einem eigenen
+Repository unter **GPL-3.0**, weil `@meshtastic/core` GPL-3.0-only ist und dieses
+Paket Apache-2.0 OR MIT — eine permissiv lizenzierte Bibliothek darf kein
+Copyleft in die Builds ihrer Konsumenten ziehen. Es hängt von diesem ab;
+umgekehrt wäre es nicht erlaubt.
+
 ## Wie es funktioniert
 
 Jede QR-Nutzlast trägt eine SDP-Beschreibung, eine Session-ID und die Peer-ID des
