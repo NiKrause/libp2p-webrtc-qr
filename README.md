@@ -43,6 +43,12 @@ direction, because there is no server to carry the answer back.
 | [`examples/demo`](examples/demo) | Browser demo: QR camera scanning, copy/paste fallback, chat over a libp2p stream |
 | [`examples/helia-file-transfer`](examples/helia-file-transfer) | Two Helia (IPFS) nodes transferring a file over the QR-negotiated connection, bitswap only |
 
+**Elsewhere:** [libp2p-webrtc-qr-meshtastic](https://github.com/NiKrause/libp2p-webrtc-qr-meshtastic)
+carries the handshake over a Meshtastic LoRa mesh. It lives in its own repository
+and under **GPL-3.0**, because `@meshtastic/core` is GPL-3.0-only and this
+package is Apache-2.0 OR MIT — a permissive library cannot pull copyleft into its
+consumers' builds. It depends on this one; the reverse would not be allowed.
+
 ## How it works
 
 Each QR payload carries an SDP description, a session id and the sender's libp2p
