@@ -120,6 +120,43 @@ test.describe('qr-intro', () => {
     await expect(inShadow(page, '.details .recheck')).toBeVisible()
   })
 
+  /**
+   * A host has its own footer button, and the element disables only its own
+   * cross. The first consumer mirrored the gate by reaching through this shadow
+   * root for `input[part=accept]`, attaching a listener, and marking the box
+   * with `data-watched` so a re-render would not attach a second - a workaround
+   * its own comment asks to have replaced.
+   */
+  test('says when acceptance changes, so a host need not watch the tick', async ({ page }) => {
+    await mount(page)
+
+    const seen = await page.evaluate(async () => {
+      const heard = []
+
+      window.__intro.addEventListener('accept', e => heard.push(e.detail.accepted))
+      await window.__intro.open()
+
+      // Assigning a config that demands acceptance is itself a change: the
+      // element goes from "did not need accepting" to "not accepted yet", and a
+      // host binding to this must hear it or its button starts out wrong.
+      window.__intro.privacy = { accept: true, clauses: () => ['a clause'] }
+
+      const box = window.__intro.shadowRoot.querySelector('input[part=accept]')
+
+      box.click()
+      box.click()
+
+      // Painting again must not speak: the event is for changes, so a host can
+      // bind once without de-duplicating.
+      window.__intro.privacy = { accept: true, clauses: () => ['a clause', 'another'] }
+
+      return { heard, accepted: window.__intro.accepted }
+    })
+
+    expect(seen.heard).toEqual([false, true, false])
+    expect(seen.accepted).toBe(false)
+  })
+
   test('closing reports whether the box was ticked', async ({ page }) => {
     await mount(page)
 

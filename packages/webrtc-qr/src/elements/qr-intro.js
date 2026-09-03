@@ -271,6 +271,8 @@ export class QrIntroElement extends HTMLElement {
   #relay = null
   /** @type {{ clauses: ((state: any) => string[]), accept?: boolean } | null} */
   #privacyConfig = null
+  /** The last acceptance announced, so `accept` fires on change and not on paint. */
+  #announcedAcceptance = true
   /** What the app has chosen, for the clauses to read. */
   #choices = {}
   /** @type {'idle' | 'checking' | 'baked' | 'aleph' | 'none'} */
@@ -571,6 +573,10 @@ export class QrIntroElement extends HTMLElement {
 
     this.#buildPrivacy()
     this.#paintPrivacy()
+    // Assigning a config that demands acceptance moves this from "did not need
+    // to be accepted" to "not accepted yet", which is a change a host binding to
+    // the event has to hear - otherwise its own button starts out wrong.
+    this.#announceAcceptance()
   }
 
   get privacy () {
@@ -601,6 +607,33 @@ export class QrIntroElement extends HTMLElement {
   get accepted () {
     if (this.#privacyConfig?.accept !== true) return true
     return this.__acceptBox?.checked === true
+  }
+
+  /**
+   * Say when acceptance changes, so a host does not have to watch the tick.
+   *
+   * The first consumer had to reach through this shadow root for
+   * `input[part=accept]`, attach its own listener, and mark the box with a
+   * `data-watched` attribute so a re-render would not attach a second one. All
+   * of that is a workaround for a missing event, and the file that does it says
+   * so in a comment - which is the clearest possible request.
+   *
+   * It matters because a host's own footer button is not the element's close
+   * control: the element disables its own cross and the host's "Get started"
+   * looked perfectly clickable while `close()` quietly refused. A gate that
+   * gives no account of itself is a broken button, and a host cannot mirror a
+   * gate it is not told about.
+   *
+   * Emitted only on a real change, so a host can bind to it without
+   * de-duplicating.
+   */
+  #announceAcceptance () {
+    const accepted = this.accepted
+
+    if (accepted === this.#announcedAcceptance) return
+
+    this.#announcedAcceptance = accepted
+    this.dispatchEvent(new CustomEvent('accept', { detail: { accepted } }))
   }
 
   /**
@@ -640,7 +673,10 @@ export class QrIntroElement extends HTMLElement {
     label.className = 'accept'
     box.type = 'checkbox'
     box.part = 'accept'
-    box.addEventListener('change', () => this.#paintGate())
+    box.addEventListener('change', () => {
+      this.#paintGate()
+      this.#announceAcceptance()
+    })
     label.append(box, text)
     this.__privacy.append(label)
 
