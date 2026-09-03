@@ -16,11 +16,17 @@ Two wire formats. **Reading both is unconditional; producing v3 is a choice.**
 
 ## Why v3 is off by default
 
-Not because it is unfinished. A connection built from a **reconstructed** SDP
-goes silent under load: measured in isolated worktrees, four of eight runs left
-both peers holding an open stream that carried no bytes, against zero of eight on
-v2. No error, no dropped connection — simply nothing arriving. The cause is not
-understood ([#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83)).
+Not because it is unfinished, and no longer because of a known defect either. A
+connection built from a **reconstructed** SDP was once seen to go silent under
+load — four of eight runs against zero of eight on v2 — and that measurement did
+not survive scrutiny: 68 runs across three conditions, including a deliberately
+overloaded machine and all three engines, delivered every message
+([the measurement](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83#issuecomment-5530131612)).
+The original result appears to have described the laptop rather than the format.
+
+What remains is a difference in kind rather than a fault: v3 **rebuilds** the SDP
+instead of carrying it, so both ends must agree on how. The default has not been
+revisited since its reason went away.
 
 Reading is unaffected: a peer accepts either format regardless, so turning it on
 only changes what a device hands out.

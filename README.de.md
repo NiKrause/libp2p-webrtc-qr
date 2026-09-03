@@ -121,16 +121,18 @@ cd docs-site && pnpm install && pnpm start
   für dasselbe Angebot als kompakte (v3) Nutzlast, die **standardmäßig aus ist**,
   siehe unten. Der kompakte Wert bewegt sich mit STUN kaum, weil er Kandidaten
   als 7 oder 19 Byte trägt statt als SDP-Zeilen.
-- **Die kompakte Nutzlast ist optional, und der Grund ist nicht, dass sie
-  unfertig wäre.** Eine Verbindung aus einem rekonstruierten SDP verstummt unter
-  Last: in isolierten Worktrees gemessen, blieben in vier von acht Läufen beide
-  Peers auf einem offenen Stream sitzen, der keine Bytes trug – gegen null von
-  acht bei v2. Kein Fehler, kein Verbindungsabbruch, es kam schlicht nichts an.
-  Die Ursache ist nicht verstanden
-  ([#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83)), und ein Code in
-  Viertelgröße ist keine Verbindung wert, die unter Last in der Hälfte der Fälle
-  scheitert. Das Lesen ist davon unberührt: ein Peer nimmt ohnehin beide Formate
-  an, die Umstellung ändert also nur, was ein Gerät herausgibt.
+- **Die kompakte Nutzlast ist optional – und nicht mehr wegen eines bekannten
+  Fehlers.** Eine Verbindung aus einem rekonstruierten SDP verstummte einmal
+  unter Last: vier von acht Läufen gegen null von acht bei v2. Diese Messung hat
+  einer Überprüfung nicht standgehalten – 68 Läufe unter drei Bedingungen,
+  darunter eine absichtlich überlastete Maschine und alle drei Engines, lieferten
+  jede Nachricht aus ([die Messung](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83#issuecomment-5530131612)).
+  Das ursprüngliche Ergebnis beschrieb offenbar den Zustand des Laptops und nicht
+  den des Formats. Es bleibt ein Unterschied in der Art, kein Fehler: v3 *baut*
+  das SDP neu, statt es zu übertragen – und eine Vorgabe, die seit dem Wegfall
+  ihres Grundes niemand überdacht hat. Das Lesen ist davon unberührt: ein Peer
+  nimmt ohnehin beide Formate an, die Umstellung ändert also nur, was ein Gerät
+  herausgibt.
 - **Was eine kleinere Nutzlast bringt, ist ein Code, kein dünnerer.** Oberhalb
   von 600 Zeichen wird die Einladung in eine BC-UR-Animation zerlegt, deren
   Bilder bauartbedingt klein sind – eine v2-Nutzlast zeichnet also mehrere Codes

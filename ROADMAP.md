@@ -84,10 +84,12 @@ See the issue for what would need measuring first.
 **Tracked in [#6](https://github.com/NiKrause/libp2p-webrtc-qr/issues/6).**
 
 **Done as a format, and switched off as a default.** A connection built from a
-reconstructed SDP goes silent under load - four of eight runs against zero of
-eight on v2 - so producing v3 is opt-in per invite. That defect is
-[#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83), and it is what
-stands between this item and the two below it that depend on a small payload.
+reconstructed SDP was once seen to go silent under load - four of eight runs
+against zero of eight on v2 - and producing v3 has been opt-in ever since. That
+measurement did not survive scrutiny: 68 runs, three conditions, every message
+delivered ([#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83#issuecomment-5530131612),
+closed as not reproducible). **So nothing on this list is blocked by a defect any
+more** - what is left is a default nobody has revisited.
 
 Done as the combination this section argued for rather than as adoption.
 A v3 codec packs the fingerprint and candidates binary, derives the ICE
@@ -753,10 +755,10 @@ transmission takes 13.5 s on `normal`, 9.3 s on `fast` and 5.0 s on `fastest`. A
 compact (v3) answer is around 207 bytes - two transmissions, 8 to 14 seconds. A
 full (v2) answer is around 758 bytes: six transmissions and half a minute, which
 is not a thing anybody holds a phone still for. **So this carrier sets the compact
-format rather than following the invite's**, which couples it to item 1 and to
-the defect that keeps v3 opt-in, [#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83).
-It ships experimental and says so, rather than quietly producing a format with a
-known failure under load.
+format rather than following the invite's**, which couples it to item 1. It once
+also depended on [#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83#issuecomment-5530131612);
+that defect did not reproduce and the issue is closed, so what remains is a
+format this carrier asks for explicitly rather than one it inherits.
 
 The other measurement decided the framing. ggwave carries **at most 140 bytes per
 transmission and truncates anything longer silently** - a valid waveform that
@@ -801,9 +803,10 @@ The cost is length, and length is the enemy of scanning. A Nym address is about
 **134 characters**, and it has to reach the other side somehow - which before a
 connection means the invite. Past 600 characters a code stops being one still
 frame and becomes an animated sequence - five of them at present, each of which a
-camera has to catch in turn. That puts this behind the compact format, and the
-compact format behind
-[#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83).
+camera has to catch in turn. That puts this behind the compact format - which is no longer
+behind a defect, only behind a default nobody has revisited
+([#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83#issuecomment-5530131612) closed as not
+reproducible).
 
 It also cannot be tested here. The whole suite runs offline - `?ice=host`, fake
 devices, loopback audio - and a mixnet needs a real gateway. It would be the
@@ -838,8 +841,9 @@ cannot scan silently - the first pairing is a gesture and a browser chooser, and
 only *re*connection can be automatic, via `getDevices()`; one BLE client per
 node, so a visitor brings their own; and the compact format is a hard dependency
 - ~284 bytes is two LoRa packets where the full payload is five or six, under a
-10 % duty cycle. Behind [#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83),
-like the mixnet, and for the same arithmetic.
+10 % duty cycle. It asks for that format explicitly; the defect that once kept it
+opt-in ([#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83#issuecomment-5530131612))
+did not reproduce and is closed.
 
 The build order in the issue starts with a **shared courier seam** that item 17
 would use too - the audio channel's payload-id framing, extracted to be

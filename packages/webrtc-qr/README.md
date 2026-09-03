@@ -17,10 +17,11 @@
 > for a messenger. Where any of those is missing the handshake still verifies and
 > the connection still never forms, and no amount of work here changes that.
 >
-> **What is ours:** compact payloads are off by default because a connection
-> built from a reconstructed SDP goes silent under load
-> ([#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83)), and the API
-> still moves - the acoustic frame format changed between `0.11.0` and `0.12.0`.
+> **What is ours:** the API still moves - the acoustic frame format changed
+> between `0.11.0` and `0.12.0`. Compact payloads are off by default, though no
+> longer because of a known defect: the failure that justified it did not survive
+> re-measurement ([the numbers](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83#issuecomment-5530131612)),
+> and the default has simply not been revisited.
 >
 > Bug reports from real devices are the most useful thing anybody can send.
 
