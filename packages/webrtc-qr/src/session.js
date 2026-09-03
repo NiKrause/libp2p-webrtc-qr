@@ -55,12 +55,19 @@ const DEFAULTS = {
    * Produce compact (v3) payloads - one static code instead of an animated
    * sequence, and about a quarter the characters.
    *
-   * **Off by default, and not because the format is unfinished.** A connection
-   * built from a reconstructed SDP goes silent under load: measured in isolated
-   * worktrees, four of eight runs left both peers holding an open stream that
-   * carried no bytes, against zero of eight on v2. The cause is not understood
-   * (NiKrause/libp2p-webrtc-qr#83), and a code a quarter the size is not worth a
-   * connection that fails half the time under load.
+   * **Off by default, and no longer because of a known defect.** A connection
+   * built from a reconstructed SDP was once seen to go silent under load - four
+   * of eight runs against zero of eight on v2 - and that measurement did not
+   * survive scrutiny. Sixty-eight runs across three conditions, including a
+   * deliberately overloaded machine and all three engines, delivered every
+   * message; the original result appears to have recorded the state of the
+   * laptop rather than of the format
+   * (https://github.com/NiKrause/libp2p-webrtc-qr/issues/83#issuecomment-5530131612).
+   *
+   * What remains is a difference in kind rather than a fault: v3 *rebuilds* the
+   * SDP instead of carrying it, so both ends have to agree on how. The default
+   * has simply not been revisited since the reason for it went away, and
+   * flipping it is a decision rather than a cleanup.
    *
    * *Reading* is unconditional and unaffected: a peer accepts either format
    * whatever this says, so turning it on is safe on the receiving side today.

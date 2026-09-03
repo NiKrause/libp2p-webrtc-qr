@@ -4,8 +4,9 @@
 > [issue #6](https://github.com/NiKrause/libp2p-webrtc-qr/issues/6); this
 > document is what an implementer needs.
 >
-> **Producing this format is opt-in.** A connection built from a reconstructed
-> SDP goes silent under load - [#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83).
+> **Producing this format is opt-in** - a default nobody has revisited since the
+> defect that justified it turned out not to reproduce
+> ([the measurement](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83#issuecomment-5530131612)).
 > Reading it is unconditional and unaffected.
 
 ## Why

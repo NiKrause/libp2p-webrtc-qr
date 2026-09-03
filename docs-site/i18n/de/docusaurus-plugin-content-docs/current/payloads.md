@@ -17,12 +17,17 @@ ist eine Entscheidung.**
 
 ## Warum v3 standardmäßig aus ist
 
-Nicht, weil es unfertig wäre. Eine Verbindung aus einem **rekonstruierten** SDP
-verstummt unter Last: in isolierten Worktrees gemessen, blieben in vier von acht
-Läufen beide Peers auf einem offenen Stream sitzen, der keine Bytes trug — gegen
-null von acht bei v2. Kein Fehler, kein Verbindungsabbruch, es kam schlicht
-nichts an. Die Ursache ist nicht verstanden
-([#83](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83)).
+Nicht, weil es unfertig wäre – und auch nicht mehr wegen eines bekannten
+Fehlers. Eine Verbindung aus einem **rekonstruierten** SDP verstummte einmal
+unter Last: vier von acht Läufen gegen null von acht bei v2. Diese Messung hat
+einer Überprüfung nicht standgehalten – 68 Läufe unter drei Bedingungen, darunter
+eine absichtlich überlastete Maschine und alle drei Engines, lieferten jede
+Nachricht aus ([die Messung](https://github.com/NiKrause/libp2p-webrtc-qr/issues/83#issuecomment-5530131612)).
+Das ursprüngliche Ergebnis beschrieb offenbar den Laptop und nicht das Format.
+
+Es bleibt ein Unterschied in der Art, kein Fehler: v3 **baut** das SDP neu, statt
+es zu übertragen – beide Seiten müssen sich also einig sein, wie. Die Vorgabe hat
+seit dem Wegfall ihres Grundes niemand überdacht.
 
 Das Lesen ist davon unberührt: ein Peer nimmt ohnehin beide Formate an. Die
 Umstellung ändert nur, was ein Gerät herausgibt.

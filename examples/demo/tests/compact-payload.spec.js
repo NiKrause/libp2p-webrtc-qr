@@ -3,7 +3,8 @@ import { expect, test } from '@playwright/test'
 /**
  * A compact (v3) connection has to carry bytes, not merely report success.
  *
- * #83 is the reason the compact format is off by default: a connection built
+ * The compact format is off by default - a choice, not a defect, since the
+ * failure that justified it did not reproduce (#83 closed). Historically: a connection built
  * from a **reconstructed** SDP was measured going silent under load - four runs
  * in eight, against zero in eight on v2. Silent means both peers hold an open
  * stream that carries nothing. No error, no event, no ICE state change; the
@@ -54,7 +55,7 @@ test.describe('the compact payload', () => {
         await openPeer(alice)
         await openPeer(bob)
 
-        // The box is off by default - because of #83 - so the test has to ask
+        // The box is off by default - a standing choice, not a defect - so the test has to ask
         // for the format it is about.
         await alice.locator('#compact-payload').check()
 
