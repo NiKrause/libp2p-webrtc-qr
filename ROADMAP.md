@@ -818,7 +818,9 @@ argument for keeping it in the demo, small, and clearly marked.
 ## 18. A courier over LoRa: signalling through a Meshtastic mesh
 
 **Tracked in [#161](https://github.com/NiKrause/libp2p-webrtc-qr/issues/161), and
-built in [libp2p-webrtc-qr-meshtastic](https://github.com/NiKrause/libp2p-webrtc-qr-meshtastic)** -
+built in [funkpost](https://github.com/NiKrause/funkpost)** (né
+libp2p-webrtc-qr-meshtastic; the courier turned out to be the constant worth
+naming) -
 its own repository under GPL-3.0, for the licence reason set out in item 19.
 
 The same shape as item 17, on the ground instead of in the mixnet: offer and
@@ -878,7 +880,7 @@ is `private: true` but it *is* distributed, from webrtc-qr.le-space.de, and
 bundling GPL-3.0 would make the deployed app GPL-3.0.
 
 So the LoRa carrier goes to
-**[its own repository](https://github.com/NiKrause/libp2p-webrtc-qr-meshtastic)**, GPL-3.0,
+**[its own repository](https://github.com/NiKrause/funkpost)**, GPL-3.0,
 depending on `@le-space/libp2p-webrtc-qr` - permissive flows into copyleft, the reverse is
 what fails. That is forced rather than chosen, and it is not a defect in the
 structure: a workspace that can host every carrier except one with a copyleft
