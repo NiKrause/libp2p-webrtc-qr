@@ -43,8 +43,10 @@ direction, because there is no server to carry the answer back.
 | [`examples/demo`](examples/demo) | Browser demo: QR camera scanning, copy/paste fallback, chat over a libp2p stream |
 | [`examples/helia-file-transfer`](examples/helia-file-transfer) | Two Helia (IPFS) nodes transferring a file over the QR-negotiated connection, bitswap only |
 
-**Elsewhere:** [libp2p-webrtc-qr-meshtastic](https://github.com/NiKrause/libp2p-webrtc-qr-meshtastic)
-carries the handshake over a Meshtastic LoRa mesh. It lives in its own repository
+**Elsewhere:** [funkpost](https://github.com/NiKrause/funkpost) — *Post über
+Funk*, né libp2p-webrtc-qr-meshtastic — is the courier over a Meshtastic LoRa
+mesh: it already carries a database where no IP path exists, and it will carry
+this library's handshake. It lives in its own repository
 and under **GPL-3.0**, because `@meshtastic/core` is GPL-3.0-only and this
 package is Apache-2.0 OR MIT — a permissive library cannot pull copyleft into its
 consumers' builds. It depends on this one; the reverse would not be allowed.
