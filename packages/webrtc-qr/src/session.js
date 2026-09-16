@@ -11,6 +11,7 @@ import {
   setLocalDescription,
   setRemoteDescription
 } from './payload.js'
+import { DEFAULT_RTC_CONFIGURATION } from './elements/network.js'
 import { QR_TYPE_ANSWER, QR_TYPE_OFFER } from './signaling.js'
 
 /**
@@ -249,7 +250,11 @@ export class QRSession extends EventTarget {
   /**
    * @param node - a started libp2p node using the `webRTCQR` transport
    * @param options.rtcConfiguration - object, or a function returning one, so a
-   *   caller that lets the user supply a TURN server per visit can do so
+   *   caller that lets the user supply a TURN server per visit can do so.
+   *   Defaults to `DEFAULT_RTC_CONFIGURATION`, the list `qr-status` probes
+   *   with, so the probe's verdict describes what an invite can reach. Pass
+   *   `{ iceServers: [] }` to gather host candidates only: the same network
+   *   still works, and no STUN server learns this device's public address.
    */
   constructor (node, options = {}) {
     super()
@@ -261,7 +266,7 @@ export class QRSession extends EventTarget {
   }
 
   #rtcConfiguration () {
-    const configuration = this.options.rtcConfiguration ?? {}
+    const configuration = this.options.rtcConfiguration ?? DEFAULT_RTC_CONFIGURATION
 
     return typeof configuration === 'function' ? configuration() : configuration
   }

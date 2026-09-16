@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { DEFAULT_RTC_CONFIGURATION } from '../src/elements/network.js'
 import { QRSession, describeIce } from '../src/session.js'
 
 /**
@@ -164,4 +165,51 @@ test('a connection dial is retried on the same terms as a stream', async () => {
 
   assert.equal(connection.status, 'open')
   assert.equal(attempts, 3)
+})
+
+/**
+ * Which STUN servers an invite and a reply gather with.
+ *
+ * A session given no `rtcConfiguration` used to gather with none at all, while
+ * `qr-status` probed with `DEFAULT_RTC_CONFIGURATION`. A consumer that passed
+ * nothing - ablage did - therefore said a direct connection off the network
+ * looked possible and then put only host candidates in the code, so two devices
+ * on different networks could never meet, whatever the probe had said.
+ *
+ * `createOffer` builds its `RTCPeerConnection` before anything else, so a
+ * stand-in that records its configuration and stops there is all it takes.
+ */
+async function configurationOfAnOffer (options) {
+  const seen = []
+  const previous = globalThis.RTCPeerConnection
+
+  globalThis.RTCPeerConnection = class {
+    constructor (configuration) {
+      seen.push(configuration)
+      throw new Error('recorded')
+    }
+  }
+
+  try {
+    await assert.rejects(new QRSession(fakeNode(), options).createOffer(), /recorded/)
+  } finally {
+    if (previous === undefined) delete globalThis.RTCPeerConnection
+    else globalThis.RTCPeerConnection = previous
+  }
+
+  return seen[0]
+}
+
+test('an invite gathers with the STUN servers the network probe asks, unless told otherwise', async () => {
+  assert.deepEqual(await configurationOfAnOffer(), DEFAULT_RTC_CONFIGURATION)
+})
+
+test('an empty list keeps an invite to the local network', async () => {
+  assert.deepEqual(await configurationOfAnOffer({ rtcConfiguration: { iceServers: [] } }), { iceServers: [] })
+})
+
+test('a configuration can still be supplied per invite, as a function', async () => {
+  const turn = { iceServers: [{ urls: 'turn:turn.example:3478', username: 'u', credential: 'c' }] }
+
+  assert.deepEqual(await configurationOfAnOffer({ rtcConfiguration: () => turn }), turn)
 })

@@ -34,9 +34,9 @@ werden. Die Verbindung kommt danach zustande und meldet sich über `connect`, od
 
 | Option | Vorgabe | Bedeutung |
 | --- | --- | --- |
-| `rtcConfiguration` | — | wird an `RTCPeerConnection` gereicht |
+| `rtcConfiguration` | `DEFAULT_RTC_CONFIGURATION` | wird an `RTCPeerConnection` gereicht; `{ iceServers: [] }` sammelt nur im eigenen Netz |
 | `compact` | `false` | erzeugt kurze v3-Codes |
-| `iceGatheringTimeout` | 5000 | Ende des Wartens auf Kandidaten |
+| `iceGatheringTimeout` | 15000 | Ende des Wartens auf Kandidaten |
 | `connectionTimeout` | 30000 | Aufgabe von `connected` |
 | `answerWaitTimeout` | — | wie lange die antwortende Seite offen hält |
 | `dialAttempts`, `dialRetryDelay`, `dialSettleDelay` | — | Form der Wiederholung, während der Peer seinen Muxer anhängt |

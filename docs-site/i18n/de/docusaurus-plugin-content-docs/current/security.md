@@ -77,6 +77,10 @@ geantwortet hat. Das Sammeln von Kandidaten teilt diesen Betreibern also **die
 jeder Antwort. Das ist gewöhnliches WebRTC und keine Erfindung dieses Projekts —
 es ist der Preis dafür, ohne Relay über zwei Netze hinweg zu verbinden.
 
+`QRSession` sammelt mit dieser Liste, solange `rtcConfiguration` nichts anderes
+sagt, und `qr-status` prüft mit ihr. Was die Prüfung meldet, kann eine Einladung
+also auch.
+
 Daraus folgen drei Dinge, keines davon eine Codeänderung:
 
 - `rtcConfiguration` ersetzt die Liste, durch einen eigenen STUN-Server oder
