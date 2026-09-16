@@ -199,9 +199,16 @@ code for months. Tracking issue:
 ### The promise
 
 The node stays fully functional **without** a relay. That is a guarantee, not a
-default: the checkbox is off, a start without it makes no outbound network call
-at all, and no relay is contacted without an explicit choice. Someone using the
-app in one room leaves metadata nowhere.
+default: the checkbox is off, and no relay and no directory is contacted without
+an explicit choice.
+
+It is not silence, though, and this paragraph once said it was. Gathering
+candidates asks the STUN servers in `DEFAULT_RTC_CONFIGURATION` - Cloudflare's
+and Google's - for this device's public address, on every invite, every reply
+and every network probe. That is what lets two networks meet without a relay;
+`docs-site/docs/security.md` says what it costs. An app whose promise is that a
+room leaves metadata nowhere passes `{ iceServers: [] }` and stays on the local
+network.
 
 A relay is a second way in, for the case the QR path cannot serve: the other
 person is not here to scan anything. It is added, never substituted.

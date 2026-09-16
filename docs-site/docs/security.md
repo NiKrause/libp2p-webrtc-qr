@@ -72,6 +72,9 @@ of whoever is gathering**, on every invite and every reply. That is ordinary
 WebRTC rather than anything this project invented, and it is the price of
 connecting across two networks without a relay.
 
+`QRSession` gathers with this list unless `rtcConfiguration` says otherwise, and
+`qr-status` probes with it, so what the probe reports is what an invite can do.
+
 Three things follow, and none of them needs a code change:
 
 - `rtcConfiguration` replaces the list, with your own STUN server or with none.

@@ -71,9 +71,9 @@ reports itself through `connect`, or `error` if it never does.
 
 | option | default | meaning |
 | --- | --- | --- |
-| `rtcConfiguration` | — | passed to `RTCPeerConnection` |
+| `rtcConfiguration` | `DEFAULT_RTC_CONFIGURATION` | passed to `RTCPeerConnection`; `{ iceServers: [] }` gathers on the local network only |
 | `compact` | `false` | produce v3 short codes (see below) |
-| `iceGatheringTimeout` | 5000 | stop waiting for candidates |
+| `iceGatheringTimeout` | 15000 | stop waiting for candidates |
 | `connectionTimeout` | 30000 | give up on `connected` |
 | `answerWaitTimeout` | — | how long the answering side holds its side open |
 | `dialAttempts`, `dialRetryDelay`, `dialSettleDelay` | — | retry shape while the peer attaches its muxer |
