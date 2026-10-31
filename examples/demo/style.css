@@ -1501,6 +1501,53 @@ button.is-busy::before {
    disclosure is read where the request is made. */
 .logbook-consent { margin-top: 10px; }
 
+/* The scenario picker, framed rather than floating: it is a fieldset because
+   picking one is choosing a state, and the border is what says the three radios
+   and the brief under them are one question. */
+.scenario {
+  border: 1px solid var(--ls-card-border);
+  border-radius: var(--ls-radius-sm);
+  padding: 12px 14px;
+  margin: 0 0 16px;
+}
+
+.scenario legend {
+  padding: 0 6px;
+  font-weight: 600;
+}
+
+/* Indented under the radios, so the steps read as consequences of the choice
+   above rather than as a second list beside it. */
+.scenario-brief {
+  margin-top: 10px;
+  padding-left: 4px;
+  border-left: 2px solid var(--ls-card-border);
+  padding-inline-start: 12px;
+}
+
+.scenario-brief ol {
+  margin: 0 0 8px;
+  padding-inline-start: 20px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.scenario-brief ol li { margin-bottom: 4px; }
+
+.scenario-brief .hint { margin-bottom: 0; }
+
+/* A labelled run with recording off writes nothing, which makes the whole
+   exercise silently pointless - so it is the one line here that is coloured. */
+.scenario-off {
+  color: var(--ls-amber);
+}
+
+/* Last, and dimmer: scenario B's absence is context, not an instruction. */
+.scenario-pairing {
+  margin: 12px 0 0;
+  font-size: 0.82rem;
+}
+
 .logbook-context {
   display: flex;
   flex-wrap: wrap;

@@ -142,9 +142,41 @@ export function translateDocument (root = document) {
  * @returns {string}
  */
 export function t (key, params = {}) {
-  const value = key.split('.').reduce((node, part) => node?.[part], CATALOGUES[current]) ??
-    key.split('.').reduce((node, part) => node?.[part], CATALOGUES.en)
+  const value = lookup(key)
 
   if (value == null) return key
   return typeof value === 'function' ? String(value(params)) : String(value)
+}
+
+/**
+ * The chosen language's entry, falling back to English.
+ *
+ * English is the fallback rather than the key, because a half-translated
+ * catalogue should show a sentence somebody can read, not a dotted path.
+ */
+function lookup (key) {
+  const path = key.split('.')
+  const from = catalogue => path.reduce((node, part) => node?.[part], catalogue)
+
+  return from(CATALOGUES[current]) ?? from(CATALOGUES.en)
+}
+
+/**
+ * A list from the catalogue, for text that genuinely is a sequence.
+ *
+ * `t` answers with a string, which is right for nearly everything here. A
+ * scenario's steps are a numbered list whose *length* belongs to the
+ * translation: a counter in JavaScript that has to match the locale file is a
+ * trap for whoever adds a step, and it fails silently by dropping the last one.
+ *
+ * Anything that is not a list comes back empty rather than wrapped, so a
+ * mistyped key renders nothing instead of one item reading `scenario.steps`.
+ *
+ * @param {string} key dotted path into the catalogue
+ * @returns {string[]}
+ */
+export function list (key) {
+  const value = lookup(key)
+
+  return Array.isArray(value) ? value.map(String) : []
 }
