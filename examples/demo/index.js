@@ -89,11 +89,15 @@ function writeViewLabel () {
 import { fromString, toString } from 'uint8arrays'
 import {
   QRSession,
+  asAddressFamily,
   compress,
   createAudioReceiver,
   createWebRTCUpgradeContext,
+  candidateAddress,
   decodePayload,
   describeIce,
+  familiesOffered,
+  familyLabel,
   readIceCandidates,
   AUDIO_SAMPLE_RATE,
   encodeSignedPayload,
@@ -312,9 +316,9 @@ viewModeEl.addEventListener('click', () => {
 
 // The elements refresh themselves - they re-render when `strings` is assigned -
 // and `translateDocument` repaints everything that names a key in the markup.
-// What neither covers is text this file builds in JavaScript: the logbook's rows
-// and the scenario brief held their old language until something else happened
-// to redraw them. So they are repainted here.
+// What neither covers is text this file builds in JavaScript: the logbook's
+// rows, the scenario brief and the address-family note held their old language
+// until something else happened to redraw them. So they are repainted here.
 //
 // Here rather than inside `applyLocale`, which also runs at startup, before the
 // elements those two functions reach for have been looked up. Calling them from
@@ -324,6 +328,7 @@ for (const [code, button] of Object.entries(localeButtons)) {
     applyLocale(code)
     renderLogbook()
     renderScenario()
+    renderAddressFamily()
   })
 }
 
@@ -386,6 +391,10 @@ function renderLogbook () {
       entry.carrier,
       entry.format,
       entry.families?.join('+') ?? null,
+      // Beside the families rather than instead of them: "v4" next to "v4 only"
+      // is the difference between a network with no IPv6 and a run that refused
+      // to use it.
+      entry.familyFilter ? t('logbook.familyFilter', { family: familyLabel(entry.familyFilter) }) : null,
       entry.frames != null ? t('logbook.frames', { frames: entry.frames }) : null,
       entry.network?.overall ? `net: ${entry.network.overall}` : null,
       entry.ms != null ? `${Math.round(entry.ms / 1000)}s` : null
@@ -567,6 +576,74 @@ for (const input of scenarioInputs) {
 // log rather than repainting only when somebody picks a scenario again.
 logbook.subscribe(renderScenario)
 renderScenario()
+
+/**
+ * Which address family this page offers, if it is restricting itself to one.
+ *
+ * ## Why one device is enough
+ *
+ * A browser will not be told "use IPv6 only". But a peer probes only candidate
+ * pairs it knows about, so the session drops the other family from what this
+ * device *offers* and from what it *accepts* - and the far side, having
+ * received one family, probes one family without running a build that has
+ * heard of this control. See the package's families.js; the point here is that
+ * the person testing does not need a second cooperating device.
+ *
+ * ## Why it does not travel with the invite
+ *
+ * The scenario label does, because the far end writes its own row and a half-
+ * labelled measurement is worthless. This is the opposite case: it is a
+ * restriction, not a description, and a link that quietly crippled the
+ * recipient's connection would break their app to answer somebody else's
+ * question. `?family=` stays in the query string, which `linkFor` clears - so
+ * it can open a deliberately restricted tab and cannot leave this device.
+ *
+ * ## Not persisted, same reason as the scenario
+ *
+ * A filter left set would silently break the next ordinary connection, days
+ * later, with nothing on screen in the simple view to explain it.
+ */
+let addressFamily = asAddressFamily(new URLSearchParams(window.location.search).get('family'))
+
+/**
+ * The control, and what a restriction means while it is set.
+ *
+ * The live line exists because the two surprising facts about this filter are
+ * invisible otherwise: it governs what this device *accepts* as well as what it
+ * sends, and an invite with no candidate of the chosen family is refused rather
+ * than shown. Both are better said before somebody presses the button than
+ * worked out afterwards from a refusal.
+ */
+const addressFamilyEl = document.getElementById('address-family')
+const familyBriefEl = document.getElementById('family-brief')
+
+function renderAddressFamily () {
+  addressFamilyEl.value = addressFamily ?? ''
+  familyBriefEl.replaceChildren()
+  familyBriefEl.hidden = addressFamily == null
+
+  if (addressFamily == null) {
+    return
+  }
+
+  for (const key of ['family.both-ways', 'family.refuses', 'family.mdns']) {
+    const line = document.createElement('p')
+
+    line.className = 'hint'
+    line.textContent = t(key, { family: familyLabel(addressFamily) })
+    familyBriefEl.append(line)
+  }
+}
+
+addressFamilyEl.addEventListener('change', () => {
+  addressFamily = asAddressFamily(addressFamilyEl.value)
+  renderAddressFamily()
+  appendLog(addressFamily == null
+    ? 'Offering every address family this device finds.'
+    : `Offering ${familyLabel(addressFamily)} only - and accepting nothing else.`)
+})
+
+renderAddressFamily()
 
 for (const [el, key] of [[logbookProviderEl, 'provider'], [logbookPlaceEl, 'place'], [logbookPeerEl, 'peer']]) {
   el.value = logbook.context[key] ?? ''
@@ -977,6 +1054,9 @@ async function createNode () {
   // this app does with a connection once it exists.
   session = new QRSession(node, {
     rtcConfiguration: getRtcConfiguration,
+    // A function, not the value: the control can be changed between two
+    // invites, and whoever changes it means the next one.
+    addressFamily: () => addressFamily,
     answerWaitTimeout: ANSWER_WAIT_TIMEOUT,
     connectionTimeout: CONNECTION_TIMEOUT
   })
@@ -2588,27 +2668,21 @@ async function shareOrCopy (text, what) {
  * and we did not send is not an offer of anything.
  *
  * The two formats hand back candidates differently: v2 carries the whole SDP,
- * v3 a list of candidate *lines*, where the address is the fifth field. Both
- * are handled here rather than at the call site, so the caller never has to
- * know which format it just built.
+ * v3 a list of candidate *lines*. Both are handled here rather than at the call
+ * site, so the caller never has to know which format it just built.
  *
- * `.local` is its own answer, not a family: an mDNS stand-in says the browser
- * withheld the address, which is a different fact from having no IPv6.
+ * The vocabulary itself comes from the package - `familiesOffered` is the same
+ * reader the filter uses, which is the point. This file had its own copy of
+ * "does `.local` count as IPv6", and two answers to that question would have
+ * meant a filtered run whose recorded families disagreed with what was filtered.
  */
 async function offeredFamilies (payload) {
   try {
     const parsed = await parsePayload(payload)
-    const addresses = parsed.sdp != null
+
+    return familiesOffered(parsed.sdp != null
       ? readIceCandidates(parsed.sdp).map(candidate => candidate.address)
-      : (parsed.candidates ?? []).map(line => String(line).split(/\s+/u)[4])
-
-    const families = new Set(
-      addresses
-        .filter(Boolean)
-        .map(address => address.endsWith('.local') ? 'mdns' : address.includes(':') ? 'v6' : 'v4')
-    )
-
-    return families.size > 0 ? [...families].sort() : null
+      : (parsed.candidates ?? []).map(candidateAddress))
   } catch {
     // A payload this build cannot read is not worth failing an invite over.
     return null
@@ -2694,7 +2768,7 @@ async function handleReceivedPayload (input, expectedType) {
   // An offer arriving means this side is answering, and nothing has opened an
   // entry for it yet - the offering side's attempt is on the other device.
   if (type === QR_TYPE_OFFER && logbook.pending() == null) {
-    logbook.start({ role: 'answering', carrier: incomingCarrier, scenario })
+    logbook.start({ role: 'answering', carrier: incomingCarrier, scenario, familyFilter: addressFamily })
   }
 
   logbook.note({ format: isCompactPayload(text) ? 'v3' : 'v2', received: text.length })
@@ -2805,7 +2879,7 @@ scanModalEl.addEventListener('scan', async event => {
     await ensureNode()
 
     if (logbook.pending() == null) {
-      logbook.start({ role: 'answering', carrier: 'camera', scenario })
+      logbook.start({ role: 'answering', carrier: 'camera', scenario, familyFilter: addressFamily })
     }
 
     const classified = await classifyScanned(event.detail.text, expectedType)
@@ -2842,7 +2916,7 @@ resetIdentityButton.addEventListener('click', () => {
 })
 
 async function createInvite (button) {
-  logbook.start({ role: 'offering', scenario })
+  logbook.start({ role: 'offering', scenario, familyFilter: addressFamily })
 
   // Step 1 is technical - "start a browser peer" is not a thing anybody set out
   // to do - so in the simple view it is not on screen to press. The button that
@@ -2882,6 +2956,12 @@ async function createInvite (button) {
     setStatus(t('status.inviteReady'))
     appendLog('Created a signed invite link.')
   } catch (error) {
+    // Recorded, not only shown. An invite that could not be made is a result -
+    // "this device gathered no IPv6 candidate" is the whole answer to the
+    // question an IPv6-only run was asking - and before this the open entry was
+    // left dangling, to be closed as `abandoned` by whatever started next.
+    logbook.note({ network: networkVerdicts() })
+    logbook.finish({ outcome: 'failed', reason: error.message })
     setStatus(explain(error))
     appendLog(`Invite failed: ${error.message}`)
   } finally {
@@ -3069,7 +3149,7 @@ async function useIncoming (text) {
   // Guarded, because the offering side already has one open from `createInvite`
   // and this is where it pastes the reply.
   if (logbook.pending() == null) {
-    logbook.start({ role: 'answering', carrier: incomingCarrier, scenario })
+    logbook.start({ role: 'answering', carrier: incomingCarrier, scenario, familyFilter: addressFamily })
   }
   setButtonBusy(processPayloadButton, node == null ? t('invite.starting') : 'Connecting…')
 
@@ -3380,6 +3460,9 @@ window.__libp2pQrTest = {
   // The label in force right now. A test about a link carrying its scenario has
   // to read it from the receiving page, which has no other way to say so.
   scenario: () => scenario,
+  // The filter in force, for the one claim about it a page cannot otherwise
+  // make: that it did *not* arrive with a link.
+  addressFamily: () => addressFamily,
   renderReceived: (name, cid, bytes, direction = 'received') =>
     renderReceivedFile({ name, cid, mime: 'application/octet-stream' }, new Uint8Array(bytes), { direction }),
   // The codec, so a spec can mount its own <qr-listen> and feed it a payload

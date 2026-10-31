@@ -23,6 +23,20 @@ export default {
   compact: {
     label: 'Kurzcode (nach <a href="https://magarcia.github.io/qwbp/spec.html" target="_blank" rel="noreferrer">QWBP</a>) <small>experimentell, und signiert statt blank</small>'
   },
+  // Der Hebel und die drei Dinge daran, die der Schalter nicht verrät. Jedes
+  // davon würde man sonst durch eine Überraschung herausfinden: dass er auch
+  // gilt, was dieses Gerät annimmt; dass eine Einladung ohne Angebot
+  // abgelehnt statt gezeigt wird; und dass eine zurückgehaltene Adresse zu
+  // keiner der beiden Familien zählt.
+  family: {
+    label: 'Welche Adressen anbieten',
+    both: 'Beide — was dieses Gerät findet',
+    v4: 'nur IPv4',
+    v6: 'nur IPv6',
+    'both-ways': ({ family }) => `In beide Richtungen: dieses Gerät bietet nur ${family}-Kandidaten an und nimmt nur ${family} an. Das genügt, um auch das andere Gerät auf ${family} festzulegen — dort ist keine Einstellung nötig.`,
+    refuses: ({ family }) => `Hat dieses Gerät keinen ${family}-Kandidaten, wird die Einladung abgelehnt statt gezeigt. Diese Ablehnung ist die Antwort, und sie wird als solche aufgezeichnet.`,
+    mdns: 'Adressen, die der Browser als .local-Namen zurückhält, fallen weg: der Name verbirgt, für welche Familie er steht, und ein Lauf, der das nicht ausschließen kann, ist keine Messung. Alle Engines halten lokale Adressen standardmäßig zurück — ohne STUN-Server können das alle Kandidaten sein, und dann bleibt nichts zum Anbieten übrig.'
+  },
   paste: {
     summary: 'Mir wurde ein Link geschickt, und Antippen hat nicht funktioniert',
     label: 'Fügen Sie den Link ein, den man Ihnen geschickt hat',
@@ -74,6 +88,7 @@ export default {
     export: 'Als JSON exportieren',
     clear: 'Protokoll leeren',
     frames: ({ frames }) => `${frames} Bild${frames === 1 ? '' : 'er'}`,
+    familyFilter: ({ family }) => `nur ${family}`,
     outcome: {
       connected: 'verbunden',
       failed: 'gescheitert',

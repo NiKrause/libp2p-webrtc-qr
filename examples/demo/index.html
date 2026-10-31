@@ -243,6 +243,33 @@
             <span data-i18n-html="compact.label"></span>
           </label>
 
+          <!--
+            The lever that turns "IPv6 does not work here" from a guess into a
+            run (#179).
+
+            Behind the technical door, unlike the box above it: this control can
+            make a connection that would otherwise have worked fail. That is
+            exactly what it is for when the question is whether a family works
+            at all, and a trap in front of somebody who only wants to talk.
+
+            A select rather than radios, because unlike a scenario there is a
+            plain default here and the other two are deliberate restrictions of
+            it - and because this card is a place people press buttons, not a
+            form they fill in.
+          -->
+          <div class="field family-filter" data-view="technical">
+            <label for="address-family" data-i18n="family.label">Which addresses to offer</label>
+            <select id="address-family">
+              <option value="" data-i18n="family.both">Both — whatever this device finds</option>
+              <option value="v4" data-i18n="family.v4">IPv4 only</option>
+              <option value="v6" data-i18n="family.v6">IPv6 only</option>
+            </select>
+            <!-- What a restriction actually does, from JS: it names the chosen
+                 family, and it has no business being on screen while the
+                 default is selected. -->
+            <div id="family-brief" class="family-brief" hidden></div>
+          </div>
+
           <!-- The way in for someone whose link did not open the page by itself.
                It is the rarer case, so it stays folded until it is needed. -->
           <details class="paste-fallback">

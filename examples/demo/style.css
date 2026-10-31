@@ -1548,6 +1548,56 @@ button.is-busy::before {
   font-size: 0.82rem;
 }
 
+/* The address-family lever lives with the invite buttons rather than in the
+   logbook card: the scenario panel labels a run, this one changes what the next
+   invite actually is. */
+.family-filter {
+  margin: 14px 0 16px;
+}
+
+/* Matched to the text inputs above rather than to the pill in the nav bar: this
+   one sits in a form, and a dropdown that looked like a nav control would read
+   as navigation. */
+.family-filter select {
+  width: 100%;
+  max-width: 22rem;
+  font-family: var(--ls-font-mono);
+  font-size: 0.9rem;
+  color: var(--ls-text);
+  background: var(--ls-bg-1);
+  border: 1px solid var(--ls-bg-3);
+  border-radius: var(--ls-radius-sm);
+  padding: 10px 12px;
+}
+
+.family-filter select:focus {
+  outline: none;
+  border-color: var(--ls-accent);
+  box-shadow: var(--ls-glow-accent);
+}
+
+.family-filter option {
+  background: var(--ls-card);
+  color: var(--ls-text);
+}
+
+/* The same indent as the scenario brief, and for the same reason: what follows
+   is a consequence of the choice above it. */
+.family-brief {
+  margin-top: 10px;
+  padding-inline-start: 12px;
+  border-left: 2px solid var(--ls-card-border);
+}
+
+.family-brief .hint {
+  margin: 0 0 6px;
+  font-size: 0.82rem;
+}
+
+.family-brief .hint:last-child {
+  margin-bottom: 0;
+}
+
 .logbook-context {
   display: flex;
   flex-wrap: wrap;

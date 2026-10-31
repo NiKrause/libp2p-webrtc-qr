@@ -33,6 +33,20 @@ export default {
   compact: {
     label: 'Short code (<a href="https://magarcia.github.io/qwbp/spec.html" target="_blank" rel="noreferrer">QWBP</a>-style) <small>experimental, and signed rather than bare</small>'
   },
+  // The lever, and the three things about it that are not obvious from the
+  // control. Each is a fact somebody would otherwise discover by being
+  // surprised: that it governs what this device accepts, that an invite with
+  // nothing to offer is refused rather than shown, and that a withheld address
+  // counts as neither family.
+  family: {
+    label: 'Which addresses to offer',
+    both: 'Both — whatever this device finds',
+    v4: 'IPv4 only',
+    v6: 'IPv6 only',
+    'both-ways': ({ family }) => `Both directions: this device offers only ${family} candidates and accepts only ${family} ones, which is enough to hold the other device to ${family} too — it needs no setting of its own.`,
+    refuses: ({ family }) => `If this device has no ${family} candidate, the invite is refused rather than shown. That refusal is the answer, and it is recorded as one.`,
+    mdns: 'Addresses the browser withholds as a .local name are dropped: the name hides which family it stands for, and a run that cannot rule that out is not a measurement. Every engine withholds local addresses by default, so without a STUN server that can be every candidate there is - and then there is nothing left to offer.'
+  },
   paste: {
     summary: 'Someone sent me a link and tapping it did not work',
     label: 'Paste the link they sent you',
@@ -91,6 +105,7 @@ export default {
     export: 'Export as JSON',
     clear: 'Clear the log',
     frames: ({ frames }) => `${frames} frame${frames === 1 ? '' : 's'}`,
+    familyFilter: ({ family }) => `${family} only`,
     outcome: {
       connected: 'connected',
       failed: 'failed',

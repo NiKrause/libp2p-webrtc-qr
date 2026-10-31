@@ -1,5 +1,21 @@
 export { webRTCQR, createWebRTCUpgradeContext } from './transport.js'
 export { QRSession, describeIce, readIceCandidates } from './session.js'
+// The address-family lever, and the vocabulary that goes with it.
+//
+// Reachable from the root because the filter is only half of a measurement: the
+// other half is a consumer recording *which* families a payload actually
+// offered, and a consumer that had to re-derive "is this v6, or an mDNS name
+// hiding one" would get a different answer from the session that filtered it.
+export {
+  ADDRESS_FAMILIES,
+  asAddressFamily,
+  candidateAddress,
+  familiesOffered,
+  familyLabel,
+  familyOf,
+  filterCandidateLines,
+  filterSdpCandidates
+} from './families.js'
 export { createKeepAlive } from './keep-alive.js'
 export {
   AUDIO_CHUNK_LIMIT,

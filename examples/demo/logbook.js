@@ -220,7 +220,7 @@ export function createLogbook ({ now = () => Date.now() } = {}) {
      * A second `start` while one is open closes the first as abandoned: leaving
      * it dangling would silently lose the row that says somebody gave up.
      */
-    start ({ role, carrier = null, scenario = null }) {
+    start ({ role, carrier = null, scenario = null, familyFilter = null }) {
       // Off means off: no entry, not an empty one and not a redacted one.
       if (!enabled) return null
 
@@ -253,6 +253,17 @@ export function createLogbook ({ now = () => Date.now() } = {}) {
          * alone, and they are different findings.
          */
         families: null,
+        /**
+         * Which family this run was *restricted* to, or null for no filter.
+         *
+         * Not the same fact as `families`, and the difference is the reason
+         * both exist. `families: ['v4']` can mean "IPv4 only was asked for" or
+         * "this network has no IPv6" - identical in the record, opposite in
+         * meaning. #179 proposed `families` alone for this; it is not enough,
+         * because the filter is the half that says whether the absence was a
+         * choice.
+         */
+        familyFilter,
         ...describeAgent(),
         ...context,
         network: null,
