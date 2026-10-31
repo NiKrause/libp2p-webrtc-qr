@@ -368,9 +368,13 @@ function renderLogbook () {
     const how = document.createElement('span')
     how.className = 'logbook-how'
     how.textContent = [
+      // First, because it says whether this row is evidence or somebody's
+      // ordinary Tuesday. Everything after it is detail about the attempt.
+      entry.scenario,
       entry.role,
       entry.carrier,
       entry.format,
+      entry.families?.join('+') ?? null,
       entry.frames != null ? t('logbook.frames', { frames: entry.frames }) : null,
       entry.network?.overall ? `net: ${entry.network.overall}` : null,
       entry.ms != null ? `${Math.round(entry.ms / 1000)}s` : null
@@ -721,6 +725,26 @@ function setStatus (text) {
   statusEl.classList.toggle('is-live', /connected to |webrtc connected/i.test(text))
   statusEl.classList.toggle('is-error', /failed|timed out|cancelled/i.test(text))
 }
+
+/**
+ * Which deliberate test this page is running, if any.
+ *
+ * From the query string rather than a control, for now: the scenario UI is a
+ * later step (#179) and this is what makes the field usable while it is being
+ * built. A tester opens `?scenario=same-lan` on both devices and every attempt
+ * from that tab is labelled.
+ *
+ * Read once. A scenario that changed halfway through a session would put two
+ * labels on one sitting, which is exactly the ambiguity the field exists to
+ * remove.
+ */
+const SCENARIO = (() => {
+  const value = new URLSearchParams(window.location.search).get('scenario')
+
+  // A short vocabulary, checked rather than trusted: a typo that silently
+  // became its own scenario would split a measurement in two without saying so.
+  return ['same-lan', 'across-networks', 'mobile-data'].includes(value) ? value : null
+})()
 
 /**
  * A TURN server can be supplied per visit:
@@ -2414,6 +2438,41 @@ async function shareOrCopy (text, what) {
 }
 
 /**
+ * Which address families this payload actually offered.
+ *
+ * Read from the payload rather than from the peer connection, because the
+ * payload is what the other device receives - a candidate the browser gathered
+ * and we did not send is not an offer of anything.
+ *
+ * The two formats hand back candidates differently: v2 carries the whole SDP,
+ * v3 a list of candidate *lines*, where the address is the fifth field. Both
+ * are handled here rather than at the call site, so the caller never has to
+ * know which format it just built.
+ *
+ * `.local` is its own answer, not a family: an mDNS stand-in says the browser
+ * withheld the address, which is a different fact from having no IPv6.
+ */
+async function offeredFamilies (payload) {
+  try {
+    const parsed = await parsePayload(payload)
+    const addresses = parsed.sdp != null
+      ? readIceCandidates(parsed.sdp).map(candidate => candidate.address)
+      : (parsed.candidates ?? []).map(line => String(line).split(/\s+/u)[4])
+
+    const families = new Set(
+      addresses
+        .filter(Boolean)
+        .map(address => address.endsWith('.local') ? 'mdns' : address.includes(':') ? 'v6' : 'v4')
+    )
+
+    return families.size > 0 ? [...families].sort() : null
+  } catch {
+    // A payload this build cannot read is not worth failing an invite over.
+    return null
+  }
+}
+
+/**
  * Publish an outbound payload as a link. The QR encodes the *link*, not the raw
  * payload, so a phone's own camera app opens the page with everything loaded -
  * the in-app scanner is no longer the only way in.
@@ -2471,6 +2530,14 @@ async function renderOutbound (payload, kind) {
   // The element decides whether one code fits or a sequence is needed, and
   // animates it if so. What used to be eighty lines here is now an attribute.
   qrImage.value = link
+
+  // After the code is on screen, never before. Working out which families were
+  // offered means parsing the payload and checking its signature, and a
+  // diagnostic that delays the thing somebody is waiting for has its priorities
+  // backwards - it cost a click timeout in keep-alive.spec.js when it sat one
+  // line higher. The entry stays open until the attempt ends, so a late note
+  // lands in the same row.
+  offeredFamilies(payload).then(families => logbook.note({ families })).catch(() => {})
   appendLog(`QR payload size: ${payload.length} characters.`)
 
   return link
@@ -2484,7 +2551,7 @@ async function handleReceivedPayload (input, expectedType) {
   // An offer arriving means this side is answering, and nothing has opened an
   // entry for it yet - the offering side's attempt is on the other device.
   if (type === QR_TYPE_OFFER && logbook.pending() == null) {
-    logbook.start({ role: 'answering', carrier: incomingCarrier })
+    logbook.start({ role: 'answering', carrier: incomingCarrier, scenario: SCENARIO })
   }
 
   logbook.note({ format: isCompactPayload(text) ? 'v3' : 'v2', received: text.length })
@@ -2595,7 +2662,7 @@ scanModalEl.addEventListener('scan', async event => {
     await ensureNode()
 
     if (logbook.pending() == null) {
-      logbook.start({ role: 'answering', carrier: 'camera' })
+      logbook.start({ role: 'answering', carrier: 'camera', scenario: SCENARIO })
     }
 
     const classified = await classifyScanned(event.detail.text, expectedType)
@@ -2632,7 +2699,7 @@ resetIdentityButton.addEventListener('click', () => {
 })
 
 async function createInvite (button) {
-  logbook.start({ role: 'offering' })
+  logbook.start({ role: 'offering', scenario: SCENARIO })
 
   // Step 1 is technical - "start a browser peer" is not a thing anybody set out
   // to do - so in the simple view it is not on screen to press. The button that
@@ -2859,7 +2926,7 @@ async function useIncoming (text) {
   // Guarded, because the offering side already has one open from `createInvite`
   // and this is where it pastes the reply.
   if (logbook.pending() == null) {
-    logbook.start({ role: 'answering', carrier: incomingCarrier })
+    logbook.start({ role: 'answering', carrier: incomingCarrier, scenario: SCENARIO })
   }
   setButtonBusy(processPayloadButton, node == null ? t('invite.starting') : 'Connecting…')
 
@@ -3163,6 +3230,10 @@ window.__libp2pQrTest = {
   // through a download - which is the browser's plumbing rather than ours, and
   // the part that turned out to be timing-dependent under load.
   logbookExport: () => logbook.export(),
+  // The attempt still in flight. `families` is written while an invite is on
+  // screen and the entry does not close until the connection does, so a test
+  // about what was offered has nowhere else to read it.
+  logbookPending: () => logbook.pending(),
   renderReceived: (name, cid, bytes, direction = 'received') =>
     renderReceivedFile({ name, cid, mime: 'application/octet-stream' }, new Uint8Array(bytes), { direction }),
   // The codec, so a spec can mount its own <qr-listen> and feed it a payload

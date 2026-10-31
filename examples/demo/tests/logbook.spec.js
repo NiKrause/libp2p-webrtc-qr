@@ -176,6 +176,66 @@ test.describe('the logbook', () => {
     }
   })
 
+  /**
+   * A run is either a measurement or somebody's ordinary Tuesday, and the log
+   * has had no way to say which (#179). A failure in a labelled run is
+   * evidence; the same failure unlabelled might be a fumbled camera aim.
+   */
+  test('labels a run that was a deliberate test, and leaves the rest unlabelled', async ({ page }) => {
+    await page.goto('/?ice=host&view=technical&intro=off&scenario=same-lan')
+    await page.locator('#logbook-enabled').check()
+    await page.locator('#start-client').click()
+    await page.waitForFunction(() => document.getElementById('peer-id').textContent !== 'not started')
+
+    await page.locator('.paste-fallback summary').click()
+    await page.locator('#payload-display').fill('https://example.org/#r=q3:nonsense')
+    await page.locator('#process-payload').click()
+    await expect.poll(() => entries(page).then(list => list.length), { timeout: 30000 }).toBe(1)
+
+    expect((await entries(page))[0].scenario).toBe('same-lan')
+    await expect(page.locator('.logbook-how')).toContainText('same-lan')
+  })
+
+  test('an unknown scenario is no scenario, rather than one of its own', async ({ page }) => {
+    // A typo that silently became its own label would split one measurement in
+    // two without saying so, which is worse than not labelling at all.
+    await page.goto('/?ice=host&view=technical&intro=off&scenario=same-lann')
+    await page.locator('#logbook-enabled').check()
+    await page.locator('#start-client').click()
+    await page.waitForFunction(() => document.getElementById('peer-id').textContent !== 'not started')
+
+    await page.locator('.paste-fallback summary').click()
+    await page.locator('#payload-display').fill('https://example.org/#r=q3:nonsense')
+    await page.locator('#process-payload').click()
+    await expect.poll(() => entries(page).then(list => list.length), { timeout: 30000 }).toBe(1)
+
+    expect((await entries(page))[0].scenario).toBeNull()
+  })
+
+  /**
+   * What a payload *offered*, which is not the same as what the browser
+   * gathered: a candidate we did not send is an offer of nothing. Read from the
+   * pending entry, because an invite on screen has not closed its attempt yet.
+   */
+  test('records which address families the payload actually offered', async ({ page }) => {
+    await open(page)
+    await page.locator('#create-offer').click()
+    await expect(page.locator('#invite-box')).toBeVisible({ timeout: 60000 })
+
+    // Polled, not read once: the note lands *after* the code is on screen, by
+    // design - a diagnostic must not delay the thing somebody is waiting for.
+    // Reading it the moment the invite appears is a race, and this test found it.
+    await expect
+      .poll(() => page.evaluate(() => Array.isArray(window.__libp2pQrTest.logbookPending()?.families)), { timeout: 30000 })
+      .toBe(true)
+
+    const families = await page.evaluate(() => window.__libp2pQrTest.logbookPending()?.families)
+
+    expect(Array.isArray(families), `families was ${JSON.stringify(families)}`).toBe(true)
+    expect(families.length).toBeGreaterThan(0)
+    for (const family of families) expect(['v4', 'v6', 'mdns']).toContain(family)
+  })
+
   test('records a failure with the reason, which is the point of keeping it', async ({ page }) => {
     await open(page)
 
