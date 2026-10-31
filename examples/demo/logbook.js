@@ -15,6 +15,13 @@
  * failure diagnosable a week later. So this keeps the lot, and the public record
  * becomes a *projection* of this one rather than a different thing.
  *
+ * ## What a run was for
+ *
+ * An entry carries a `scenario` when it was started as a deliberate test rather
+ * than because somebody wanted a connection. Analysis depends on it: a failure
+ * in a labelled run is evidence, and the same failure in an unlabelled one
+ * might be anybody's bad afternoon.
+ *
  * ## The three fields no browser can know
  *
  * The network provider, where you are, and what the other device is. They are
@@ -213,7 +220,7 @@ export function createLogbook ({ now = () => Date.now() } = {}) {
      * A second `start` while one is open closes the first as abandoned: leaving
      * it dangling would silently lose the row that says somebody gave up.
      */
-    start ({ role, carrier = null }) {
+    start ({ role, carrier = null, scenario = null }) {
       // Off means off: no entry, not an empty one and not a redacted one.
       if (!enabled) return null
 
@@ -224,6 +231,28 @@ export function createLogbook ({ now = () => Date.now() } = {}) {
         at: new Date(now()).toISOString(),
         role,
         carrier,
+        /**
+         * Which deliberate test this run belongs to, or null for an ordinary
+         * attempt somebody made because they wanted a connection.
+         *
+         * The distinction is the whole value of the field. A run labelled
+         * `same-lan` failing means something; the same failure in a row nobody
+         * labelled might be a fumbled camera aim, a code that expired while
+         * somebody walked to the other room, or a network nobody wrote down.
+         * Without this, every analysis of the log starts by guessing which
+         * rows were measurements - which is the guessing this field exists to
+         * end (#179).
+         */
+        scenario,
+        /**
+         * Which address families this device actually offered.
+         *
+         * Filled by whatever builds the payload, because only it knows whether
+         * a run offered one family by choice or because the other was not
+         * there. A later reader cannot tell those apart from the candidates
+         * alone, and they are different findings.
+         */
+        families: null,
         ...describeAgent(),
         ...context,
         network: null,
