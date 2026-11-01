@@ -334,6 +334,17 @@ export function createLogbook ({ now = () => Date.now() } = {}) {
         reviewNote: null,
         /** When the verdict was given - not when the attempt was made. */
         reviewedAt: null,
+        /**
+         * When this row was published, and to which database address.
+         *
+         * Filled by the publish step rather than here, like `reported` above,
+         * and declared here for the same reason: the shape of an entry should
+         * be readable in one place. It is also the only thing standing between
+         * a second press of the button and a second copy of every row in a log
+         * that cannot remove either of them.
+         */
+        publishedAt: null,
+        publishedTo: null,
         ...describeAgent(),
         ...context,
         network: null,

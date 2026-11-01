@@ -107,6 +107,7 @@ export default {
     frames: ({ frames }) => `${frames} frame${frames === 1 ? '' : 's'}`,
     familyFilter: ({ family }) => `${family} only`,
     pair: ({ pair }) => `pair ${pair}`,
+    published: 'published',
     outcome: {
       connected: 'connected',
       failed: 'failed',
@@ -140,7 +141,38 @@ export default {
     unlabelled: ({ runs }) =>
       `${runs === 1 ? 'One sound run carries' : `${runs} sound runs carry`} no scenario: true observations, but nothing says what they were testing, so they cannot appear in a breakdown by scenario.`,
     nomatch: 'No run matches this filter. The log is not empty - change "Show" above.',
-    publish: 'Nothing is published from here and nothing here connects to anything. Publishing is a separate, deliberate step that does not exist yet (#179) - until it does, a sound verdict means "this row would be fit to publish", not "this row has been".'
+    publish: 'Nothing has left this device and nothing has connected to anything. Until this button is pressed, the only connection this page has ever opened is the one to the device you were testing with.'
+  },
+  /**
+   * Publishing (#179 step 6) - the first and only thing here that connects.
+   *
+   * The wording has one job the others do not: to make the irreversibility
+   * legible *before* the press rather than after it. An append-only log cannot
+   * erase and cannot correct, so every sentence here is written on the
+   * assumption that somebody will read it once, quickly, and then act.
+   */
+  publish: {
+    none: 'Nothing is waiting. A row becomes publishable once you mark it sound.',
+    count: ({ rows }) => `${rows} sound ${rows === 1 ? 'row is' : 'rows are'} waiting to be published.`,
+    preview: 'Show exactly what would leave',
+    withheldHeading: 'Stays here:',
+    goesHeading: 'Goes, exactly as written:',
+    withheld: [
+      'Everything you typed: where you were, which device the other end was, and the notes you made while reviewing.',
+      'Candidate addresses and ports, and the public IP behind them.',
+      'Coordinates, city and region - the last two are not merely fine-grained, they are wrong: an IP lookup places a device at its provider, not at itself.',
+      'The exact time. The hour is published, not the minute.'
+    ],
+    button: 'Publish the sound rows',
+    buttonCount: ({ rows }) => `Publish ${rows} row${rows === 1 ? '' : 's'}`,
+    note: 'The log is append-only and every row is signed by whoever wrote it, so it cannot be edited or taken back - which is why reviewing comes first. Anyone may write to it: an allow-list would be part of the database address, so admitting a second contributor would produce a different database and strand everything the first one wrote.',
+    finding: 'Looking for a relay…',
+    connecting: 'Connecting…',
+    opening: 'Opening the database…',
+    waiting: 'Waiting for somebody to be holding it…',
+    writing: ({ written, total }) => `Writing ${written} of ${total}…`,
+    done: ({ rows }) => `${rows} row${rows === 1 ? '' : 's'} published. They cannot be taken back.`,
+    failed: ({ reason }) => `Nothing was published: ${reason}`
   },
   /**
    * Running a scenario on purpose (#179).

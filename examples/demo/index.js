@@ -21,6 +21,7 @@ import { createIntroPolicy } from '@le-space/libp2p-webrtc-qr/elements'
 import { applyBrowserTheme } from './browser-theme.js'
 import { elementStrings, initialLocale, list, locale, setLocale, t, translateDocument } from './i18n.js'
 import { asVerdict, createLogbook, describeAgent, REVIEW_VERDICTS } from './logbook.js'
+import { projectForPublication, readyToPublish } from './publish.js'
 import { lookUpNetwork, lookUpPlace, lookUpPosition } from './whereabouts.js'
 import { previewStore } from './previews.js'
 import { applyViewMode, isSimple } from './view-mode.js'
@@ -334,9 +335,9 @@ viewModeEl.addEventListener('click', () => {
 // The elements refresh themselves - they re-render when `strings` is assigned -
 // and `translateDocument` repaints everything that names a key in the markup.
 // What neither covers is text this file builds in JavaScript: the logbook's
-// rows, the review tally, the scenario brief and the address-family note held
-// their old language until something else happened to redraw them. So they are
-// repainted here.
+// rows, the review tally, the publish panel, the scenario brief and the
+// address-family note held their old language until something else happened to
+// redraw them. So they are repainted here.
 //
 // Here rather than inside `applyLocale`, which also runs at startup, before the
 // elements those two functions reach for have been looked up. Calling them from
@@ -346,6 +347,7 @@ for (const [code, button] of Object.entries(localeButtons)) {
     applyLocale(code)
     renderLogbook()
     renderReview()
+    renderPublish()
     renderScenario()
     renderAddressFamily()
   })
@@ -431,6 +433,107 @@ function renderReview () {
 }
 
 /**
+ * Publishing: the one act in this app that connects to anything.
+ *
+ * ## The preview is the feature
+ *
+ * The published log is append-only and signed. It cannot erase and it cannot
+ * correct, so "are you sure" is not a question anybody can answer honestly
+ * without seeing the answer first. The panel therefore shows the *rows* - the
+ * actual projected objects, as JSON, exactly as they would be written - and
+ * beside them the list of what stays here. A description of a projection is
+ * not a projection; this is the one place where showing the data beats
+ * summarising it.
+ *
+ * ## Nothing is loaded until the button
+ *
+ * `publish-network.js` is imported dynamically, so the OrbitDB and relay code
+ * is a separate chunk that a page nobody publishes from never fetches. The
+ * claim is then a property of the page rather than of a flag.
+ */
+const publishCountEl = document.getElementById('publish-count')
+const publishRowsEl = document.getElementById('publish-rows')
+const publishWithheldEl = document.getElementById('publish-withheld')
+const publishButton = document.getElementById('publish')
+const publishStateEl = document.getElementById('publish-state')
+
+/** Set while a publish is in flight, so a second press cannot start a second. */
+let publishing = false
+
+function renderPublish () {
+  const rows = readyToPublish(logbook.entries())
+
+  publishCountEl.textContent = rows.length === 0 ? t('publish.none') : t('publish.count', { rows: rows.length })
+  publishButton.disabled = publishing || rows.length === 0
+  publishButton.textContent = rows.length === 0 ? t('publish.button') : t('publish.buttonCount', { rows: rows.length })
+
+  // Two spaces, not JSON.stringify's default of none: somebody is being asked
+  // to read this and decide, which is a different job from parsing it.
+  publishRowsEl.textContent = JSON.stringify(rows.map(projectForPublication), null, 2)
+
+  publishWithheldEl.replaceChildren(...list('publish.withheld').map(text => {
+    const item = document.createElement('li')
+
+    item.textContent = text
+
+    return item
+  }))
+}
+
+/**
+ * Say where it is, in the person's language, while it happens.
+ *
+ * Publishing takes tens of seconds - a bootstrap lookup, a relay dial, a peer
+ * that has to join the database - and the step that takes longest is the one
+ * that most often fails. A spinner would say "wait"; these say what is being
+ * waited for, so a failure arrives as the end of a sentence somebody was
+ * already reading.
+ */
+const publishProgress = (stage, detail = {}) => {
+  publishStateEl.textContent = stage === 'writing'
+    ? t('publish.writing', { written: detail.written ?? 0, total: detail.total ?? 0 })
+    : t(`publish.${stage}`)
+}
+
+publishButton.addEventListener('click', async () => {
+  const entries = readyToPublish(logbook.entries())
+
+  if (publishing || entries.length === 0) return
+
+  publishing = true
+  publishButton.disabled = true
+
+  try {
+    publishProgress('finding')
+
+    // Here, and nowhere earlier. Up to this line the page has fetched no code
+    // that can open a connection.
+    const { publishRows } = await import('./publish-network.js')
+    const { address, written } = await publishRows(entries.map(projectForPublication), { onProgress: publishProgress })
+
+    // Marked one by one against the entries that went, not against whatever is
+    // sound now: a run that finished while the publish was in flight was not
+    // part of it and must not be recorded as published.
+    const publishedAt = new Date().toISOString()
+
+    for (const entry of entries) {
+      logbook.amend(entry.id, { publishedAt, publishedTo: address })
+    }
+
+    publishStateEl.textContent = t('publish.done', { rows: written })
+    appendLog(`Published ${written} row${written === 1 ? '' : 's'} to ${address}`)
+  } catch (error) {
+    // Nothing is marked. The next press tries the same rows again, which is
+    // the right behaviour for a log that cannot take a half-written set back.
+    publishStateEl.textContent = t('publish.failed', { reason: error.message })
+    appendLog(`Publish failed: ${error.message}`)
+  } finally {
+    publishing = false
+    renderPublish()
+  }
+})
+
+/**
  * Draw the log, newest first.
  *
  * Rebuilt wholesale on every change rather than patched. The list is bounded at
@@ -495,6 +598,9 @@ function renderLogbook () {
       // The join key, and worth the width: it is the only thing in the row that
       // points at a measurement rather than at this device.
       entry.pairId ? t('logbook.pair', { pair: entry.pairId }) : null,
+      // Once, and then for good: a published row cannot be unpublished, and a
+      // row that does not say so would be offered for publishing again.
+      entry.publishedAt ? t('logbook.published') : null,
       entry.frames != null ? t('logbook.frames', { frames: entry.frames }) : null,
       entry.network?.overall ? `net: ${entry.network.overall}` : null,
       entry.ms != null ? `${Math.round(entry.ms / 1000)}s` : null
@@ -609,8 +715,10 @@ function renderLogbook () {
 
 logbook.subscribe(renderLogbook)
 logbook.subscribe(renderReview)
+logbook.subscribe(renderPublish)
 renderLogbook()
 renderReview()
+renderPublish()
 
 reviewFilterEl.addEventListener('change', () => {
   reviewFilter = reviewFilterEl.value
@@ -3750,6 +3858,10 @@ window.__libp2pQrTest = {
   // what is under test is the definition of the gate and not the shape of a
   // record.
   logbookPublishable: () => logbook.publishable(),
+  // Exactly the rows a publish would write, without writing them. The preview
+  // shows a person the same objects; this lets a spec assert the absence of a
+  // field rather than trusting the comment that says it is absent.
+  publishPreview: () => readyToPublish(logbook.entries()).map(projectForPublication),
   // The attempt still in flight. `families` is written while an invite is on
   // screen and the entry does not close until the connection does, so a test
   // about what was offered has nowhere else to read it.

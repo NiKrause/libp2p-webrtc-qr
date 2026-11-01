@@ -1786,6 +1786,74 @@ button.is-busy::before {
 .review-verdict[data-verdict="operator-error"] { color: var(--ls-amber); }
 .review-verdict[data-verdict="retest"] { color: var(--ls-text-dim); }
 
+/* Publishing, set apart from the review controls above it by space rather than
+   by another rule: it is the end of the same stage, not a new one. */
+.publish {
+  margin-top: 18px;
+}
+
+.publish-count {
+  margin: 0 0 8px;
+  font-size: 0.86rem;
+  color: var(--ls-text-dim);
+}
+
+.publish-preview {
+  margin-bottom: 12px;
+  font-size: 0.82rem;
+}
+
+.publish-preview summary {
+  cursor: pointer;
+  color: var(--ls-accent);
+}
+
+.publish-preview .hint {
+  margin: 10px 0 4px;
+  font-size: 0.8rem;
+}
+
+.publish-withheld {
+  margin: 0;
+  padding-inline-start: 20px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--ls-text-faint);
+}
+
+.publish-withheld li { margin-bottom: 4px; }
+
+/* The rows themselves, scrollable rather than endless: somebody is reading
+   this to decide, and a panel that pushed the button off the screen would make
+   the decision harder to act on than to take. */
+.publish-rows {
+  max-height: 18rem;
+  overflow: auto;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--ls-bg-3);
+  border-radius: var(--ls-radius-sm);
+  background: var(--ls-bg-1);
+  font-family: var(--ls-font-mono);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--ls-text-dim);
+  white-space: pre;
+}
+
+.publish-state {
+  align-self: center;
+  font-size: 0.82rem;
+  color: var(--ls-text-dim);
+  overflow-wrap: anywhere;
+}
+
+.publish-note {
+  margin: 10px 0 0;
+  font-size: 0.8rem;
+  color: var(--ls-text-faint);
+}
+
 /* ---------- what a tap should do ---------- */
 
 /*

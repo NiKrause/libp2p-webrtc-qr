@@ -90,6 +90,7 @@ export default {
     frames: ({ frames }) => `${frames} Bild${frames === 1 ? '' : 'er'}`,
     familyFilter: ({ family }) => `nur ${family}`,
     pair: ({ pair }) => `Paar ${pair}`,
+    published: 'veröffentlicht',
     outcome: {
       connected: 'verbunden',
       failed: 'gescheitert',
@@ -124,7 +125,40 @@ export default {
     unlabelled: ({ runs }) =>
       `${runs === 1 ? 'Ein sauberer Lauf trägt' : `${runs} saubere Läufe tragen`} kein Szenario: wahre Beobachtungen, aber nichts sagt, was sie prüfen sollten — in einer Auswertung nach Szenario können sie deshalb nicht auftauchen.`,
     nomatch: 'Kein Lauf passt zu diesem Filter. Das Protokoll ist nicht leer — ändern Sie oben „Anzeigen".',
-    publish: 'Von hier wird nichts veröffentlicht, und nichts hier verbindet sich mit irgendetwas. Veröffentlichen ist ein eigener, absichtlicher Schritt, den es noch nicht gibt (#179) — bis dahin heißt „sauber", dass diese Zeile zum Veröffentlichen taugen würde, nicht dass sie veröffentlicht wäre.'
+    publish: 'Dieses Gerät hat nichts verlassen, und nichts hier hat sich mit irgendetwas verbunden. Bis dieser Knopf gedrückt wird, ist die einzige Verbindung, die diese Seite je geöffnet hat, die zu dem Gerät, mit dem Sie getestet haben.'
+  },
+  /**
+   * Veröffentlichen (#179 Schritt 6) - das Erste und Einzige hier, das sich
+   * verbindet.
+   *
+   * Die Texte haben eine Aufgabe, die die anderen nicht haben: die
+   * Unwiderruflichkeit *vor* dem Druck lesbar zu machen, nicht danach. Ein
+   * Append-only-Log kann weder löschen noch korrigieren, und jeder Satz hier
+   * ist darauf geschrieben, dass jemand ihn einmal und schnell liest und dann
+   * handelt.
+   */
+  publish: {
+    none: 'Es wartet nichts. Eine Zeile wird veröffentlichbar, sobald Sie sie als sauber markieren.',
+    count: ({ rows }) => `${rows} saubere ${rows === 1 ? 'Zeile wartet' : 'Zeilen warten'} auf die Veröffentlichung.`,
+    preview: 'Genau zeigen, was hinausginge',
+    withheldHeading: 'Bleibt hier:',
+    goesHeading: 'Geht hinaus, genau so:',
+    withheld: [
+      'Alles Getippte: wo Sie waren, welches Gerät die Gegenstelle war, und Ihre Notizen aus der Prüfung.',
+      'Kandidaten-Adressen und -Ports, und die öffentliche IP dahinter.',
+      'Koordinaten, Stadt und Region — die letzten beiden sind nicht bloß zu fein, sie sind falsch: eine IP-Abfrage verortet ein Gerät bei seinem Anbieter, nicht bei sich selbst.',
+      'Die genaue Zeit. Veröffentlicht wird die Stunde, nicht die Minute.'
+    ],
+    button: 'Die sauberen Zeilen veröffentlichen',
+    buttonCount: ({ rows }) => `${rows} ${rows === 1 ? 'Zeile' : 'Zeilen'} veröffentlichen`,
+    note: 'Das Log ist append-only, und jede Zeile ist von ihrem Urheber signiert — es lässt sich nicht nachbearbeiten und nicht zurückholen. Genau deshalb kommt das Prüfen zuerst. Schreiben darf jeder: eine Erlaubnisliste wäre Teil der Datenbankadresse, die Aufnahme einer zweiten beitragenden Person ergäbe also eine andere Datenbank und ließe alles Bisherige stranden.',
+    finding: 'Suche ein Relay…',
+    connecting: 'Verbinde…',
+    opening: 'Öffne die Datenbank…',
+    waiting: 'Warte darauf, dass jemand sie hält…',
+    writing: ({ written, total }) => `Schreibe ${written} von ${total}…`,
+    done: ({ rows }) => `${rows} ${rows === 1 ? 'Zeile' : 'Zeilen'} veröffentlicht. Zurückholen lässt sich das nicht.`,
+    failed: ({ reason }) => `Es wurde nichts veröffentlicht: ${reason}`
   },
   /**
    * Ein Szenario absichtlich fahren (#179).
