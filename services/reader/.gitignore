@@ -1,0 +1,9 @@
+# Where the dataset actually lives when this runs locally: blocks, heads and
+# keys. Derived mirrors (results.csv and friends) go under mirror/.
+data
+mirror
+
+# Left behind by older versions of this service, which put OrbitDB's key
+# storage next to the code instead of under --directory.
+orbitdb
+keystore

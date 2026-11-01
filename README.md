@@ -95,6 +95,12 @@ working on the transport should have to install Docusaurus to run the tests:
 cd docs-site && pnpm install && pnpm start
 ```
 
+[`services/reader`](services/reader) is a small Node service that holds the
+published field-results database and mirrors it into a CSV. The demo connects
+to nothing until somebody presses Publish; that service is what there is to
+publish *to* - a relay forwards and does not keep, so while nothing holds the
+address a publish correctly refuses.
+
 ## Status and known limits
 
 - **No TURN server.** Two peers behind restrictive or symmetric NATs can still

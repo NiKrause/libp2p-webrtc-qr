@@ -506,6 +506,45 @@ Worth settling early: the argument to operators should be about **IPv6, not NAT*
 A symmetric NAT is a rational response to IPv4 scarcity and a hotel cannot fix it
 without buying address space. Missing IPv6 is a real, fixable deficiency.
 
+### Mostly built, as [#179](https://github.com/NiKrause/libp2p-webrtc-qr/issues/179)
+
+The collection half of #27 is superseded by
+[#179](https://github.com/NiKrause/libp2p-webrtc-qr/issues/179), which turned
+the schema argument above into a pipeline. The argument about what a public
+record may contain still stands and is the input to the projection.
+
+What decided the architecture is one constraint, stated first rather than
+footnoted: **nothing connects to a relay by default.** Measuring is local,
+reviewing is local, and a connection happens only when somebody deliberately
+publishes a result they have looked at. The code that can connect therefore
+lives in a module of its own and is imported dynamically - the page does not
+contain it, which is a stronger promise than a flag nobody set.
+
+1. **Done** - `scenario` and `families` in the logbook
+2. **Done** - scenarios A and C as a guided solo flow
+3. **Done** - the address-family filter
+4. **Done** - the review stage. Hand-collected measurements are full of fumbled
+   camera aims and codes that expired while somebody walked to the other room,
+   and no automation can tell those from a network that cannot do it. Only rows
+   a person marked *sound* become publishable
+5. **Done** - scenario B's pairing. The inviting side mints an id, it travels
+   with the invite, the answering side adopts it, and the two halves of a run
+   across two networks can be matched afterwards
+6. **Done** - publishing, and the reader. Three answers the code had to give:
+   a row is one attempt, because aggregating can be done later and
+   disaggregating cannot; anyone may write, because the access controller is
+   part of the address and an allow-list would strand everything written before
+   the second contributor; a one-sided failure is published, because half the
+   interesting failures never reach a peer
+7. Open - the public page, including the gaps
+
+**The reader turned out to be the pinner**, which was not in the plan. A relay
+forwards; it does not keep - so until something holds the address there is
+nowhere for published rows to live, and the demo correctly refuses to claim
+otherwise. [`services/reader`](services/reader) is that something, and it is
+also where the open-write decision is paid for: noise is a reader's filter
+rather than somebody's gate.
+
 ## 12. Put the camera and the code in modals, and show one thing at a time
 
 **Tracked in [#36](https://github.com/NiKrause/libp2p-webrtc-qr/issues/36).**
