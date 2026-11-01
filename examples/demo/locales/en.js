@@ -97,6 +97,39 @@ export default {
       abandoned: 'abandoned'
     }
   },
+  /**
+   * Running a scenario on purpose (#179).
+   *
+   * The wording carries the preconditions, and it has to: a run set up wrongly
+   * is worse than no run at all, because it enters the record looking like a
+   * finding. So each step says what must be true, not just what to press.
+   */
+  scenario: {
+    legend: 'Running a test?',
+    hint: 'A labelled run is evidence. An unlabelled one is just an attempt somebody made, and nothing can tell the two apart afterwards. Label a run only when the setup below is actually true.',
+    none: 'No - I just want to connect',
+    'same-lan': 'A - both devices on the same Wi-Fi',
+    'mobile-data': 'C - both devices on mobile data',
+    off: 'Recording is off, so a labelled run would write nothing at all. Tick "Record what happens here" first - on both devices.',
+    steps: {
+      'same-lan': [
+        'Put both devices on the same Wi-Fi.',
+        'Turn recording on, on both devices. Each one writes its own row, and the pair is the measurement.',
+        'Create an invite here and scan it with the other device. The link carries the label, so the other row is labelled too.',
+        'Scan the reply back here.'
+      ],
+      'mobile-data': [
+        'Turn Wi-Fi off on both devices, so both really are on mobile data.',
+        'Do not make one device a hotspot for the other. That is scenario A over a carrier, it usually succeeds, and it would enter the record as a mobile-data success.',
+        'Turn recording on, on both devices.',
+        'Create an invite here, scan it with the other device, then scan the reply back. The screens carry the signalling, so no uplink between them is needed.',
+        'Expect failures. How it fails is the measurement, so note which browser is on each device - this is where they differ most.'
+      ]
+    },
+    tally: ({ runs, connected }) => `${runs} labelled ${runs === 1 ? 'run' : 'runs'} recorded on this device, ${connected} of them connected.`,
+    tallyNone: 'Nothing recorded under this label yet.',
+    pairing: 'B - two devices on two networks, in two places - is deliberately not here. It needs two people to contribute to one record, which is a pairing flow rather than a checklist (#179).'
+  },
   view: {
     simple: 'Simple',
     technical: 'Technical'

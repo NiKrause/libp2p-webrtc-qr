@@ -80,6 +80,40 @@ export default {
       abandoned: 'abgebrochen'
     }
   },
+  /**
+   * Ein Szenario absichtlich fahren (#179).
+   *
+   * Die Texte tragen die Voraussetzungen, und das müssen sie: ein falsch
+   * aufgebauter Lauf ist schlimmer als keiner, weil er als Befund in die
+   * Aufzeichnung geht. Jeder Schritt sagt deshalb, was gelten muss - nicht nur,
+   * was zu drücken ist.
+   */
+  scenario: {
+    legend: 'Ist das ein Test?',
+    hint: 'Ein markierter Lauf ist ein Beleg. Ein unmarkierter ist nur ein Versuch, den jemand gemacht hat, und hinterher unterscheidet die beiden nichts mehr. Markieren Sie einen Lauf nur, wenn der Aufbau unten wirklich zutrifft.',
+    none: 'Nein - ich möchte nur eine Verbindung',
+    'same-lan': 'A - beide Geräte im selben WLAN',
+    'mobile-data': 'C - beide Geräte im Mobilfunknetz',
+    off: 'Die Aufzeichnung ist aus, ein markierter Lauf schreibt also überhaupt nichts. Setzen Sie zuerst den Haken bei „Aufzeichnen, was hier passiert" - auf beiden Geräten.',
+    steps: {
+      'same-lan': [
+        'Bringen Sie beide Geräte ins selbe WLAN.',
+        'Schalten Sie die Aufzeichnung auf beiden Geräten ein. Jedes schreibt seine eigene Zeile, und das Paar ist die Messung.',
+        'Erzeugen Sie hier eine Einladung und scannen Sie sie mit dem anderen Gerät. Der Link trägt die Markierung mit, die zweite Zeile ist also auch markiert.',
+        'Scannen Sie die Antwort hier zurück.'
+      ],
+      'mobile-data': [
+        'Schalten Sie das WLAN auf beiden Geräten aus, damit beide wirklich im Mobilfunknetz sind.',
+        'Benutzen Sie kein Gerät als Hotspot für das andere. Das ist Szenario A über einen Mobilfunkanbieter, es gelingt meist - und landet als Mobilfunk-Erfolg in der Aufzeichnung.',
+        'Schalten Sie die Aufzeichnung auf beiden Geräten ein.',
+        'Erzeugen Sie hier eine Einladung, scannen Sie sie mit dem anderen Gerät und scannen Sie die Antwort zurück. Die Bildschirme tragen das Signalling, eine Verbindung zwischen den Geräten braucht es dafür nicht.',
+        'Rechnen Sie mit Fehlschlägen. Wie es scheitert, ist die Messung - halten Sie deshalb fest, welcher Browser auf welchem Gerät läuft, denn genau da gehen sie auseinander.'
+      ]
+    },
+    tally: ({ runs, connected }) => `${runs} markierte ${runs === 1 ? 'Messung' : 'Messungen'} auf diesem Gerät, davon ${connected} verbunden.`,
+    tallyNone: 'Unter dieser Markierung ist noch nichts aufgezeichnet.',
+    pairing: 'B - zwei Geräte in zwei Netzen, an zwei Orten - fehlt hier absichtlich. Dafür müssen zwei Personen zu einer Aufzeichnung beitragen, und das ist ein Kopplungsablauf, keine Checkliste (#179).'
+  },
   view: {
     simple: 'Einfach',
     technical: 'Technisch'

@@ -19,7 +19,7 @@ import {
 } from '@le-space/libp2p-webrtc-qr/elements'
 import { createIntroPolicy } from '@le-space/libp2p-webrtc-qr/elements'
 import { applyBrowserTheme } from './browser-theme.js'
-import { elementStrings, initialLocale, locale, setLocale, t, translateDocument } from './i18n.js'
+import { elementStrings, initialLocale, list, locale, setLocale, t, translateDocument } from './i18n.js'
 import { createLogbook, describeAgent } from './logbook.js'
 import { lookUpNetwork, lookUpPlace, lookUpPosition } from './whereabouts.js'
 import { previewStore } from './previews.js'
@@ -310,10 +310,21 @@ viewModeEl.addEventListener('click', () => {
 })
 
 
-// Rendered text is refreshed by the elements themselves - they re-render when
-// `strings` is assigned - so a switch costs nothing beyond the assignment.
+// The elements refresh themselves - they re-render when `strings` is assigned -
+// and `translateDocument` repaints everything that names a key in the markup.
+// What neither covers is text this file builds in JavaScript: the logbook's rows
+// and the scenario brief held their old language until something else happened
+// to redraw them. So they are repainted here.
+//
+// Here rather than inside `applyLocale`, which also runs at startup, before the
+// elements those two functions reach for have been looked up. Calling them from
+// there would be a `ReferenceError` on the first paint.
 for (const [code, button] of Object.entries(localeButtons)) {
-  button.addEventListener('click', () => applyLocale(code))
+  button.addEventListener('click', () => {
+    applyLocale(code)
+    renderLogbook()
+    renderScenario()
+  })
 }
 
 // The element is the only thing that knows whether the payload fitted in one
@@ -427,6 +438,135 @@ logbookEnabledEl.addEventListener('change', () => {
     ? 'Logbook on: attempts are recorded on this device.'
     : 'Logbook off: nothing further is recorded.')
 })
+
+/**
+ * The scenarios a run can be labelled with.
+ *
+ * `across-networks` is scenario B, which has no control of its own: it needs
+ * two people in two places contributing to one record, and a checklist cannot
+ * walk anybody through that (#179). It stays in the vocabulary so a link or a
+ * query string from that flow is honoured once it exists, rather than silently
+ * becoming an unlabelled run.
+ */
+const SCENARIOS = ['same-lan', 'across-networks', 'mobile-data']
+
+/**
+ * A short vocabulary, checked rather than trusted: a typo that silently became
+ * its own scenario would split one measurement in two without saying so.
+ */
+const asScenario = value => SCENARIOS.includes(value) ? value : null
+
+/**
+ * Which deliberate test this page is running, if any.
+ *
+ * ## Mutable, but only between attempts
+ *
+ * It began as a constant from `?scenario=`, which was enough while the field
+ * was all that existed. A guided run sets it from a control, so it has to
+ * change - but it is read when an attempt *starts* and never consulted again
+ * during one. One sitting carrying two labels is precisely the ambiguity this
+ * field exists to remove.
+ *
+ * ## Not persisted, deliberately
+ *
+ * A scenario that survived a reload would still be set next week, quietly
+ * labelling ordinary attempts as measurements. The label's whole worth is that
+ * somebody meant it, so it lasts as long as the page does and no longer. The
+ * query string stays supported for exactly that reason: it is how somebody
+ * opens a deliberately labelled tab.
+ */
+let scenario = asScenario(new URLSearchParams(window.location.search).get('scenario'))
+
+/**
+ * The scenario picker: what the run is for, before it is run.
+ *
+ * Three things are shown once one is chosen, and each answers a question a
+ * tester actually has. The steps say what must be true, because the common way
+ * a hand-collected measurement goes wrong is a setup that was never what it
+ * claimed - a hotspot standing in for a carrier, one device still on Wi-Fi. The
+ * tally says how much of this scenario is already recorded, which turns the
+ * panel from a checklist into an instrument. And if recording is off the run
+ * would write nothing at all, which is worth saying where the run is started
+ * rather than only where the switch is.
+ */
+const scenarioBriefEl = document.getElementById('scenario-brief')
+const scenarioInputs = [...document.querySelectorAll('input[name="scenario"]')]
+
+function renderScenario () {
+  for (const input of scenarioInputs) {
+    // An empty value is "not a test", which is the absence of a label rather
+    // than a label of its own.
+    input.checked = (input.value === '' ? null : input.value) === scenario
+  }
+
+  scenarioBriefEl.replaceChildren()
+  scenarioBriefEl.hidden = scenario == null
+
+  if (scenario == null) {
+    return
+  }
+
+  if (!logbook.enabled) {
+    const warning = document.createElement('p')
+
+    warning.className = 'hint scenario-off'
+    warning.textContent = t('scenario.off')
+    scenarioBriefEl.append(warning)
+  }
+
+  const steps = document.createElement('ol')
+
+  for (const step of list(`scenario.steps.${scenario}`)) {
+    const item = document.createElement('li')
+
+    item.textContent = step
+    steps.append(item)
+  }
+
+  // Only when there are any. Scenario B has no steps here by design, and an
+  // empty list would read as a flow somebody forgot to write.
+  if (steps.childElementCount > 0) {
+    scenarioBriefEl.append(steps)
+  }
+
+  const runs = logbook.entries().filter(entry => entry.scenario === scenario)
+  const tally = document.createElement('p')
+
+  tally.className = 'hint scenario-tally'
+  tally.textContent = runs.length === 0
+    ? t('scenario.tallyNone')
+    : t('scenario.tally', {
+      runs: runs.length,
+      connected: runs.filter(entry => entry.outcome === 'connected').length
+    })
+
+  scenarioBriefEl.append(tally)
+}
+
+/**
+ * Change the label, which only ever applies to attempts that have not started.
+ *
+ * An attempt already in flight keeps the label it began with: relabelling it
+ * halfway through would describe a run that never happened under that name.
+ */
+function setScenario (next) {
+  scenario = asScenario(next)
+  renderScenario()
+  appendLog(scenario == null
+    ? 'Scenario cleared - attempts from here are ordinary ones.'
+    : `Scenario ${scenario}: attempts from here are labelled.`)
+}
+
+for (const input of scenarioInputs) {
+  input.addEventListener('change', () => {
+    if (input.checked) setScenario(input.value === '' ? null : input.value)
+  })
+}
+
+// The brief carries a tally and a warning about the switch, so it follows the
+// log rather than repainting only when somebody picks a scenario again.
+logbook.subscribe(renderScenario)
+renderScenario()
 
 for (const [el, key] of [[logbookProviderEl, 'provider'], [logbookPlaceEl, 'place'], [logbookPeerEl, 'peer']]) {
   el.value = logbook.context[key] ?? ''
@@ -725,26 +865,6 @@ function setStatus (text) {
   statusEl.classList.toggle('is-live', /connected to |webrtc connected/i.test(text))
   statusEl.classList.toggle('is-error', /failed|timed out|cancelled/i.test(text))
 }
-
-/**
- * Which deliberate test this page is running, if any.
- *
- * From the query string rather than a control, for now: the scenario UI is a
- * later step (#179) and this is what makes the field usable while it is being
- * built. A tester opens `?scenario=same-lan` on both devices and every attempt
- * from that tab is labelled.
- *
- * Read once. A scenario that changed halfway through a session would put two
- * labels on one sitting, which is exactly the ambiguity the field exists to
- * remove.
- */
-const SCENARIO = (() => {
-  const value = new URLSearchParams(window.location.search).get('scenario')
-
-  // A short vocabulary, checked rather than trusted: a typo that silently
-  // became its own scenario would split a measurement in two without saying so.
-  return ['same-lan', 'across-networks', 'mobile-data'].includes(value) ? value : null
-})()
 
 /**
  * A TURN server can be supplied per visit:
@@ -1956,6 +2076,14 @@ async function sendFiles (files) {
 
 const INVITE_PARAM = 'i'
 const REPLY_PARAM = 'r'
+/**
+ * The scenario label, carried in the fragment with the payload.
+ *
+ * Short, because it shares a QR code with an invite. Spelled out as the value
+ * rather than coded to a letter, so somebody reading a link in a chat log can
+ * see which test it belongs to without a table.
+ */
+const SCENARIO_PARAM = 's'
 // An offer's ICE candidates go stale as NAT bindings expire, so a link that sat
 // in a chat for half an hour will not connect. We cannot prevent that - but we
 // can say it out loud instead of failing cryptically half an hour later.
@@ -2244,6 +2372,21 @@ function linkFor (param, payload) {
   const url = new URL(window.location.href)
   url.hash = `${param}=${encodeURIComponent(payload)}`
   url.search = ''
+
+  // The label travels with the invite, because a solo scenario is two devices
+  // writing a row each and an unlabelled half is half a measurement. It goes in
+  // the fragment beside the payload rather than the query string, which is
+  // cleared just above on purpose: this device's debug flags are nobody else's
+  // business, and the scenario is the one field meant to be shared.
+  //
+  // It costs about fourteen characters. A payload already within that much of
+  // `STATIC_QR_MAX_LENGTH` will animate when it is labelled and not when it is
+  // not - so labelling could change what is being measured. The log records
+  // `frames`, so that shows up as a difference in the data rather than hiding
+  // in it.
+  if (scenario != null) {
+    url.hash = `${url.hash}&${SCENARIO_PARAM}=${scenario}`
+  }
 
   return url.toString()
 }
@@ -2551,7 +2694,7 @@ async function handleReceivedPayload (input, expectedType) {
   // An offer arriving means this side is answering, and nothing has opened an
   // entry for it yet - the offering side's attempt is on the other device.
   if (type === QR_TYPE_OFFER && logbook.pending() == null) {
-    logbook.start({ role: 'answering', carrier: incomingCarrier, scenario: SCENARIO })
+    logbook.start({ role: 'answering', carrier: incomingCarrier, scenario })
   }
 
   logbook.note({ format: isCompactPayload(text) ? 'v3' : 'v2', received: text.length })
@@ -2662,7 +2805,7 @@ scanModalEl.addEventListener('scan', async event => {
     await ensureNode()
 
     if (logbook.pending() == null) {
-      logbook.start({ role: 'answering', carrier: 'camera', scenario: SCENARIO })
+      logbook.start({ role: 'answering', carrier: 'camera', scenario })
     }
 
     const classified = await classifyScanned(event.detail.text, expectedType)
@@ -2699,7 +2842,7 @@ resetIdentityButton.addEventListener('click', () => {
 })
 
 async function createInvite (button) {
-  logbook.start({ role: 'offering', scenario: SCENARIO })
+  logbook.start({ role: 'offering', scenario })
 
   // Step 1 is technical - "start a browser peer" is not a thing anybody set out
   // to do - so in the simple view it is not on screen to press. The button that
@@ -2926,7 +3069,7 @@ async function useIncoming (text) {
   // Guarded, because the offering side already has one open from `createInvite`
   // and this is where it pastes the reply.
   if (logbook.pending() == null) {
-    logbook.start({ role: 'answering', carrier: incomingCarrier, scenario: SCENARIO })
+    logbook.start({ role: 'answering', carrier: incomingCarrier, scenario })
   }
   setButtonBusy(processPayloadButton, node == null ? t('invite.starting') : 'Connecting…')
 
@@ -3234,6 +3377,9 @@ window.__libp2pQrTest = {
   // screen and the entry does not close until the connection does, so a test
   // about what was offered has nowhere else to read it.
   logbookPending: () => logbook.pending(),
+  // The label in force right now. A test about a link carrying its scenario has
+  // to read it from the receiving page, which has no other way to say so.
+  scenario: () => scenario,
   renderReceived: (name, cid, bytes, direction = 'received') =>
     renderReceivedFile({ name, cid, mime: 'application/octet-stream' }, new Uint8Array(bytes), { direction }),
   // The codec, so a spec can mount its own <qr-listen> and feed it a payload
@@ -3392,6 +3538,14 @@ async function consumeLink () {
 
   if (incoming == null) {
     return
+  }
+
+  // Adopted from the link, so the other half of a solo run is labelled without
+  // anybody setting it twice. Read before the fragment is dropped below.
+  const labelled = asScenario(params.get(SCENARIO_PARAM))
+
+  if (labelled != null) {
+    setScenario(labelled)
   }
 
   // Drop the fragment, so a reload does not replay a payload that is spent.

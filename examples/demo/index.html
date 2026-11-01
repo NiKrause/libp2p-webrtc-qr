@@ -291,6 +291,51 @@
             the notes you typed never travel.
           </p>
 
+          <!--
+            A scenario lives inside this card rather than beside it, because a
+            labelled run that records nothing is not a run at all. Behind the
+            same switch, that dependency is structural instead of a warning
+            somebody has to read and remember.
+
+            Radios rather than buttons: picking a scenario is choosing one of
+            three states the page is in, and "not a test" is a state too - the
+            one it should be in almost always.
+          -->
+          <fieldset class="scenario">
+            <legend data-i18n="scenario.legend">Running a test?</legend>
+            <p class="hint" data-i18n="scenario.hint">
+              A labelled run is evidence. An unlabelled one is just an attempt somebody made,
+              and nothing can tell the two apart afterwards.
+            </p>
+
+            <label class="option">
+              <input type="radio" name="scenario" value="" checked>
+              <span data-i18n="scenario.none">No - I just want to connect</span>
+            </label>
+            <label class="option">
+              <input type="radio" name="scenario" value="same-lan">
+              <span data-i18n="scenario.same-lan">A - both devices on the same Wi-Fi</span>
+            </label>
+            <label class="option">
+              <input type="radio" name="scenario" value="mobile-data">
+              <span data-i18n="scenario.mobile-data">C - both devices on mobile data</span>
+            </label>
+
+            <!-- The steps, the tally and the recording warning, from JS: all
+                 three depend on which scenario is picked and on what is already
+                 in the log. -->
+            <div id="scenario-brief" class="scenario-brief" hidden></div>
+
+            <!--
+              Named, not omitted. Scenario B is the interesting one and leaving
+              it unmentioned reads as an oversight; saying why it is absent says
+              that the gap is known and what shape the answer has.
+            -->
+            <p class="hint scenario-pairing" data-i18n="scenario.pairing">
+              B - two devices on two networks, in two places - is deliberately not here.
+            </p>
+          </fieldset>
+
           <div class="logbook-context">
             <div class="field">
               <label for="logbook-provider" data-i18n="logbook.provider">Network provider</label>
