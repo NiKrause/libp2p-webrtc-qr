@@ -113,6 +113,35 @@ export default {
     }
   },
   /**
+   * Reviewing what was recorded (#179), which is the stage between measuring
+   * and publishing.
+   *
+   * The wording has one job beyond naming the three verdicts: to say that the
+   * judgement is the person's and cannot be anything else. "Operator error" has
+   * to be comfortable to pick, or nobody picks it and the dataset fills up with
+   * fumbled runs that look like findings.
+   */
+  review: {
+    heading: 'Review what you recorded',
+    hint: 'A verdict per row, and nothing but a person can give it. Hand-collected results are full of fumbled camera aims, codes that expired on the way to the other room and runs abandoned halfway, and no detail in a record tells those apart from a network that cannot do it. Only rows you mark sound could ever be published; the rest stay here as your own record. Your notes stay here either way - the verdict is what would travel.',
+    show: 'Show',
+    all: 'All runs',
+    unreviewed: 'Not reviewed yet',
+    sound: 'Sound - a real measurement',
+    'operator-error': 'Operator error - mine, not the network\'s',
+    retest: 'Needs re-testing',
+    verdictLabel: 'What this run was worth',
+    noteLabel: 'Note on this run',
+    noteHint: 'what went wrong, for you to read next week…',
+    tally: ({ total, reviewed, sound }) =>
+      `${reviewed} of ${total} ${total === 1 ? 'run' : 'runs'} reviewed, ${sound} sound.`,
+    tallyNone: 'Nothing recorded yet, so nothing to review.',
+    unlabelled: ({ runs }) =>
+      `${runs === 1 ? 'One sound run carries' : `${runs} sound runs carry`} no scenario: true observations, but nothing says what they were testing, so they cannot appear in a breakdown by scenario.`,
+    nomatch: 'No run matches this filter. The log is not empty - change "Show" above.',
+    publish: 'Nothing is published from here and nothing here connects to anything. Publishing is a separate, deliberate step that does not exist yet (#179) - until it does, a sound verdict means "this row would be fit to publish", not "this row has been".'
+  },
+  /**
    * Running a scenario on purpose (#179).
    *
    * The wording carries the preconditions, and it has to: a run set up wrongly

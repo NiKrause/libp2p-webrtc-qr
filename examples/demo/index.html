@@ -410,6 +410,55 @@
             <span id="logbook-locate-state" class="logbook-locate-state" role="status" aria-live="polite"></span>
           </div>
 
+          <!--
+            Review: the stage between measuring and publishing (#179).
+
+            Inside the same card as the log rather than on a page of its own,
+            because what is being reviewed is the list immediately below. A
+            verdict given on a screen away from the row would be a verdict given
+            from memory, and the detail that decides it - the reason, the
+            duration, which device was the other end - is in the row.
+
+            The filter is what turns the list into a work queue; the tally is
+            what says whether the queue is finished and how much of it survived.
+          -->
+          <div class="review">
+            <h3 data-i18n="review.heading">Review what you recorded</h3>
+            <p class="hint" data-i18n="review.hint">
+              A verdict per row, and nothing but a person can give it. Hand-collected results are
+              full of fumbled camera aims, codes that expired on the way to the other room and runs
+              abandoned halfway, and no detail in a record tells those apart from a network that
+              cannot do it. Only rows you mark sound could ever be published; the rest stay here as
+              your own record. Your notes stay here either way - the verdict is what would travel.
+            </p>
+
+            <div class="field review-filter">
+              <label for="review-filter" data-i18n="review.show">Show</label>
+              <select id="review-filter">
+                <option value="" data-i18n="review.all">All runs</option>
+                <option value="unreviewed" data-i18n="review.unreviewed">Not reviewed yet</option>
+                <option value="sound" data-i18n="review.sound">Sound - a real measurement</option>
+                <option value="operator-error" data-i18n="review.operator-error">Operator error - mine, not the network's</option>
+                <option value="retest" data-i18n="review.retest">Needs re-testing</option>
+              </select>
+            </div>
+
+            <p id="review-tally" class="hint review-tally" role="status" aria-live="polite"></p>
+
+            <!--
+              Said here, where somebody has just finished marking rows sound and
+              is looking for the button that sends them. There is none yet, and
+              the reason it is absent is the architecture rather than an
+              oversight: nothing in this app opens a network connection until a
+              publish step exists and somebody presses it.
+            -->
+            <p class="hint review-publish" data-i18n="review.publish">
+              Nothing is published from here and nothing here connects to anything. Publishing is a
+              separate, deliberate step that does not exist yet (#179) - until it does, a sound
+              verdict means "this row would be fit to publish", not "this row has been".
+            </p>
+          </div>
+
           <div id="logbook-entries" class="logbook-entries"></div>
           <p class="logbook-empty" data-i18n="logbook.empty">No attempts recorded yet.</p>
 

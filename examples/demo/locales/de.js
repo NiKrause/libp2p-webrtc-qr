@@ -96,6 +96,36 @@ export default {
     }
   },
   /**
+   * Prüfen, was aufgezeichnet wurde (#179) - die Stufe zwischen Messen und
+   * Veröffentlichen.
+   *
+   * Die Texte haben über das Benennen der drei Urteile hinaus eine Aufgabe: zu
+   * sagen, dass das Urteil der Person gehört und nichts anderes es fällen kann.
+   * „Bedienfehler" muss bequem zu wählen sein, sonst wählt es niemand - und
+   * dann füllt sich der Datensatz mit verpatzten Läufen, die wie Befunde
+   * aussehen.
+   */
+  review: {
+    heading: 'Prüfen, was aufgezeichnet wurde',
+    hint: 'Ein Urteil pro Zeile, und fällen kann es nur ein Mensch. Von Hand gesammelte Ergebnisse sind voll von verwackelten Kameras, Codes, die auf dem Weg ins andere Zimmer abgelaufen sind, und halb abgebrochenen Läufen - und kein Detail einer Aufzeichnung unterscheidet das von einem Netz, das es nicht kann. Nur als sauber markierte Zeilen könnten je veröffentlicht werden; der Rest bleibt hier als Ihre eigene Aufzeichnung. Ihre Notizen bleiben ohnehin hier — mitreisen würde das Urteil.',
+    show: 'Anzeigen',
+    all: 'Alle Läufe',
+    unreviewed: 'Noch nicht geprüft',
+    sound: 'Sauber — eine echte Messung',
+    'operator-error': 'Bedienfehler — mein Fehler, nicht der des Netzes',
+    retest: 'Muss erneut getestet werden',
+    verdictLabel: 'Was dieser Lauf wert war',
+    noteLabel: 'Notiz zu diesem Lauf',
+    noteHint: 'was schiefging — zum Nachlesen nächste Woche…',
+    tally: ({ total, reviewed, sound }) =>
+      `${reviewed} von ${total} ${total === 1 ? 'Lauf' : 'Läufen'} geprüft, ${sound} davon sauber.`,
+    tallyNone: 'Noch nichts aufgezeichnet, also nichts zu prüfen.',
+    unlabelled: ({ runs }) =>
+      `${runs === 1 ? 'Ein sauberer Lauf trägt' : `${runs} saubere Läufe tragen`} kein Szenario: wahre Beobachtungen, aber nichts sagt, was sie prüfen sollten — in einer Auswertung nach Szenario können sie deshalb nicht auftauchen.`,
+    nomatch: 'Kein Lauf passt zu diesem Filter. Das Protokoll ist nicht leer — ändern Sie oben „Anzeigen".',
+    publish: 'Von hier wird nichts veröffentlicht, und nichts hier verbindet sich mit irgendetwas. Veröffentlichen ist ein eigener, absichtlicher Schritt, den es noch nicht gibt (#179) — bis dahin heißt „sauber", dass diese Zeile zum Veröffentlichen taugen würde, nicht dass sie veröffentlicht wäre.'
+  },
+  /**
    * Ein Szenario absichtlich fahren (#179).
    *
    * Die Texte tragen die Voraussetzungen, und das müssen sie: ein falsch

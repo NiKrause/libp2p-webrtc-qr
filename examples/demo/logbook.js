@@ -28,6 +28,16 @@
  * asked for once and kept as the current context, because somebody testing in a
  * hotel lobby sets them at the start of the evening and not once per attempt.
  *
+ * ## The verdict, which is the one field a person has to supply
+ *
+ * A row says what happened. It does not say whether what happened was a
+ * measurement. Hand-collected results are full of fumbled camera aims, codes
+ * that expired while somebody walked to the other room, and runs abandoned
+ * halfway - and no amount of detail in the record distinguishes "this network
+ * cannot do it" from "I pointed the camera wrong". The person who was standing
+ * there can, and nothing else can. So reviewing is a stage of its own, it is
+ * local, and it gates publishing rather than decorating it (#179).
+ *
  * The peer is the one that cannot be measured even in principle. A connection
  * has two ends and an entry describes one; the other end is only ever reachable
  * over a channel that a *failed* attempt does not have. And the distinctions
@@ -39,6 +49,23 @@
  */
 
 import { detectBrowser } from './browser-theme.js'
+
+/**
+ * What a person can make of a run they recorded.
+ *
+ * Three, and no more, because each one is a different thing to *do* with the
+ * row: `sound` is the only verdict that makes it publishable, `operator-error`
+ * excludes it for good, and `retest` is a note to yourself that the question is
+ * still open. A fourth shade would not change any of those three actions.
+ *
+ * There is deliberately no verdict meaning "broken" or "doesn't work" - that is
+ * the `outcome` the attempt already recorded, and asking a person to restate it
+ * invites them to overrule a measurement with an impression.
+ */
+export const REVIEW_VERDICTS = ['sound', 'operator-error', 'retest']
+
+/** Checked rather than trusted, for the same reason the scenario is. */
+export const asVerdict = value => REVIEW_VERDICTS.includes(value) ? value : null
 
 const STORAGE_KEY = 'webrtc-qr.logbook.v1'
 const CONTEXT_KEY = 'webrtc-qr.logbook.context.v1'
@@ -264,6 +291,30 @@ export function createLogbook ({ now = () => Date.now() } = {}) {
          * choice.
          */
         familyFilter,
+        /**
+         * What a person made of this row afterwards, or null while nobody has
+         * looked at it.
+         *
+         * Null is not a quiet "fine". An unreviewed row is one nobody has
+         * vouched for, and the whole point of the stage is that those two are
+         * different - so the absence has to be visible rather than default to
+         * the answer that lets data through.
+         */
+        review: null,
+        /**
+         * Why, in the person's own words, and the one field here that stays.
+         *
+         * The verdict is what a dataset needs; this is what *you* need when you
+         * read the row next week and cannot remember which attempt it was. It
+         * is left out of the export, unlike the typed provider and place, and
+         * for a reason those two do not share: a note is written while
+         * diagnosing a failure, which is exactly when somebody writes down the
+         * room, the flat and who was holding the other phone. Keeping it would
+         * make the export's own list of what it withholds untrue.
+         */
+        reviewNote: null,
+        /** When the verdict was given - not when the attempt was made. */
+        reviewedAt: null,
         ...describeAgent(),
         ...context,
         network: null,
@@ -341,6 +392,62 @@ export function createLogbook ({ now = () => Date.now() } = {}) {
       persist()
     },
 
+    /**
+     * Record what a person made of a row, or clear a verdict again.
+     *
+     * ## It works while recording is off, on purpose
+     *
+     * The switch governs whether new attempts are *written*. Reviewing annotates
+     * rows that are already there, and somebody who has finished testing and
+     * turned the tap off is exactly the person about to sit down and go through
+     * them. Refusing here would make one switch mean two things.
+     *
+     * ## Revisable, because this is the stage where correcting is still possible
+     *
+     * The published record in #179 is append-only and can neither erase nor
+     * correct. That is precisely why the verdict is given *before* it: a wrong
+     * verdict here is a dropdown, and a wrong verdict there is permanent.
+     *
+     * Clearing the verdict clears the note with it. A note describes a verdict;
+     * left behind on a row with none, it would read to the next person - most
+     * likely the same person, later - as if somebody had already looked.
+     */
+    review (id, { verdict, note = null } = {}) {
+      const index = entries.findIndex(entry => entry.id === id)
+
+      if (index < 0) return null
+
+      const previous = entries[index]
+      const given = asVerdict(verdict)
+      const stamp = new Date(now()).toISOString()
+      const patch = given == null
+        ? { review: null, reviewNote: null, reviewedAt: null }
+        : {
+            review: given,
+            reviewNote: note == null || note.trim() === '' ? null : note.trim(),
+            // Editing the note is not a second verdict, so the date stays the
+            // one the verdict was given on.
+            reviewedAt: given === previous.review && previous.reviewedAt != null ? previous.reviewedAt : stamp
+          }
+
+      entries = entries.map((entry, at) => at === index ? { ...entry, ...patch } : entry)
+      persist()
+
+      return { ...entries[index] }
+    },
+
+    /**
+     * The rows that could be published, which is the rows marked sound.
+     *
+     * Defined here rather than wherever a publish button ends up, because the
+     * gate is the feature: unreviewed is not sound, and a later caller reaching
+     * for `entries()` and filtering by outcome instead would quietly publish the
+     * fumbled camera aims this stage exists to keep out.
+     */
+    publishable () {
+      return entries.filter(entry => entry.review === 'sound').map(entry => ({ ...entry }))
+    },
+
     clear () {
       entries = []
       persist()
@@ -370,7 +477,11 @@ export function createLogbook ({ now = () => Date.now() } = {}) {
       // four hundred kilometres away. A dataset about where WebRTC works is worse
       // than useless with a confidently wrong location in it - and a wrong value
       // is not improved by being coarse.
-      const projected = entries.map(({ candidates, ip, coords, city, region, ...rest }) => ({
+      // The verdict travels and the note does not: the verdict is the field a
+      // dataset needs, and the note is the one field here whose content nobody
+      // can predict. See `reviewNote` in `start` for why that asymmetry is not
+      // the same question as the typed provider and place, which do travel.
+      const projected = entries.map(({ candidates, ip, coords, city, region, reviewNote, ...rest }) => ({
         ...rest,
         // The shape survives, the addresses do not: counts by type answer "what
         // kind of network was this" without answering "whose".
@@ -380,7 +491,7 @@ export function createLogbook ({ now = () => Date.now() } = {}) {
       return JSON.stringify({
         v: 1,
         exportedAt: new Date(now()).toISOString(),
-        redacted: ['candidate addresses and ports', 'public IP', 'coordinates', 'city and region (IP geolocation places a device at its provider, not at itself)'],
+        redacted: ['candidate addresses and ports', 'public IP', 'coordinates', 'city and region (IP geolocation places a device at its provider, not at itself)', 'review notes (written while diagnosing a failure, so their content cannot be predicted; the verdict itself stays)'],
         entries: projected
       }, null, 2)
     }

@@ -1668,6 +1668,106 @@ button.is-busy::before {
    about a device this one never gets to describe. */
 .logbook-peer { color: var(--ls-text-dim); }
 
+/* The review stage, set off by a rule rather than by a box. The list of rows
+   below it is part of the same stage, and a border drawn around the controls
+   alone would say the opposite. */
+.review {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ls-card-border);
+}
+
+.review h3 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.review-filter {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.review-filter label { margin: 0; }
+
+.review-filter select {
+  font-family: var(--ls-font-mono);
+  font-size: 0.85rem;
+  color: var(--ls-text);
+  background: var(--ls-bg-1);
+  border: 1px solid var(--ls-bg-3);
+  border-radius: var(--ls-radius-sm);
+  padding: 8px 10px;
+  max-width: 100%;
+}
+
+.review-filter select:focus,
+.review-verdict:focus,
+.review-note:focus {
+  outline: none;
+  border-color: var(--ls-accent);
+  box-shadow: var(--ls-glow-accent);
+}
+
+.review-filter option,
+.review-verdict option {
+  background: var(--ls-card);
+  color: var(--ls-text);
+}
+
+.review-tally { margin: 0 0 6px; font-size: 0.82rem; }
+
+/* Last and faint: that publishing does not exist yet is context for the stage,
+   not an instruction in it. */
+.review-publish {
+  margin: 0 0 14px;
+  font-size: 0.82rem;
+  color: var(--ls-text-faint);
+}
+
+.review-none {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--ls-text-faint);
+}
+
+/* The verdict goes in the row's second column, under everything it is a
+   judgement about - the reason and the duration are what decide it. */
+.logbook-review {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.review-verdict,
+.review-note {
+  font-family: var(--ls-font-mono);
+  font-size: 0.72rem;
+  color: var(--ls-text);
+  background: var(--ls-bg-1);
+  border: 1px solid var(--ls-bg-3);
+  border-radius: var(--ls-radius-sm);
+  padding: 5px 7px;
+  max-width: 100%;
+}
+
+.review-note {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+/* An unreviewed row should look unreviewed. The dropdown is the only thing in
+   the row still asking a question, so it stays dim until it is answered and
+   takes the answer's colour afterwards. */
+.review-verdict[data-verdict=""] { color: var(--ls-text-faint); }
+.review-verdict[data-verdict="sound"] { color: var(--ls-green); }
+.review-verdict[data-verdict="operator-error"] { color: var(--ls-amber); }
+.review-verdict[data-verdict="retest"] { color: var(--ls-text-dim); }
+
 /* ---------- what a tap should do ---------- */
 
 /*

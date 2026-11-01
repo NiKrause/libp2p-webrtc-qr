@@ -20,7 +20,7 @@ import {
 import { createIntroPolicy } from '@le-space/libp2p-webrtc-qr/elements'
 import { applyBrowserTheme } from './browser-theme.js'
 import { elementStrings, initialLocale, list, locale, setLocale, t, translateDocument } from './i18n.js'
-import { createLogbook, describeAgent } from './logbook.js'
+import { asVerdict, createLogbook, describeAgent, REVIEW_VERDICTS } from './logbook.js'
 import { lookUpNetwork, lookUpPlace, lookUpPosition } from './whereabouts.js'
 import { previewStore } from './previews.js'
 import { applyViewMode, isSimple } from './view-mode.js'
@@ -317,8 +317,9 @@ viewModeEl.addEventListener('click', () => {
 // The elements refresh themselves - they re-render when `strings` is assigned -
 // and `translateDocument` repaints everything that names a key in the markup.
 // What neither covers is text this file builds in JavaScript: the logbook's
-// rows, the scenario brief and the address-family note held their old language
-// until something else happened to redraw them. So they are repainted here.
+// rows, the review tally, the scenario brief and the address-family note held
+// their old language until something else happened to redraw them. So they are
+// repainted here.
 //
 // Here rather than inside `applyLocale`, which also runs at startup, before the
 // elements those two functions reach for have been looked up. Calling them from
@@ -327,6 +328,7 @@ for (const [code, button] of Object.entries(localeButtons)) {
   button.addEventListener('click', () => {
     applyLocale(code)
     renderLogbook()
+    renderReview()
     renderScenario()
     renderAddressFamily()
   })
@@ -350,6 +352,68 @@ const describePeer = agent => [
 ].filter(Boolean).join(' · ')
 
 /**
+ * The review stage: which rows a person has vouched for (#179).
+ *
+ * ## Why this is a stage and not a column
+ *
+ * The log records what happened. Whether what happened was a *measurement* is a
+ * different question, and the only instrument that can answer it is the person
+ * who was standing there holding both phones. A dataset that cannot tell "this
+ * carrier does not carry IPv6 UDP" from "I aimed the camera at the wrong half
+ * of the screen" is worth nothing, and nothing here can make that distinction
+ * on anybody's behalf.
+ *
+ * ## The filter is the feature
+ *
+ * Two hundred rows is more than anybody reviews by scrolling, and an unreviewed
+ * row is indistinguishable from a reviewed one at a glance. So the list becomes
+ * a work queue: pick "not reviewed yet", work down it, and it empties as you go.
+ *
+ * Not persisted. A filter still set next week would hide rows somebody had
+ * forgotten they filtered, which for a panel whose job is "have you looked at
+ * everything" is the one failure that matters.
+ */
+const reviewTallyEl = document.getElementById('review-tally')
+const reviewFilterEl = document.getElementById('review-filter')
+
+let reviewFilter = ''
+
+const matchesFilter = entry => reviewFilter === '' ||
+  (reviewFilter === 'unreviewed' ? entry.review == null : entry.review === reviewFilter)
+
+/**
+ * How much has been looked at, and how much of it survived.
+ *
+ * Deliberately counted over the whole log rather than over what the filter is
+ * showing: the question this answers is "is the review finished", and a count
+ * that shrank to match the current filter would answer it with "yes" every time
+ * the queue was empty.
+ */
+function renderReview () {
+  const entries = logbook.entries()
+  const sound = entries.filter(entry => entry.review === 'sound')
+  const lines = entries.length === 0
+    ? [t('review.tallyNone')]
+    : [t('review.tally', {
+        total: entries.length,
+        reviewed: entries.filter(entry => entry.review != null).length,
+        sound: sound.length
+      })]
+
+  // Only when it applies, and it applies often. A sound row with no scenario is
+  // a true observation; it is just not evidence *about* anything, because
+  // nobody said what it was testing. It is not excluded for that - it simply
+  // cannot appear in the scenario breakdown the whole exercise is for, and
+  // finding that out while reviewing is far better than finding it out while
+  // querying.
+  const unlabelled = sound.filter(entry => entry.scenario == null).length
+
+  if (unlabelled > 0) lines.push(t('review.unlabelled', { runs: unlabelled }))
+
+  reviewTallyEl.textContent = lines.join(' ')
+}
+
+/**
  * Draw the log, newest first.
  *
  * Rebuilt wholesale on every change rather than patched. The list is bounded at
@@ -357,11 +421,27 @@ const describePeer = agent => [
  * is also the correct one.
  */
 function renderLogbook () {
-  const entries = logbook.entries().reverse()
+  const all = logbook.entries().reverse()
+  const entries = all.filter(matchesFilter)
+
+  // Rebuilding throws away the element somebody is working in, and the review
+  // controls are worked one row after another. So the focused control is named
+  // before the rebuild and looked up again after it. Without that, the browser
+  // does what it does when a focused element is removed - it puts the focus on
+  // the body - and every verdict given on row forty would send somebody back to
+  // the top of the page.
+  const active = document.activeElement
+  const activeRow = active?.closest?.('.logbook-entry')
+  const keep = activeRow == null
+    ? null
+    : { id: activeRow.dataset.id, control: active.classList.contains('review-note') ? '.review-note' : '.review-verdict' }
 
   logbookEntriesEl.replaceChildren(...entries.map(entry => {
     const row = document.createElement('div')
     row.className = `logbook-entry is-${entry.outcome}`
+    // What the focus restore above finds its way back by, and what a spec
+    // addresses a single row with.
+    row.dataset.id = entry.id
 
     const verdict = document.createElement('span')
     verdict.className = 'logbook-outcome'
@@ -431,12 +511,91 @@ function renderLogbook () {
     when.textContent = new Date(entry.at).toLocaleString()
     row.append(when)
 
+    // The verdict, on the row itself. A review screen that showed the judgement
+    // anywhere but beside the evidence would be collecting judgements from
+    // memory - and the detail that decides one is right here: the reason, the
+    // duration, which device the other end was.
+    const judgement = document.createElement('div')
+
+    judgement.className = 'logbook-review'
+
+    const verdictEl = document.createElement('select')
+
+    verdictEl.className = 'review-verdict'
+    verdictEl.setAttribute('aria-label', t('review.verdictLabel'))
+    // For the colour, which the select cannot take from its own value in CSS.
+    verdictEl.dataset.verdict = entry.review ?? ''
+
+    for (const value of ['', ...REVIEW_VERDICTS]) {
+      const option = document.createElement('option')
+
+      option.value = value
+      option.textContent = t(value === '' ? 'review.unreviewed' : `review.${value}`)
+      option.selected = value === (entry.review ?? '')
+      verdictEl.append(option)
+    }
+
+    // The note is handed back unchanged, so moving a row from one verdict to
+    // another keeps what was written about it. Clearing the verdict is the one
+    // case that drops it, and the logbook does that rather than this.
+    verdictEl.addEventListener('change', () => {
+      logbook.review(entry.id, { verdict: asVerdict(verdictEl.value), note: entry.reviewNote })
+    })
+
+    judgement.append(verdictEl)
+
+    // Only on a row somebody has judged. An unreviewed row has nothing to
+    // annotate, and two hundred empty boxes would bury the handful with
+    // writing in them.
+    if (entry.review != null) {
+      const note = document.createElement('input')
+
+      note.type = 'text'
+      note.className = 'review-note'
+      note.value = entry.reviewNote ?? ''
+      note.placeholder = t('review.noteHint')
+      note.setAttribute('aria-label', t('review.noteLabel'))
+      // On `change`, not on `input`: the whole list is rebuilt whenever the log
+      // changes, so recording every keystroke would take the field out from
+      // under the person typing in it.
+      note.addEventListener('change', () => {
+        logbook.review(entry.id, { verdict: entry.review, note: note.value })
+      })
+      judgement.append(note)
+    }
+
+    row.append(judgement)
+
     return row
   }))
+
+  // A filter that matches nothing is not an empty log, and the line under this
+  // list says the second thing. Appending here keeps the container non-empty,
+  // which is what hides it - see the CSS beside `.logbook-empty`.
+  if (entries.length === 0 && all.length > 0) {
+    const none = document.createElement('p')
+
+    none.className = 'hint review-none'
+    none.textContent = t('review.nomatch')
+    logbookEntriesEl.append(none)
+  }
+
+  // Silently nothing when the row has been filtered out from under the person -
+  // which is what marking the last unreviewed row sound does, and is right.
+  if (keep != null) {
+    logbookEntriesEl.querySelector(`.logbook-entry[data-id="${keep.id}"] ${keep.control}`)?.focus()
+  }
 }
 
 logbook.subscribe(renderLogbook)
+logbook.subscribe(renderReview)
 renderLogbook()
+renderReview()
+
+reviewFilterEl.addEventListener('change', () => {
+  reviewFilter = reviewFilterEl.value
+  renderLogbook()
+})
 
 const logbookEnabledEl = document.getElementById('logbook-enabled')
 
@@ -3453,6 +3612,11 @@ window.__libp2pQrTest = {
   // through a download - which is the browser's plumbing rather than ours, and
   // the part that turned out to be timing-dependent under load.
   logbookExport: () => logbook.export(),
+  // The rows that would be publishable, which is the gate the review stage
+  // exists to be. Read through the logbook rather than from storage, because
+  // what is under test is the definition of the gate and not the shape of a
+  // record.
+  logbookPublishable: () => logbook.publishable(),
   // The attempt still in flight. `families` is written while an invite is on
   // screen and the entry does not close until the connection does, so a test
   // about what was offered has nowhere else to read it.
