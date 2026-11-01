@@ -54,6 +54,13 @@ jobs:
         id: qr-unit
         run: pnpm --filter @le-space/libp2p-webrtc-qr test
 
+      # No network: the reader's suite drives the filter that stands between
+      # an open, append-only database and a public CSV, plus its HTTP front on
+      # a port the OS picks.
+      - name: Run results reader unit tests
+        id: reader-unit
+        run: pnpm --filter @le-space/libp2p-webrtc-qr-reader test
+
       # The Playwright container ships Chromium, Firefox and WebKit, so both
       # suites run on all three without an install step.
       - name: Run signed QR signaling E2E
@@ -70,14 +77,15 @@ jobs:
           E2E_OUTCOME: ${{ steps.qr-e2e.outcome }}
           UNIT_OUTCOME: ${{ steps.qr-unit.outcome }}
           HELIA_OUTCOME: ${{ steps.helia-e2e.outcome }}
+          READER_OUTCOME: ${{ steps.reader-unit.outcome }}
         run: |
           {
             echo '## Signed QR WebRTC signaling tests'
             echo
-            if [ "${E2E_OUTCOME}" = 'success' ] && [ "${UNIT_OUTCOME}" = 'success' ] && [ "${HELIA_OUTCOME}" = 'success' ]; then
+            if [ "${E2E_OUTCOME}" = 'success' ] && [ "${UNIT_OUTCOME}" = 'success' ] && [ "${HELIA_OUTCOME}" = 'success' ] && [ "${READER_OUTCOME}" = 'success' ]; then
               echo '**Result:** ✅ passed'
             else
-              echo "**Result:** ❌ unit ${UNIT_OUTCOME}, e2e ${E2E_OUTCOME}, helia ${HELIA_OUTCOME}"
+              echo "**Result:** ❌ unit ${UNIT_OUTCOME}, reader ${READER_OUTCOME}, e2e ${E2E_OUTCOME}, helia ${HELIA_OUTCOME}"
             fi
             echo
             echo '| Verified behavior | Result |'
@@ -89,6 +97,7 @@ jobs:
             echo "| A tampered signed offer is rejected as an invalid signature | ${E2E_OUTCOME} |"
             echo "| A peer refuses to dial itself with its own offer | ${E2E_OUTCOME} |"
             echo "| Two Helia nodes transfer a file over the QR-negotiated connection, bitswap only | ${HELIA_OUTCOME} |"
+            echo "| The reader refuses a finer-than-hourly timestamp, a word outside the vocabulary and a replayed row, and mirrors only named fields | ${READER_OUTCOME} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
   build-and-deploy:

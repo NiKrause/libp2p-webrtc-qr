@@ -14,8 +14,9 @@
     "build:helia": "pnpm --filter @le-space/libp2p-webrtc-qr-helia-example build",
     "start": "pnpm --filter @le-space/libp2p-webrtc-qr-demo start",
     "start:helia": "pnpm --filter @le-space/libp2p-webrtc-qr-helia-example start",
-    "test": "pnpm test:unit && pnpm test:e2e && pnpm test:helia",
+    "test": "pnpm test:unit && pnpm test:reader && pnpm test:e2e && pnpm test:helia",
     "test:unit": "pnpm --filter @le-space/libp2p-webrtc-qr test",
+    "test:reader": "pnpm --filter @le-space/libp2p-webrtc-qr-reader test",
     "test:e2e": "pnpm --filter @le-space/libp2p-webrtc-qr-demo test",
     "test:helia": "pnpm --filter @le-space/libp2p-webrtc-qr-helia-example test",
     "vendor:sync": "node scripts/vendor-sync.mjs"
