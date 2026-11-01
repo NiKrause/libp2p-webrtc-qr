@@ -2,6 +2,7 @@ packages:
   - 'packages/*'
   - 'examples/*'
 allowBuilds:
+  classic-level: set this to true or false
   esbuild: set this to true or false
   node-datachannel: set this to true or false
 verifyDepsBeforeRun: false

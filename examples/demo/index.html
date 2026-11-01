@@ -451,17 +451,41 @@
             <p id="review-tally" class="hint review-tally" role="status" aria-live="polite"></p>
 
             <!--
-              Said here, where somebody has just finished marking rows sound and
-              is looking for the button that sends them. There is none yet, and
-              the reason it is absent is the architecture rather than an
-              oversight: nothing in this app opens a network connection until a
-              publish step exists and somebody presses it.
+              Publishing: the first and only thing in this app that opens a
+              connection, and it opens one at the moment the button is pressed.
+
+              The preview is not a courtesy. The person is about to write rows
+              into an append-only log that can never erase or correct them, so
+              what would leave has to be readable *before* it leaves - the
+              actual rows, not a description of them.
             -->
-            <p class="hint review-publish" data-i18n="review.publish">
-              Nothing is published from here and nothing here connects to anything. Publishing is a
-              separate, deliberate step that does not exist yet (#179) - until it does, a sound
-              verdict means "this row would be fit to publish", not "this row has been".
-            </p>
+            <div class="publish">
+              <p class="hint review-publish" data-i18n="review.publish">
+                Nothing has left this device and nothing has connected to anything. Until this
+                button is pressed, the only connection this page has ever opened is the one to the
+                device you were testing with.
+              </p>
+
+              <p id="publish-count" class="hint publish-count" role="status" aria-live="polite"></p>
+
+              <details class="publish-preview">
+                <summary data-i18n="publish.preview">Show exactly what would leave</summary>
+                <p class="hint" data-i18n="publish.withheldHeading">Stays here:</p>
+                <ul id="publish-withheld" class="publish-withheld"></ul>
+                <p class="hint" data-i18n="publish.goesHeading">Goes, exactly as written:</p>
+                <pre id="publish-rows" class="publish-rows"></pre>
+              </details>
+
+              <div class="actions">
+                <button id="publish" type="button" disabled data-i18n="publish.button">Publish the sound rows</button>
+                <span id="publish-state" class="publish-state" role="status" aria-live="polite"></span>
+              </div>
+
+              <p class="hint publish-note" data-i18n="publish.note">
+                The log is append-only and every row is signed. It cannot be edited or taken back
+                afterwards, which is why the review stage comes first.
+              </p>
+            </div>
           </div>
 
           <div id="logbook-entries" class="logbook-entries"></div>
