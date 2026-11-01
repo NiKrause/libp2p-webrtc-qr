@@ -203,6 +203,7 @@ const listenReplyButton = document.getElementById('listen-reply')
 const playAnswerButton = document.getElementById('play-answer')
 const pasteFallbackEl = document.querySelector('.paste-fallback')
 const inviteLinkEl = document.getElementById('invite-link')
+const pairNoteEl = document.getElementById('pair-note')
 const copyLinkEl = document.getElementById('copy-link')
 // Beside its own control, and - the part that matters - above the
 // `applyLocale` call below, which resets that button before the first paint.
@@ -212,6 +213,10 @@ const copyLinkEl = document.getElementById('copy-link')
 let copiedTimer = null
 // What the dialog is currently showing, for the button that plays it as sound.
 let outboundPayload = null
+// And which half of the handover it is. An offer needs explaining to somebody
+// who is not in the room; a reply goes back to the person who sent the invite
+// and needs nothing.
+let outboundIsOffer = false
 
 const logbookEntriesEl = document.getElementById('logbook-entries')
 const logbookProviderEl = document.getElementById('logbook-provider')
@@ -278,6 +283,18 @@ function candidatesOf (peerId) {
  * thing they would all have had to carry.
  */
 let incomingCarrier = null
+
+/**
+ * The pairing id of the attempt in flight, and the one that arrived with a
+ * payload waiting to be adopted by the next attempt.
+ *
+ * Two variables rather than one: the offering side mints its id before there is
+ * anything to receive, and the answering side has to hold what it was sent
+ * across the gap between reading a link and opening an entry. Same shape as
+ * `incomingCarrier` above, for the same reason.
+ */
+let pairId = null
+let incomingPairId = null
 const inviteFreshnessEl = document.getElementById('invite-freshness')
 const hurryBackEl = document.getElementById('hurry-back')
 const createOfferAgainButton = document.getElementById('create-offer-again')
@@ -475,6 +492,9 @@ function renderLogbook () {
       // is the difference between a network with no IPv6 and a run that refused
       // to use it.
       entry.familyFilter ? t('logbook.familyFilter', { family: familyLabel(entry.familyFilter) }) : null,
+      // The join key, and worth the width: it is the only thing in the row that
+      // points at a measurement rather than at this device.
+      entry.pairId ? t('logbook.pair', { pair: entry.pairId }) : null,
       entry.frames != null ? t('logbook.frames', { frames: entry.frames }) : null,
       entry.network?.overall ? `net: ${entry.network.overall}` : null,
       entry.ms != null ? `${Math.round(entry.ms / 1000)}s` : null
@@ -803,6 +823,28 @@ addressFamilyEl.addEventListener('change', () => {
 })
 
 renderAddressFamily()
+
+/**
+ * Open a logbook entry for an attempt, carrying everything that labels it.
+ *
+ * One place rather than the four controls that can start an attempt. Each of
+ * those passed the scenario and the filter itself, which worked only as long as
+ * there were two such fields; the pairing id is the third, and the first whose
+ * value differs by leg - the offering side mints one, the answering side adopts
+ * whatever arrived with the invite. Spread over four call sites that is four
+ * chances to write the wrong half of a measurement.
+ */
+function startAttempt (fields) {
+  pairId = fields.role === 'offering'
+    // Only labelled runs. An id on an ordinary connection would pair with
+    // nothing and travel in every link anybody ever sent.
+    ? (scenario == null ? null : newPairId())
+    : incomingPairId
+
+  incomingPairId = null
+
+  return logbook.start({ ...fields, scenario, familyFilter: addressFamily, pairId })
+}
 
 for (const [el, key] of [[logbookProviderEl, 'provider'], [logbookPlaceEl, 'place'], [logbookPeerEl, 'peer']]) {
   el.value = logbook.context[key] ?? ''
@@ -2323,6 +2365,24 @@ const REPLY_PARAM = 'r'
  * see which test it belongs to without a table.
  */
 const SCENARIO_PARAM = 's'
+/**
+ * The pairing id, carried in the fragment beside the label.
+ *
+ * Eight base-36 characters, so `&p=` costs eleven. Shorter would be enough to
+ * keep one person's own runs apart; this is sized for the published set, where
+ * two contributors colliding would silently join two unrelated halves into one
+ * measurement that never happened.
+ */
+const PAIR_PARAM = 'p'
+
+const newPairId = () => Math.random().toString(36).slice(2, 10).padEnd(8, '0')
+
+/**
+ * Checked rather than trusted. It arrives in a link from somebody else and ends
+ * up in the record, so anything that is not an id shaped like ours is treated
+ * as no id at all.
+ */
+const asPairId = value => typeof value === 'string' && /^[a-z0-9]{4,16}$/u.test(value) ? value : null
 // An offer's ICE candidates go stale as NAT bindings expire, so a link that sat
 // in a chat for half an hour will not connect. We cannot prevent that - but we
 // can say it out loud instead of failing cryptically half an hour later.
@@ -2627,7 +2687,53 @@ function linkFor (param, payload) {
     url.hash = `${url.hash}&${SCENARIO_PARAM}=${scenario}`
   }
 
+  // And the pairing id, so the row the other device writes can be recognised
+  // as this row's other half. Only labelled runs have one, so this follows the
+  // label rather than needing its own condition - but it is written separately
+  // because the two answer different questions: the label says what the run
+  // was for, the id says which two rows were it.
+  if (pairId != null) {
+    url.hash = `${url.hash}&${PAIR_PARAM}=${pairId}`
+  }
+
   return url.toString()
+}
+
+/**
+ * The labels a payload brought with it: which test it belongs to, and which
+ * pair of rows it is half of.
+ *
+ * The QR encodes the *link*, so a scanned code has carried the label since it
+ * existed - but only the link-opening path ever read it. Scanning somebody's
+ * code with the in-app scanner, or pasting their link into the fallback field,
+ * wrote an unlabelled row on this side: one measurement with one labelled half,
+ * and nothing afterwards to say the other half was ever part of it.
+ */
+function labelsFrom (text) {
+  try {
+    const params = new URLSearchParams(new URL(String(text).trim()).hash.replace(/^#/u, ''))
+
+    return { scenario: asScenario(params.get(SCENARIO_PARAM)), pairId: asPairId(params.get(PAIR_PARAM)) }
+  } catch {
+    // A raw payload rather than a link. It carries no labels, and that is not
+    // an error.
+    return { scenario: null, pairId: null }
+  }
+}
+
+/**
+ * Take them, for the attempt that is about to start.
+ *
+ * Every caller does this inside the check for whether an attempt is already
+ * open, and has to: pasting a *reply* happens on the side that already has an
+ * entry, and adopting an id there would leave it waiting to be picked up by
+ * some unrelated attempt later on.
+ */
+function adoptLabels (text) {
+  const { scenario: labelled, pairId: pair } = labelsFrom(text)
+
+  if (labelled != null) setScenario(labelled)
+  if (pair != null) incomingPairId = pair
 }
 
 /**
@@ -2749,6 +2855,22 @@ inviteLinkEl.addEventListener('focus', () => inviteLinkEl.select())
  * is what the primary control above offers, and somebody who opened this fold
  * and reached for a button marked "Copy" asked for the clipboard.
  */
+/**
+ * What actually goes out when somebody sends this invite.
+ *
+ * For scenario B the link alone is not enough to act on: it lands in a chat
+ * from somebody whose phone is somewhere else, with no context, and what has to
+ * happen next - open it on *your own* network, send the reply straight back -
+ * is exactly what cannot be said in person. Both controls use this, because
+ * which of them is on screen depends on whether the browser has a share sheet,
+ * and that must not decide what the other person receives.
+ *
+ * Offers only. A reply goes back to somebody who already knows what it is.
+ */
+const handoverText = () => scenario === 'across-networks' && outboundIsOffer
+  ? `${t('pair.message')}\n\n${inviteLinkEl.value}`
+  : inviteLinkEl.value
+
 async function copyInviteLink () {
   // Synchronously, before the await below: this is inside the click, and a
   // click is the only moment the autoplay policy will let audio start.
@@ -2761,7 +2883,7 @@ async function copyInviteLink () {
   showHurryBack()
 
   try {
-    await navigator.clipboard.writeText(inviteLinkEl.value)
+    await navigator.clipboard.writeText(handoverText())
     markCopied(true)
   } catch {
     // Refused - insecure origin, a permission policy, some mobile browsers.
@@ -2885,7 +3007,16 @@ async function renderOutbound (payload, kind) {
   // The answering side is the one with something to play. The offer stays a
   // code or a link: the side that shows it has a screen by definition, and at
   // a thousand characters it would be half a minute of noise.
+  // What to tell somebody who is not in the room. Scenario B is the only one
+  // where the other end is a person you cannot turn to and explain this to, so
+  // the explanation has to travel with the link - and the two halves of the
+  // handover need different sentences: one asks for a reply, the other is the
+  // reply.
+  pairNoteEl.hidden = scenario !== 'across-networks'
+  pairNoteEl.textContent = pairNoteEl.hidden ? '' : t(waitingForReply ? 'pair.sending' : 'pair.replying')
+
   outboundPayload = payload
+  outboundIsOffer = waitingForReply
   playAnswerButton.hidden = waitingForReply
   labelPlayButton()
   openModal(inviteBoxEl)
@@ -2927,7 +3058,7 @@ async function handleReceivedPayload (input, expectedType) {
   // An offer arriving means this side is answering, and nothing has opened an
   // entry for it yet - the offering side's attempt is on the other device.
   if (type === QR_TYPE_OFFER && logbook.pending() == null) {
-    logbook.start({ role: 'answering', carrier: incomingCarrier, scenario, familyFilter: addressFamily })
+    startAttempt({ role: 'answering', carrier: incomingCarrier })
   }
 
   logbook.note({ format: isCompactPayload(text) ? 'v3' : 'v2', received: text.length })
@@ -3038,7 +3169,8 @@ scanModalEl.addEventListener('scan', async event => {
     await ensureNode()
 
     if (logbook.pending() == null) {
-      logbook.start({ role: 'answering', carrier: 'camera', scenario, familyFilter: addressFamily })
+      adoptLabels(event.detail.text)
+      startAttempt({ role: 'answering', carrier: 'camera' })
     }
 
     const classified = await classifyScanned(event.detail.text, expectedType)
@@ -3075,7 +3207,7 @@ resetIdentityButton.addEventListener('click', () => {
 })
 
 async function createInvite (button) {
-  logbook.start({ role: 'offering', scenario, familyFilter: addressFamily })
+  startAttempt({ role: 'offering' })
 
   // Step 1 is technical - "start a browser peer" is not a thing anybody set out
   // to do - so in the simple view it is not on screen to press. The button that
@@ -3308,7 +3440,8 @@ async function useIncoming (text) {
   // Guarded, because the offering side already has one open from `createInvite`
   // and this is where it pastes the reply.
   if (logbook.pending() == null) {
-    logbook.start({ role: 'answering', carrier: incomingCarrier, scenario, familyFilter: addressFamily })
+    adoptLabels(text)
+    startAttempt({ role: 'answering', carrier: incomingCarrier })
   }
   setButtonBusy(processPayloadButton, node == null ? t('invite.starting') : 'Connecting…')
 
@@ -3361,7 +3494,7 @@ copyPayloadButton.addEventListener('click', async () => {
   // act on - which is what made the old on-return warning a post-mortem.
   showHurryBack()
 
-  const result = await shareOrCopy(inviteLinkEl.value, 'invite link')
+  const result = await shareOrCopy(handoverText(), 'invite link')
 
   if (result === 'copied') {
     setStatus(leavingSuspendsUs()
@@ -3627,6 +3760,14 @@ window.__libp2pQrTest = {
   // The filter in force, for the one claim about it a page cannot otherwise
   // make: that it did *not* arrive with a link.
   addressFamily: () => addressFamily,
+  // The pairing id of the attempt in flight. The entry does not close until the
+  // connection does, so a test about what the two halves agreed on has nowhere
+  // else to read it.
+  pairId: () => pairId,
+  // What a copy or a share would actually put in somebody's chat. Asserted
+  // through this rather than through the clipboard, which is the browser's
+  // plumbing and needs a permission grant to read back.
+  handoverText: () => handoverText(),
   renderReceived: (name, cid, bytes, direction = 'received') =>
     renderReceivedFile({ name, cid, mime: 'application/octet-stream' }, new Uint8Array(bytes), { direction }),
   // The codec, so a spec can mount its own <qr-listen> and feed it a payload
@@ -3787,13 +3928,10 @@ async function consumeLink () {
     return
   }
 
-  // Adopted from the link, so the other half of a solo run is labelled without
-  // anybody setting it twice. Read before the fragment is dropped below.
-  const labelled = asScenario(params.get(SCENARIO_PARAM))
-
-  if (labelled != null) {
-    setScenario(labelled)
-  }
+  // Adopted from the link, so the other half of a run is labelled and paired
+  // without anybody setting anything twice. Read before the fragment is
+  // dropped below.
+  adoptLabels(window.location.href)
 
   // Drop the fragment, so a reload does not replay a payload that is spent.
   history.replaceState(null, '', window.location.pathname + window.location.search)

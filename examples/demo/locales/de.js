@@ -89,6 +89,7 @@ export default {
     clear: 'Protokoll leeren',
     frames: ({ frames }) => `${frames} Bild${frames === 1 ? '' : 'er'}`,
     familyFilter: ({ family }) => `nur ${family}`,
+    pair: ({ pair }) => `Paar ${pair}`,
     outcome: {
       connected: 'verbunden',
       failed: 'gescheitert',
@@ -138,6 +139,7 @@ export default {
     hint: 'Ein markierter Lauf ist ein Beleg. Ein unmarkierter ist nur ein Versuch, den jemand gemacht hat, und hinterher unterscheidet die beiden nichts mehr. Markieren Sie einen Lauf nur, wenn der Aufbau unten wirklich zutrifft.',
     none: 'Nein - ich möchte nur eine Verbindung',
     'same-lan': 'A - beide Geräte im selben WLAN',
+    'across-networks': 'B - zwei Geräte in zwei Netzen, an zwei Orten',
     'mobile-data': 'C - beide Geräte im Mobilfunknetz',
     off: 'Die Aufzeichnung ist aus, ein markierter Lauf schreibt also überhaupt nichts. Setzen Sie zuerst den Haken bei „Aufzeichnen, was hier passiert" - auf beiden Geräten.',
     steps: {
@@ -146,6 +148,14 @@ export default {
         'Schalten Sie die Aufzeichnung auf beiden Geräten ein. Jedes schreibt seine eigene Zeile, und das Paar ist die Messung.',
         'Erzeugen Sie hier eine Einladung und scannen Sie sie mit dem anderen Gerät. Der Link trägt die Markierung mit, die zweite Zeile ist also auch markiert.',
         'Scannen Sie die Antwort hier zurück.'
+      ],
+      'across-networks': [
+        'Sie brauchen eine zweite Person, woanders, in deren eigenem Netz. Nicht Ihr WLAN und nicht Ihr Hotspot - das wäre Szenario A mit Umweg.',
+        'Schalten Sie beide die Aufzeichnung ein. Jedes Gerät schreibt seine eigene Zeile, und beide tragen dieselbe Kopplungs-ID, damit sich die Hälften hinterher zuordnen lassen.',
+        'Erzeugen Sie hier eine Einladung und schicken Sie den Link über den Chat, den Sie ohnehin benutzen. Der Link trägt die Markierung, die ID und die Anleitung mit.',
+        'Die andere Person öffnet ihn, ihre Seite erzeugt einen Antwort-Link, und den schickt sie zurück. Fügen Sie ihn hier ein.',
+        'Seien Sie beide gleichzeitig am Gerät. Eine Einladung wird binnen Minuten schal, weil die NAT-Bindungen dahinter ablaufen - ein heute Abend beantworteter Link verbindet sich mit nichts mehr.',
+        'Um das zu fragen, wofür B da ist - geht IPv6 zwischen diesen beiden Netzen? -, stellen Sie hier „Welche Adressen anbieten" ein, bevor Sie die Einladung erzeugen. Eine Seite genügt; die Gegenstelle braucht keine eigene Einstellung.'
       ],
       'mobile-data': [
         'Schalten Sie das WLAN auf beiden Geräten aus, damit beide wirklich im Mobilfunknetz sind.',
@@ -157,7 +167,20 @@ export default {
     },
     tally: ({ runs, connected }) => `${runs} markierte ${runs === 1 ? 'Messung' : 'Messungen'} auf diesem Gerät, davon ${connected} verbunden.`,
     tallyNone: 'Unter dieser Markierung ist noch nichts aufgezeichnet.',
-    pairing: 'B - zwei Geräte in zwei Netzen, an zwei Orten - fehlt hier absichtlich. Dafür müssen zwei Personen zu einer Aufzeichnung beitragen, und das ist ein Kopplungsablauf, keine Checkliste (#179).'
+    pairing: 'Die Zeile der anderen Person bleibt auf deren Gerät. Hier wird sie nicht eingesammelt: die beiden Hälften zusammenzubringen heißt, dass Sie beide exportieren und die Kopplungs-ID von Hand abgleichen - bis es einen absichtlichen Ort zum Veröffentlichen gibt (#179).'
+  },
+  /**
+   * Einen Lauf an jemanden übergeben, der nicht im Raum ist (#179 Schritt 5).
+   *
+   * `message` ist die einzige Zeichenkette in beiden Katalogen, die sich nicht
+   * an die Person vor dem Bildschirm richtet, sondern an deren Gegenüber im
+   * Chat - deshalb dort das Du, und deshalb erklärt sie sich aus dem Nichts.
+   * Sie sagt auch wann, nicht nur was: eine Einladung läuft in Minuten ab.
+   */
+  pair: {
+    sending: 'Die andere Person steht nicht neben Ihnen, der Link geht deshalb mit einer Anleitung hinaus. Kopieren oder Senden nimmt beides mit.',
+    replying: 'Schicken Sie das an die Person zurück, die Ihnen den Link geschickt hat - und zwar jetzt: deren Einladung läuft binnen Minuten ab.',
+    message: 'Ich teste gerade, ob sich zwei Telefone in verschiedenen Netzen direkt miteinander verbinden können. Öffne diesen Link auf deinem Telefon, in deinem eigenen Netz - nicht in meinem. Du bekommst dann einen Antwort-Link: schick mir den in den nächsten Minuten zurück, sonst müssen wir von vorn anfangen.'
   },
   view: {
     simple: 'Einfach',

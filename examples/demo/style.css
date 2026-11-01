@@ -848,6 +848,24 @@ button.is-busy::before {
   line-height: 1.45;
 }
 
+/* The scenario-B handover note. Shaped like the hurry-back warning above it
+   because it sits in the same place and answers the same kind of question -
+   what happens next and how little time there is for it - but in the accent
+   rather than the amber: this one is an instruction, not a warning. */
+.pair-note {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border: 1px solid var(--ls-card-border);
+  border-left: 3px solid var(--ls-accent);
+  border-radius: var(--ls-radius-sm);
+  background: var(--ls-bg-1);
+  color: var(--ls-text-dim);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.pair-note[hidden] { display: none; }
+
 /* ---------- is the half-finished connection still alive ---------- */
 
 .pc-health[hidden] {

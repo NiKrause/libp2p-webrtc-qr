@@ -106,6 +106,7 @@ export default {
     clear: 'Clear the log',
     frames: ({ frames }) => `${frames} frame${frames === 1 ? '' : 's'}`,
     familyFilter: ({ family }) => `${family} only`,
+    pair: ({ pair }) => `pair ${pair}`,
     outcome: {
       connected: 'connected',
       failed: 'failed',
@@ -153,6 +154,7 @@ export default {
     hint: 'A labelled run is evidence. An unlabelled one is just an attempt somebody made, and nothing can tell the two apart afterwards. Label a run only when the setup below is actually true.',
     none: 'No - I just want to connect',
     'same-lan': 'A - both devices on the same Wi-Fi',
+    'across-networks': 'B - two devices on two networks, in two places',
     'mobile-data': 'C - both devices on mobile data',
     off: 'Recording is off, so a labelled run would write nothing at all. Tick "Record what happens here" first - on both devices.',
     steps: {
@@ -161,6 +163,14 @@ export default {
         'Turn recording on, on both devices. Each one writes its own row, and the pair is the measurement.',
         'Create an invite here and scan it with the other device. The link carries the label, so the other row is labelled too.',
         'Scan the reply back here.'
+      ],
+      'across-networks': [
+        'You need a second person, somewhere else, on their own network. Not your Wi-Fi and not your hotspot - that is scenario A with extra steps.',
+        'Both of you turn recording on. Each device writes its own row, and both rows carry the same pairing id, so the two halves can be matched afterwards.',
+        'Create an invite here and send them the link through whatever chat you already use. The link carries the label, the id and what they have to do with it.',
+        'They open it, their page makes a reply link, and they send that back. Paste it here.',
+        'Be at the keyboard at the same time. An invite goes stale within minutes as the NAT bindings behind it expire, so a link answered this evening connects to nothing.',
+        'To ask what B is actually for - does IPv6 work between these two networks - set "Which addresses to offer" here before you create the invite. One side is enough; the other end needs no setting of its own.'
       ],
       'mobile-data': [
         'Turn Wi-Fi off on both devices, so both really are on mobile data.',
@@ -172,7 +182,21 @@ export default {
     },
     tally: ({ runs, connected }) => `${runs} labelled ${runs === 1 ? 'run' : 'runs'} recorded on this device, ${connected} of them connected.`,
     tallyNone: 'Nothing recorded under this label yet.',
-    pairing: 'B - two devices on two networks, in two places - is deliberately not here. It needs two people to contribute to one record, which is a pairing flow rather than a checklist (#179).'
+    pairing: 'The other person\'s row stays on their device. Nothing here collects it: matching the two halves means both of you exporting and lining up the pairing id by hand, until there is somewhere deliberate to publish them to (#179).'
+  },
+  /**
+   * Handing a run over to somebody who is not in the room (#179 step 5).
+   *
+   * `message` is the only string in either catalogue addressed to a third
+   * party rather than to the person using the page - it is pasted into a chat
+   * and read by their friend. So it explains itself from nothing, and it says
+   * when rather than only what: an invite expires in minutes, and a link
+   * answered that evening connects to nothing.
+   */
+  pair: {
+    sending: 'They are not in the room, so the link goes out with instructions. Copying or sending it takes both.',
+    replying: 'Send this back to the person who sent you the link, and do it now - their invite stops working within minutes.',
+    message: 'I am testing whether two phones on different networks can connect to each other directly. Open this link on your phone, on your own network - not mine. It will show you a reply link: send that one back to me in the next few minutes, otherwise we have to start over.'
   },
   view: {
     simple: 'Simple',

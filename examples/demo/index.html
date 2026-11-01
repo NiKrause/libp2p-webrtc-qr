@@ -344,6 +344,10 @@
               <span data-i18n="scenario.same-lan">A - both devices on the same Wi-Fi</span>
             </label>
             <label class="option">
+              <input type="radio" name="scenario" value="across-networks">
+              <span data-i18n="scenario.across-networks">B - two devices on two networks, in two places</span>
+            </label>
+            <label class="option">
               <input type="radio" name="scenario" value="mobile-data">
               <span data-i18n="scenario.mobile-data">C - both devices on mobile data</span>
             </label>
@@ -354,12 +358,13 @@
             <div id="scenario-brief" class="scenario-brief" hidden></div>
 
             <!--
-              Named, not omitted. Scenario B is the interesting one and leaving
-              it unmentioned reads as an oversight; saying why it is absent says
-              that the gap is known and what shape the answer has.
+              What B still cannot do, now that it is here. The run works; the
+              record of it is in two places, and bringing the halves together is
+              a manual step until there is somewhere to publish them to. Saying
+              so is the difference between a known gap and a surprise.
             -->
             <p class="hint scenario-pairing" data-i18n="scenario.pairing">
-              B - two devices on two networks, in two places - is deliberately not here.
+              The other person's row stays on their device.
             </p>
           </fieldset>
 
@@ -636,6 +641,13 @@
         Filled in from JS rather than hidden with CSS, so a desktop never has the
         sentence in its DOM to be read out by a screen reader.
       -->
+      <!--
+        Scenario B only, and it is most of what makes B a flow rather than a
+        wish: the other person is not standing next to you to be told what this
+        is and what to do with it. Filled from JS, because what it says depends
+        on which half of the handover this dialog is showing.
+      -->
+      <p id="pair-note" class="pair-note" role="note" hidden></p>
       <p id="hurry-back" class="hurry-back" role="note" hidden></p>
       <p id="invite-freshness" class="freshness"></p>
       <!--

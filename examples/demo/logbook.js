@@ -247,7 +247,7 @@ export function createLogbook ({ now = () => Date.now() } = {}) {
      * A second `start` while one is open closes the first as abandoned: leaving
      * it dangling would silently lose the row that says somebody gave up.
      */
-    start ({ role, carrier = null, scenario = null, familyFilter = null }) {
+    start ({ role, carrier = null, scenario = null, familyFilter = null, pairId = null }) {
       // Off means off: no entry, not an empty one and not a redacted one.
       if (!enabled) return null
 
@@ -291,6 +291,25 @@ export function createLogbook ({ now = () => Date.now() } = {}) {
          * choice.
          */
         familyFilter,
+        /**
+         * Which pair of rows this one is half of, or null.
+         *
+         * A connection has two ends and an entry describes one. For a scenario
+         * run on two devices in one room that hardly matters - the person
+         * holding both of them knows which two rows go together. Scenario B is
+         * two people in two places, and then nothing does: the other half is in
+         * somebody else's logbook, on somebody else's phone, and after the fact
+         * there is no way to tell which of their rows was this one's partner.
+         *
+         * So the inviting side mints an id, it travels with the invite, and the
+         * answering side adopts it. The two halves can then be matched whenever
+         * they are brought together - which today is by hand, through two
+         * exports, and that is the honest state of it (#179 step 5).
+         *
+         * Only labelled runs get one: an id that pairs with nothing would be
+         * noise in every ordinary connection anybody ever made.
+         */
+        pairId,
         /**
          * What a person made of this row afterwards, or null while nobody has
          * looked at it.
