@@ -12,6 +12,7 @@ import {
   setRemoteDescription
 } from './payload.js'
 import { DEFAULT_RTC_CONFIGURATION } from './elements/network.js'
+import { asAddressFamily, familyLabel, familyOf, filterSdpCandidates } from './families.js'
 import { QR_TYPE_ANSWER, QR_TYPE_OFFER } from './signaling.js'
 
 /**
@@ -76,6 +77,21 @@ const DEFAULTS = {
    * where load is not a factor.
    */
   compact: false,
+  /**
+   * Offer one address family only - `'v4'`, `'v6'`, or `null` for everything
+   * this device gathered, which is the default and what an ordinary connection
+   * wants.
+   *
+   * A value, or a function returning one, so a host with a control on screen
+   * does not have to rebuild its session when somebody flips it.
+   *
+   * This is a measuring instrument, not a tuning knob: see families.js for why
+   * setting it on **one** device is enough to constrain both, and why it
+   * deliberately does not travel with the invite. Setting it can also make a
+   * connection that would have worked fail - which is the point when the
+   * question is whether a family works at all, and a nuisance otherwise.
+   */
+  addressFamily: null,
   /** A stream can report open and be reset a moment later. Look again. */
   dialSettleDelay: 200
 }
@@ -265,6 +281,55 @@ export class QRSession extends EventTarget {
     this.inbound = new Set()
   }
 
+  #addressFamily () {
+    const family = this.options.addressFamily
+
+    return asAddressFamily(typeof family === 'function' ? family() : family)
+  }
+
+  /**
+   * The SDP this peer hands out, with the family filter applied if one is set.
+   *
+   * Refuses rather than handing over a payload with no transport address in it.
+   * An invite filtered down to nothing still encodes, signs, renders as a QR
+   * code and verifies on the far side - and then ICE sits in `checking` until it
+   * times out, with nothing anywhere saying why. "This device gathered no IPv6
+   * candidate" is a finding, and it is worth far more as a sentence than as a
+   * timeout thirty seconds later.
+   *
+   * Only when the unfiltered description had candidates: a gather that produced
+   * nothing at all is a different fault, and it is not this filter's to report.
+   *
+   * The two ways of having nothing left are different findings and get different
+   * sentences. "No IPv6 candidate" is an answer about the network. "Every
+   * address was withheld as a `.local` name" is an answer about the *browser* -
+   * all three engines obfuscate host addresses by default - and it means the
+   * question cannot be asked over host candidates at all. Reflexive candidates
+   * carry real addresses, so gathering with a STUN server is what makes a
+   * filtered run possible; without one, a same-network invite may have nothing
+   * but mDNS names in it.
+   */
+  #offered (sdp, family) {
+    if (family == null) return sdp
+
+    const filtered = filterSdpCandidates(sdp, family)
+    const gathered = readCandidates(sdp)
+
+    if (readCandidates(filtered).length === 0 && gathered.length > 0) {
+      const withheld = gathered.every(candidate => familyOf(candidate.address) === 'mdns')
+
+      throw new SessionError(withheld
+        ? 'Nothing to offer: every candidate this device gathered has its address withheld as an ' +
+          `mDNS (.local) name, which says nothing about its family, so an ${familyLabel(family)}-only ` +
+          'invite cannot be built from them. Reflexive candidates carry real addresses - gather with ' +
+          'a STUN server to ask this question.'
+        : `Nothing to offer: this device gathered no ${familyLabel(family)} candidate, so an ` +
+          `${familyLabel(family)}-only invite would describe no address to connect to.`)
+    }
+
+    return filtered
+  }
+
   #rtcConfiguration () {
     const configuration = this.options.rtcConfiguration ?? DEFAULT_RTC_CONFIGURATION
 
@@ -321,11 +386,20 @@ export class QRSession extends EventTarget {
         throw new SessionError('WebRTC did not create an SDP offer')
       }
 
+      const addressFamily = this.#addressFamily()
+
       this.offers.set(sessionId, {
         sessionId,
         createdAt: Date.now(),
         peerConnection,
         initDataChannel,
+        /**
+         * Kept with the session rather than read again when the answer arrives.
+         * The filter is a control somebody can change between showing an invite
+         * and reading the reply to it, and an answer accepted under a different
+         * rule than the offer it belongs to would be a measurement of neither.
+         */
+        addressFamily,
         remotePeerId: null,
         upgradeContext: null
       })
@@ -334,7 +408,7 @@ export class QRSession extends EventTarget {
         privateKey: this.node.components.privateKey,
         peerId: this.node.peerId.toString(),
         sessionId,
-        sdp: peerConnection.localDescription.sdp,
+        sdp: this.#offered(peerConnection.localDescription.sdp, addressFamily),
         compact
       })
     } catch (error) {
@@ -361,6 +435,7 @@ export class QRSession extends EventTarget {
       throw new SessionError('This offer was created by this peer')
     }
 
+    const addressFamily = this.#addressFamily()
     const peerConnection = new RTCPeerConnection(this.#rtcConfiguration())
     const address = this.#address(offer.peerId)
     // This peer answered, so it is the inbound side of the session.
@@ -371,13 +446,21 @@ export class QRSession extends EventTarget {
     this.inbound.add(peerConnection)
 
     try {
-      await setRemoteDescription(peerConnection, offer, 'offer')
+      // Filtered on the way in as well as on the way out, and that is what makes
+      // one device enough: a candidate this side never learnt about is a pair
+      // this side never probes.
+      await setRemoteDescription(peerConnection, offer, 'offer', addressFamily)
       await setLocalDescription(peerConnection, await peerConnection.createAnswer(), compact)
       await waitForIceGathering(peerConnection, this.options.iceGatheringTimeout)
 
       if (peerConnection.localDescription == null) {
         throw new SessionError('WebRTC did not create an SDP answer')
       }
+
+      // Before the wait is armed, not after: a filter with nothing left to offer
+      // throws, and throwing after that promise is running reports the same
+      // refusal twice - once as itself and once as a connection that failed.
+      const sdp = this.#offered(peerConnection.localDescription.sdp, addressFamily)
 
       waitForConnected(peerConnection, this.options.answerWaitTimeout)
         .then(async () => {
@@ -405,7 +488,7 @@ export class QRSession extends EventTarget {
         peerId: this.node.peerId.toString(),
         offerPeerId: offer.peerId,
         sessionId: offer.sessionId,
-        sdp: peerConnection.localDescription.sdp,
+        sdp,
         compact
       })
     } catch (error) {
@@ -442,7 +525,7 @@ export class QRSession extends EventTarget {
 
     const ageSeconds = Math.round((Date.now() - session.createdAt) / 1000)
 
-    await setRemoteDescription(session.peerConnection, answer, 'answer')
+    await setRemoteDescription(session.peerConnection, answer, 'answer', session.addressFamily)
 
     try {
       await waitForConnected(session.peerConnection, this.options.connectionTimeout)

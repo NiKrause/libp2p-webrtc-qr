@@ -20,6 +20,7 @@ import {
   inspectCompactPayload,
   isCompactPayload
 } from './compact.js'
+import { filterCandidateLines, filterSdpCandidates } from './families.js'
 import {
   PAYLOAD_VERSION,
   QR_TYPE_ANSWER,
@@ -75,13 +76,23 @@ export async function setLocalDescription (peerConnection, description, compact)
  * over a fingerprint and candidates, so the SDP is rebuilt here and the
  * candidates are added individually - they are never written into the string.
  *
+ * `addressFamily` drops the other family's candidates *after* the payload has
+ * been verified and before the description is set. The signature covered what
+ * the sender sent, which is still true; which of those candidates this peer is
+ * willing to probe is its own business, and refusing some of them cannot forge
+ * anything.
+ *
  * @param {RTCPeerConnection} peerConnection
  * @param {object} payload as returned by decodeOffer or decodeAnswer
  * @param {'offer'|'answer'} type
+ * @param {'v4'|'v6'|null} [addressFamily]
  */
-export async function setRemoteDescription (peerConnection, payload, type) {
+export async function setRemoteDescription (peerConnection, payload, type, addressFamily = null) {
   if (payload.sdp != null) {
-    return peerConnection.setRemoteDescription({ type, sdp: payload.sdp })
+    return peerConnection.setRemoteDescription({
+      type,
+      sdp: filterSdpCandidates(payload.sdp, addressFamily)
+    })
   }
 
   const { ufrag, pwd } = await deriveIceCredentials(payload.fingerprint)
@@ -95,7 +106,7 @@ export async function setRemoteDescription (peerConnection, payload, type) {
       ufrag,
       pwd,
       type,
-      candidates: payload.candidates
+      candidates: filterCandidateLines(payload.candidates, addressFamily)
     })
   })
 }

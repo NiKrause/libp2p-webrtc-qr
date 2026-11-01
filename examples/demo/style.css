@@ -848,6 +848,24 @@ button.is-busy::before {
   line-height: 1.45;
 }
 
+/* The scenario-B handover note. Shaped like the hurry-back warning above it
+   because it sits in the same place and answers the same kind of question -
+   what happens next and how little time there is for it - but in the accent
+   rather than the amber: this one is an instruction, not a warning. */
+.pair-note {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border: 1px solid var(--ls-card-border);
+  border-left: 3px solid var(--ls-accent);
+  border-radius: var(--ls-radius-sm);
+  background: var(--ls-bg-1);
+  color: var(--ls-text-dim);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.pair-note[hidden] { display: none; }
+
 /* ---------- is the half-finished connection still alive ---------- */
 
 .pc-health[hidden] {
@@ -1548,6 +1566,56 @@ button.is-busy::before {
   font-size: 0.82rem;
 }
 
+/* The address-family lever lives with the invite buttons rather than in the
+   logbook card: the scenario panel labels a run, this one changes what the next
+   invite actually is. */
+.family-filter {
+  margin: 14px 0 16px;
+}
+
+/* Matched to the text inputs above rather than to the pill in the nav bar: this
+   one sits in a form, and a dropdown that looked like a nav control would read
+   as navigation. */
+.family-filter select {
+  width: 100%;
+  max-width: 22rem;
+  font-family: var(--ls-font-mono);
+  font-size: 0.9rem;
+  color: var(--ls-text);
+  background: var(--ls-bg-1);
+  border: 1px solid var(--ls-bg-3);
+  border-radius: var(--ls-radius-sm);
+  padding: 10px 12px;
+}
+
+.family-filter select:focus {
+  outline: none;
+  border-color: var(--ls-accent);
+  box-shadow: var(--ls-glow-accent);
+}
+
+.family-filter option {
+  background: var(--ls-card);
+  color: var(--ls-text);
+}
+
+/* The same indent as the scenario brief, and for the same reason: what follows
+   is a consequence of the choice above it. */
+.family-brief {
+  margin-top: 10px;
+  padding-inline-start: 12px;
+  border-left: 2px solid var(--ls-card-border);
+}
+
+.family-brief .hint {
+  margin: 0 0 6px;
+  font-size: 0.82rem;
+}
+
+.family-brief .hint:last-child {
+  margin-bottom: 0;
+}
+
 .logbook-context {
   display: flex;
   flex-wrap: wrap;
@@ -1617,6 +1685,106 @@ button.is-busy::before {
 /* The far end, which is not faint either: half of every row in the matrix is
    about a device this one never gets to describe. */
 .logbook-peer { color: var(--ls-text-dim); }
+
+/* The review stage, set off by a rule rather than by a box. The list of rows
+   below it is part of the same stage, and a border drawn around the controls
+   alone would say the opposite. */
+.review {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ls-card-border);
+}
+
+.review h3 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.review-filter {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.review-filter label { margin: 0; }
+
+.review-filter select {
+  font-family: var(--ls-font-mono);
+  font-size: 0.85rem;
+  color: var(--ls-text);
+  background: var(--ls-bg-1);
+  border: 1px solid var(--ls-bg-3);
+  border-radius: var(--ls-radius-sm);
+  padding: 8px 10px;
+  max-width: 100%;
+}
+
+.review-filter select:focus,
+.review-verdict:focus,
+.review-note:focus {
+  outline: none;
+  border-color: var(--ls-accent);
+  box-shadow: var(--ls-glow-accent);
+}
+
+.review-filter option,
+.review-verdict option {
+  background: var(--ls-card);
+  color: var(--ls-text);
+}
+
+.review-tally { margin: 0 0 6px; font-size: 0.82rem; }
+
+/* Last and faint: that publishing does not exist yet is context for the stage,
+   not an instruction in it. */
+.review-publish {
+  margin: 0 0 14px;
+  font-size: 0.82rem;
+  color: var(--ls-text-faint);
+}
+
+.review-none {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--ls-text-faint);
+}
+
+/* The verdict goes in the row's second column, under everything it is a
+   judgement about - the reason and the duration are what decide it. */
+.logbook-review {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.review-verdict,
+.review-note {
+  font-family: var(--ls-font-mono);
+  font-size: 0.72rem;
+  color: var(--ls-text);
+  background: var(--ls-bg-1);
+  border: 1px solid var(--ls-bg-3);
+  border-radius: var(--ls-radius-sm);
+  padding: 5px 7px;
+  max-width: 100%;
+}
+
+.review-note {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+/* An unreviewed row should look unreviewed. The dropdown is the only thing in
+   the row still asking a question, so it stays dim until it is answered and
+   takes the answer's colour afterwards. */
+.review-verdict[data-verdict=""] { color: var(--ls-text-faint); }
+.review-verdict[data-verdict="sound"] { color: var(--ls-green); }
+.review-verdict[data-verdict="operator-error"] { color: var(--ls-amber); }
+.review-verdict[data-verdict="retest"] { color: var(--ls-text-dim); }
 
 /* ---------- what a tap should do ---------- */
 

@@ -20,7 +20,7 @@ import {
 import { createIntroPolicy } from '@le-space/libp2p-webrtc-qr/elements'
 import { applyBrowserTheme } from './browser-theme.js'
 import { elementStrings, initialLocale, list, locale, setLocale, t, translateDocument } from './i18n.js'
-import { createLogbook, describeAgent } from './logbook.js'
+import { asVerdict, createLogbook, describeAgent, REVIEW_VERDICTS } from './logbook.js'
 import { lookUpNetwork, lookUpPlace, lookUpPosition } from './whereabouts.js'
 import { previewStore } from './previews.js'
 import { applyViewMode, isSimple } from './view-mode.js'
@@ -89,11 +89,15 @@ function writeViewLabel () {
 import { fromString, toString } from 'uint8arrays'
 import {
   QRSession,
+  asAddressFamily,
   compress,
   createAudioReceiver,
   createWebRTCUpgradeContext,
+  candidateAddress,
   decodePayload,
   describeIce,
+  familiesOffered,
+  familyLabel,
   readIceCandidates,
   AUDIO_SAMPLE_RATE,
   encodeSignedPayload,
@@ -199,6 +203,7 @@ const listenReplyButton = document.getElementById('listen-reply')
 const playAnswerButton = document.getElementById('play-answer')
 const pasteFallbackEl = document.querySelector('.paste-fallback')
 const inviteLinkEl = document.getElementById('invite-link')
+const pairNoteEl = document.getElementById('pair-note')
 const copyLinkEl = document.getElementById('copy-link')
 // Beside its own control, and - the part that matters - above the
 // `applyLocale` call below, which resets that button before the first paint.
@@ -208,6 +213,10 @@ const copyLinkEl = document.getElementById('copy-link')
 let copiedTimer = null
 // What the dialog is currently showing, for the button that plays it as sound.
 let outboundPayload = null
+// And which half of the handover it is. An offer needs explaining to somebody
+// who is not in the room; a reply goes back to the person who sent the invite
+// and needs nothing.
+let outboundIsOffer = false
 
 const logbookEntriesEl = document.getElementById('logbook-entries')
 const logbookProviderEl = document.getElementById('logbook-provider')
@@ -274,6 +283,18 @@ function candidatesOf (peerId) {
  * thing they would all have had to carry.
  */
 let incomingCarrier = null
+
+/**
+ * The pairing id of the attempt in flight, and the one that arrived with a
+ * payload waiting to be adopted by the next attempt.
+ *
+ * Two variables rather than one: the offering side mints its id before there is
+ * anything to receive, and the answering side has to hold what it was sent
+ * across the gap between reading a link and opening an entry. Same shape as
+ * `incomingCarrier` above, for the same reason.
+ */
+let pairId = null
+let incomingPairId = null
 const inviteFreshnessEl = document.getElementById('invite-freshness')
 const hurryBackEl = document.getElementById('hurry-back')
 const createOfferAgainButton = document.getElementById('create-offer-again')
@@ -312,9 +333,10 @@ viewModeEl.addEventListener('click', () => {
 
 // The elements refresh themselves - they re-render when `strings` is assigned -
 // and `translateDocument` repaints everything that names a key in the markup.
-// What neither covers is text this file builds in JavaScript: the logbook's rows
-// and the scenario brief held their old language until something else happened
-// to redraw them. So they are repainted here.
+// What neither covers is text this file builds in JavaScript: the logbook's
+// rows, the review tally, the scenario brief and the address-family note held
+// their old language until something else happened to redraw them. So they are
+// repainted here.
 //
 // Here rather than inside `applyLocale`, which also runs at startup, before the
 // elements those two functions reach for have been looked up. Calling them from
@@ -323,7 +345,9 @@ for (const [code, button] of Object.entries(localeButtons)) {
   button.addEventListener('click', () => {
     applyLocale(code)
     renderLogbook()
+    renderReview()
     renderScenario()
+    renderAddressFamily()
   })
 }
 
@@ -345,6 +369,68 @@ const describePeer = agent => [
 ].filter(Boolean).join(' · ')
 
 /**
+ * The review stage: which rows a person has vouched for (#179).
+ *
+ * ## Why this is a stage and not a column
+ *
+ * The log records what happened. Whether what happened was a *measurement* is a
+ * different question, and the only instrument that can answer it is the person
+ * who was standing there holding both phones. A dataset that cannot tell "this
+ * carrier does not carry IPv6 UDP" from "I aimed the camera at the wrong half
+ * of the screen" is worth nothing, and nothing here can make that distinction
+ * on anybody's behalf.
+ *
+ * ## The filter is the feature
+ *
+ * Two hundred rows is more than anybody reviews by scrolling, and an unreviewed
+ * row is indistinguishable from a reviewed one at a glance. So the list becomes
+ * a work queue: pick "not reviewed yet", work down it, and it empties as you go.
+ *
+ * Not persisted. A filter still set next week would hide rows somebody had
+ * forgotten they filtered, which for a panel whose job is "have you looked at
+ * everything" is the one failure that matters.
+ */
+const reviewTallyEl = document.getElementById('review-tally')
+const reviewFilterEl = document.getElementById('review-filter')
+
+let reviewFilter = ''
+
+const matchesFilter = entry => reviewFilter === '' ||
+  (reviewFilter === 'unreviewed' ? entry.review == null : entry.review === reviewFilter)
+
+/**
+ * How much has been looked at, and how much of it survived.
+ *
+ * Deliberately counted over the whole log rather than over what the filter is
+ * showing: the question this answers is "is the review finished", and a count
+ * that shrank to match the current filter would answer it with "yes" every time
+ * the queue was empty.
+ */
+function renderReview () {
+  const entries = logbook.entries()
+  const sound = entries.filter(entry => entry.review === 'sound')
+  const lines = entries.length === 0
+    ? [t('review.tallyNone')]
+    : [t('review.tally', {
+        total: entries.length,
+        reviewed: entries.filter(entry => entry.review != null).length,
+        sound: sound.length
+      })]
+
+  // Only when it applies, and it applies often. A sound row with no scenario is
+  // a true observation; it is just not evidence *about* anything, because
+  // nobody said what it was testing. It is not excluded for that - it simply
+  // cannot appear in the scenario breakdown the whole exercise is for, and
+  // finding that out while reviewing is far better than finding it out while
+  // querying.
+  const unlabelled = sound.filter(entry => entry.scenario == null).length
+
+  if (unlabelled > 0) lines.push(t('review.unlabelled', { runs: unlabelled }))
+
+  reviewTallyEl.textContent = lines.join(' ')
+}
+
+/**
  * Draw the log, newest first.
  *
  * Rebuilt wholesale on every change rather than patched. The list is bounded at
@@ -352,11 +438,27 @@ const describePeer = agent => [
  * is also the correct one.
  */
 function renderLogbook () {
-  const entries = logbook.entries().reverse()
+  const all = logbook.entries().reverse()
+  const entries = all.filter(matchesFilter)
+
+  // Rebuilding throws away the element somebody is working in, and the review
+  // controls are worked one row after another. So the focused control is named
+  // before the rebuild and looked up again after it. Without that, the browser
+  // does what it does when a focused element is removed - it puts the focus on
+  // the body - and every verdict given on row forty would send somebody back to
+  // the top of the page.
+  const active = document.activeElement
+  const activeRow = active?.closest?.('.logbook-entry')
+  const keep = activeRow == null
+    ? null
+    : { id: activeRow.dataset.id, control: active.classList.contains('review-note') ? '.review-note' : '.review-verdict' }
 
   logbookEntriesEl.replaceChildren(...entries.map(entry => {
     const row = document.createElement('div')
     row.className = `logbook-entry is-${entry.outcome}`
+    // What the focus restore above finds its way back by, and what a spec
+    // addresses a single row with.
+    row.dataset.id = entry.id
 
     const verdict = document.createElement('span')
     verdict.className = 'logbook-outcome'
@@ -386,6 +488,13 @@ function renderLogbook () {
       entry.carrier,
       entry.format,
       entry.families?.join('+') ?? null,
+      // Beside the families rather than instead of them: "v4" next to "v4 only"
+      // is the difference between a network with no IPv6 and a run that refused
+      // to use it.
+      entry.familyFilter ? t('logbook.familyFilter', { family: familyLabel(entry.familyFilter) }) : null,
+      // The join key, and worth the width: it is the only thing in the row that
+      // points at a measurement rather than at this device.
+      entry.pairId ? t('logbook.pair', { pair: entry.pairId }) : null,
       entry.frames != null ? t('logbook.frames', { frames: entry.frames }) : null,
       entry.network?.overall ? `net: ${entry.network.overall}` : null,
       entry.ms != null ? `${Math.round(entry.ms / 1000)}s` : null
@@ -422,12 +531,91 @@ function renderLogbook () {
     when.textContent = new Date(entry.at).toLocaleString()
     row.append(when)
 
+    // The verdict, on the row itself. A review screen that showed the judgement
+    // anywhere but beside the evidence would be collecting judgements from
+    // memory - and the detail that decides one is right here: the reason, the
+    // duration, which device the other end was.
+    const judgement = document.createElement('div')
+
+    judgement.className = 'logbook-review'
+
+    const verdictEl = document.createElement('select')
+
+    verdictEl.className = 'review-verdict'
+    verdictEl.setAttribute('aria-label', t('review.verdictLabel'))
+    // For the colour, which the select cannot take from its own value in CSS.
+    verdictEl.dataset.verdict = entry.review ?? ''
+
+    for (const value of ['', ...REVIEW_VERDICTS]) {
+      const option = document.createElement('option')
+
+      option.value = value
+      option.textContent = t(value === '' ? 'review.unreviewed' : `review.${value}`)
+      option.selected = value === (entry.review ?? '')
+      verdictEl.append(option)
+    }
+
+    // The note is handed back unchanged, so moving a row from one verdict to
+    // another keeps what was written about it. Clearing the verdict is the one
+    // case that drops it, and the logbook does that rather than this.
+    verdictEl.addEventListener('change', () => {
+      logbook.review(entry.id, { verdict: asVerdict(verdictEl.value), note: entry.reviewNote })
+    })
+
+    judgement.append(verdictEl)
+
+    // Only on a row somebody has judged. An unreviewed row has nothing to
+    // annotate, and two hundred empty boxes would bury the handful with
+    // writing in them.
+    if (entry.review != null) {
+      const note = document.createElement('input')
+
+      note.type = 'text'
+      note.className = 'review-note'
+      note.value = entry.reviewNote ?? ''
+      note.placeholder = t('review.noteHint')
+      note.setAttribute('aria-label', t('review.noteLabel'))
+      // On `change`, not on `input`: the whole list is rebuilt whenever the log
+      // changes, so recording every keystroke would take the field out from
+      // under the person typing in it.
+      note.addEventListener('change', () => {
+        logbook.review(entry.id, { verdict: entry.review, note: note.value })
+      })
+      judgement.append(note)
+    }
+
+    row.append(judgement)
+
     return row
   }))
+
+  // A filter that matches nothing is not an empty log, and the line under this
+  // list says the second thing. Appending here keeps the container non-empty,
+  // which is what hides it - see the CSS beside `.logbook-empty`.
+  if (entries.length === 0 && all.length > 0) {
+    const none = document.createElement('p')
+
+    none.className = 'hint review-none'
+    none.textContent = t('review.nomatch')
+    logbookEntriesEl.append(none)
+  }
+
+  // Silently nothing when the row has been filtered out from under the person -
+  // which is what marking the last unreviewed row sound does, and is right.
+  if (keep != null) {
+    logbookEntriesEl.querySelector(`.logbook-entry[data-id="${keep.id}"] ${keep.control}`)?.focus()
+  }
 }
 
 logbook.subscribe(renderLogbook)
+logbook.subscribe(renderReview)
 renderLogbook()
+renderReview()
+
+reviewFilterEl.addEventListener('change', () => {
+  reviewFilter = reviewFilterEl.value
+  renderLogbook()
+})
 
 const logbookEnabledEl = document.getElementById('logbook-enabled')
 
@@ -567,6 +755,96 @@ for (const input of scenarioInputs) {
 // log rather than repainting only when somebody picks a scenario again.
 logbook.subscribe(renderScenario)
 renderScenario()
+
+/**
+ * Which address family this page offers, if it is restricting itself to one.
+ *
+ * ## Why one device is enough
+ *
+ * A browser will not be told "use IPv6 only". But a peer probes only candidate
+ * pairs it knows about, so the session drops the other family from what this
+ * device *offers* and from what it *accepts* - and the far side, having
+ * received one family, probes one family without running a build that has
+ * heard of this control. See the package's families.js; the point here is that
+ * the person testing does not need a second cooperating device.
+ *
+ * ## Why it does not travel with the invite
+ *
+ * The scenario label does, because the far end writes its own row and a half-
+ * labelled measurement is worthless. This is the opposite case: it is a
+ * restriction, not a description, and a link that quietly crippled the
+ * recipient's connection would break their app to answer somebody else's
+ * question. `?family=` stays in the query string, which `linkFor` clears - so
+ * it can open a deliberately restricted tab and cannot leave this device.
+ *
+ * ## Not persisted, same reason as the scenario
+ *
+ * A filter left set would silently break the next ordinary connection, days
+ * later, with nothing on screen in the simple view to explain it.
+ */
+let addressFamily = asAddressFamily(new URLSearchParams(window.location.search).get('family'))
+
+/**
+ * The control, and what a restriction means while it is set.
+ *
+ * The live line exists because the two surprising facts about this filter are
+ * invisible otherwise: it governs what this device *accepts* as well as what it
+ * sends, and an invite with no candidate of the chosen family is refused rather
+ * than shown. Both are better said before somebody presses the button than
+ * worked out afterwards from a refusal.
+ */
+const addressFamilyEl = document.getElementById('address-family')
+const familyBriefEl = document.getElementById('family-brief')
+
+function renderAddressFamily () {
+  addressFamilyEl.value = addressFamily ?? ''
+  familyBriefEl.replaceChildren()
+  familyBriefEl.hidden = addressFamily == null
+
+  if (addressFamily == null) {
+    return
+  }
+
+  for (const key of ['family.both-ways', 'family.refuses', 'family.mdns']) {
+    const line = document.createElement('p')
+
+    line.className = 'hint'
+    line.textContent = t(key, { family: familyLabel(addressFamily) })
+    familyBriefEl.append(line)
+  }
+}
+
+addressFamilyEl.addEventListener('change', () => {
+  addressFamily = asAddressFamily(addressFamilyEl.value)
+  renderAddressFamily()
+  appendLog(addressFamily == null
+    ? 'Offering every address family this device finds.'
+    : `Offering ${familyLabel(addressFamily)} only - and accepting nothing else.`)
+})
+
+renderAddressFamily()
+
+/**
+ * Open a logbook entry for an attempt, carrying everything that labels it.
+ *
+ * One place rather than the four controls that can start an attempt. Each of
+ * those passed the scenario and the filter itself, which worked only as long as
+ * there were two such fields; the pairing id is the third, and the first whose
+ * value differs by leg - the offering side mints one, the answering side adopts
+ * whatever arrived with the invite. Spread over four call sites that is four
+ * chances to write the wrong half of a measurement.
+ */
+function startAttempt (fields) {
+  pairId = fields.role === 'offering'
+    // Only labelled runs. An id on an ordinary connection would pair with
+    // nothing and travel in every link anybody ever sent.
+    ? (scenario == null ? null : newPairId())
+    : incomingPairId
+
+  incomingPairId = null
+
+  return logbook.start({ ...fields, scenario, familyFilter: addressFamily, pairId })
+}
 
 for (const [el, key] of [[logbookProviderEl, 'provider'], [logbookPlaceEl, 'place'], [logbookPeerEl, 'peer']]) {
   el.value = logbook.context[key] ?? ''
@@ -977,6 +1255,9 @@ async function createNode () {
   // this app does with a connection once it exists.
   session = new QRSession(node, {
     rtcConfiguration: getRtcConfiguration,
+    // A function, not the value: the control can be changed between two
+    // invites, and whoever changes it means the next one.
+    addressFamily: () => addressFamily,
     answerWaitTimeout: ANSWER_WAIT_TIMEOUT,
     connectionTimeout: CONNECTION_TIMEOUT
   })
@@ -2084,6 +2365,24 @@ const REPLY_PARAM = 'r'
  * see which test it belongs to without a table.
  */
 const SCENARIO_PARAM = 's'
+/**
+ * The pairing id, carried in the fragment beside the label.
+ *
+ * Eight base-36 characters, so `&p=` costs eleven. Shorter would be enough to
+ * keep one person's own runs apart; this is sized for the published set, where
+ * two contributors colliding would silently join two unrelated halves into one
+ * measurement that never happened.
+ */
+const PAIR_PARAM = 'p'
+
+const newPairId = () => Math.random().toString(36).slice(2, 10).padEnd(8, '0')
+
+/**
+ * Checked rather than trusted. It arrives in a link from somebody else and ends
+ * up in the record, so anything that is not an id shaped like ours is treated
+ * as no id at all.
+ */
+const asPairId = value => typeof value === 'string' && /^[a-z0-9]{4,16}$/u.test(value) ? value : null
 // An offer's ICE candidates go stale as NAT bindings expire, so a link that sat
 // in a chat for half an hour will not connect. We cannot prevent that - but we
 // can say it out loud instead of failing cryptically half an hour later.
@@ -2388,7 +2687,53 @@ function linkFor (param, payload) {
     url.hash = `${url.hash}&${SCENARIO_PARAM}=${scenario}`
   }
 
+  // And the pairing id, so the row the other device writes can be recognised
+  // as this row's other half. Only labelled runs have one, so this follows the
+  // label rather than needing its own condition - but it is written separately
+  // because the two answer different questions: the label says what the run
+  // was for, the id says which two rows were it.
+  if (pairId != null) {
+    url.hash = `${url.hash}&${PAIR_PARAM}=${pairId}`
+  }
+
   return url.toString()
+}
+
+/**
+ * The labels a payload brought with it: which test it belongs to, and which
+ * pair of rows it is half of.
+ *
+ * The QR encodes the *link*, so a scanned code has carried the label since it
+ * existed - but only the link-opening path ever read it. Scanning somebody's
+ * code with the in-app scanner, or pasting their link into the fallback field,
+ * wrote an unlabelled row on this side: one measurement with one labelled half,
+ * and nothing afterwards to say the other half was ever part of it.
+ */
+function labelsFrom (text) {
+  try {
+    const params = new URLSearchParams(new URL(String(text).trim()).hash.replace(/^#/u, ''))
+
+    return { scenario: asScenario(params.get(SCENARIO_PARAM)), pairId: asPairId(params.get(PAIR_PARAM)) }
+  } catch {
+    // A raw payload rather than a link. It carries no labels, and that is not
+    // an error.
+    return { scenario: null, pairId: null }
+  }
+}
+
+/**
+ * Take them, for the attempt that is about to start.
+ *
+ * Every caller does this inside the check for whether an attempt is already
+ * open, and has to: pasting a *reply* happens on the side that already has an
+ * entry, and adopting an id there would leave it waiting to be picked up by
+ * some unrelated attempt later on.
+ */
+function adoptLabels (text) {
+  const { scenario: labelled, pairId: pair } = labelsFrom(text)
+
+  if (labelled != null) setScenario(labelled)
+  if (pair != null) incomingPairId = pair
 }
 
 /**
@@ -2510,6 +2855,22 @@ inviteLinkEl.addEventListener('focus', () => inviteLinkEl.select())
  * is what the primary control above offers, and somebody who opened this fold
  * and reached for a button marked "Copy" asked for the clipboard.
  */
+/**
+ * What actually goes out when somebody sends this invite.
+ *
+ * For scenario B the link alone is not enough to act on: it lands in a chat
+ * from somebody whose phone is somewhere else, with no context, and what has to
+ * happen next - open it on *your own* network, send the reply straight back -
+ * is exactly what cannot be said in person. Both controls use this, because
+ * which of them is on screen depends on whether the browser has a share sheet,
+ * and that must not decide what the other person receives.
+ *
+ * Offers only. A reply goes back to somebody who already knows what it is.
+ */
+const handoverText = () => scenario === 'across-networks' && outboundIsOffer
+  ? `${t('pair.message')}\n\n${inviteLinkEl.value}`
+  : inviteLinkEl.value
+
 async function copyInviteLink () {
   // Synchronously, before the await below: this is inside the click, and a
   // click is the only moment the autoplay policy will let audio start.
@@ -2522,7 +2883,7 @@ async function copyInviteLink () {
   showHurryBack()
 
   try {
-    await navigator.clipboard.writeText(inviteLinkEl.value)
+    await navigator.clipboard.writeText(handoverText())
     markCopied(true)
   } catch {
     // Refused - insecure origin, a permission policy, some mobile browsers.
@@ -2588,27 +2949,21 @@ async function shareOrCopy (text, what) {
  * and we did not send is not an offer of anything.
  *
  * The two formats hand back candidates differently: v2 carries the whole SDP,
- * v3 a list of candidate *lines*, where the address is the fifth field. Both
- * are handled here rather than at the call site, so the caller never has to
- * know which format it just built.
+ * v3 a list of candidate *lines*. Both are handled here rather than at the call
+ * site, so the caller never has to know which format it just built.
  *
- * `.local` is its own answer, not a family: an mDNS stand-in says the browser
- * withheld the address, which is a different fact from having no IPv6.
+ * The vocabulary itself comes from the package - `familiesOffered` is the same
+ * reader the filter uses, which is the point. This file had its own copy of
+ * "does `.local` count as IPv6", and two answers to that question would have
+ * meant a filtered run whose recorded families disagreed with what was filtered.
  */
 async function offeredFamilies (payload) {
   try {
     const parsed = await parsePayload(payload)
-    const addresses = parsed.sdp != null
+
+    return familiesOffered(parsed.sdp != null
       ? readIceCandidates(parsed.sdp).map(candidate => candidate.address)
-      : (parsed.candidates ?? []).map(line => String(line).split(/\s+/u)[4])
-
-    const families = new Set(
-      addresses
-        .filter(Boolean)
-        .map(address => address.endsWith('.local') ? 'mdns' : address.includes(':') ? 'v6' : 'v4')
-    )
-
-    return families.size > 0 ? [...families].sort() : null
+      : (parsed.candidates ?? []).map(candidateAddress))
   } catch {
     // A payload this build cannot read is not worth failing an invite over.
     return null
@@ -2652,7 +3007,16 @@ async function renderOutbound (payload, kind) {
   // The answering side is the one with something to play. The offer stays a
   // code or a link: the side that shows it has a screen by definition, and at
   // a thousand characters it would be half a minute of noise.
+  // What to tell somebody who is not in the room. Scenario B is the only one
+  // where the other end is a person you cannot turn to and explain this to, so
+  // the explanation has to travel with the link - and the two halves of the
+  // handover need different sentences: one asks for a reply, the other is the
+  // reply.
+  pairNoteEl.hidden = scenario !== 'across-networks'
+  pairNoteEl.textContent = pairNoteEl.hidden ? '' : t(waitingForReply ? 'pair.sending' : 'pair.replying')
+
   outboundPayload = payload
+  outboundIsOffer = waitingForReply
   playAnswerButton.hidden = waitingForReply
   labelPlayButton()
   openModal(inviteBoxEl)
@@ -2694,7 +3058,7 @@ async function handleReceivedPayload (input, expectedType) {
   // An offer arriving means this side is answering, and nothing has opened an
   // entry for it yet - the offering side's attempt is on the other device.
   if (type === QR_TYPE_OFFER && logbook.pending() == null) {
-    logbook.start({ role: 'answering', carrier: incomingCarrier, scenario })
+    startAttempt({ role: 'answering', carrier: incomingCarrier })
   }
 
   logbook.note({ format: isCompactPayload(text) ? 'v3' : 'v2', received: text.length })
@@ -2805,7 +3169,8 @@ scanModalEl.addEventListener('scan', async event => {
     await ensureNode()
 
     if (logbook.pending() == null) {
-      logbook.start({ role: 'answering', carrier: 'camera', scenario })
+      adoptLabels(event.detail.text)
+      startAttempt({ role: 'answering', carrier: 'camera' })
     }
 
     const classified = await classifyScanned(event.detail.text, expectedType)
@@ -2842,7 +3207,7 @@ resetIdentityButton.addEventListener('click', () => {
 })
 
 async function createInvite (button) {
-  logbook.start({ role: 'offering', scenario })
+  startAttempt({ role: 'offering' })
 
   // Step 1 is technical - "start a browser peer" is not a thing anybody set out
   // to do - so in the simple view it is not on screen to press. The button that
@@ -2882,6 +3247,12 @@ async function createInvite (button) {
     setStatus(t('status.inviteReady'))
     appendLog('Created a signed invite link.')
   } catch (error) {
+    // Recorded, not only shown. An invite that could not be made is a result -
+    // "this device gathered no IPv6 candidate" is the whole answer to the
+    // question an IPv6-only run was asking - and before this the open entry was
+    // left dangling, to be closed as `abandoned` by whatever started next.
+    logbook.note({ network: networkVerdicts() })
+    logbook.finish({ outcome: 'failed', reason: error.message })
     setStatus(explain(error))
     appendLog(`Invite failed: ${error.message}`)
   } finally {
@@ -3069,7 +3440,8 @@ async function useIncoming (text) {
   // Guarded, because the offering side already has one open from `createInvite`
   // and this is where it pastes the reply.
   if (logbook.pending() == null) {
-    logbook.start({ role: 'answering', carrier: incomingCarrier, scenario })
+    adoptLabels(text)
+    startAttempt({ role: 'answering', carrier: incomingCarrier })
   }
   setButtonBusy(processPayloadButton, node == null ? t('invite.starting') : 'Connecting…')
 
@@ -3122,7 +3494,7 @@ copyPayloadButton.addEventListener('click', async () => {
   // act on - which is what made the old on-return warning a post-mortem.
   showHurryBack()
 
-  const result = await shareOrCopy(inviteLinkEl.value, 'invite link')
+  const result = await shareOrCopy(handoverText(), 'invite link')
 
   if (result === 'copied') {
     setStatus(leavingSuspendsUs()
@@ -3373,6 +3745,11 @@ window.__libp2pQrTest = {
   // through a download - which is the browser's plumbing rather than ours, and
   // the part that turned out to be timing-dependent under load.
   logbookExport: () => logbook.export(),
+  // The rows that would be publishable, which is the gate the review stage
+  // exists to be. Read through the logbook rather than from storage, because
+  // what is under test is the definition of the gate and not the shape of a
+  // record.
+  logbookPublishable: () => logbook.publishable(),
   // The attempt still in flight. `families` is written while an invite is on
   // screen and the entry does not close until the connection does, so a test
   // about what was offered has nowhere else to read it.
@@ -3380,6 +3757,17 @@ window.__libp2pQrTest = {
   // The label in force right now. A test about a link carrying its scenario has
   // to read it from the receiving page, which has no other way to say so.
   scenario: () => scenario,
+  // The filter in force, for the one claim about it a page cannot otherwise
+  // make: that it did *not* arrive with a link.
+  addressFamily: () => addressFamily,
+  // The pairing id of the attempt in flight. The entry does not close until the
+  // connection does, so a test about what the two halves agreed on has nowhere
+  // else to read it.
+  pairId: () => pairId,
+  // What a copy or a share would actually put in somebody's chat. Asserted
+  // through this rather than through the clipboard, which is the browser's
+  // plumbing and needs a permission grant to read back.
+  handoverText: () => handoverText(),
   renderReceived: (name, cid, bytes, direction = 'received') =>
     renderReceivedFile({ name, cid, mime: 'application/octet-stream' }, new Uint8Array(bytes), { direction }),
   // The codec, so a spec can mount its own <qr-listen> and feed it a payload
@@ -3540,13 +3928,10 @@ async function consumeLink () {
     return
   }
 
-  // Adopted from the link, so the other half of a solo run is labelled without
-  // anybody setting it twice. Read before the fragment is dropped below.
-  const labelled = asScenario(params.get(SCENARIO_PARAM))
-
-  if (labelled != null) {
-    setScenario(labelled)
-  }
+  // Adopted from the link, so the other half of a run is labelled and paired
+  // without anybody setting anything twice. Read before the fragment is
+  // dropped below.
+  adoptLabels(window.location.href)
 
   // Drop the fragment, so a reload does not replay a payload that is spent.
   history.replaceState(null, '', window.location.pathname + window.location.search)

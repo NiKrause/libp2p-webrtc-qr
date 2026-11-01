@@ -23,6 +23,20 @@ export default {
   compact: {
     label: 'Kurzcode (nach <a href="https://magarcia.github.io/qwbp/spec.html" target="_blank" rel="noreferrer">QWBP</a>) <small>experimentell, und signiert statt blank</small>'
   },
+  // Der Hebel und die drei Dinge daran, die der Schalter nicht verrät. Jedes
+  // davon würde man sonst durch eine Überraschung herausfinden: dass er auch
+  // gilt, was dieses Gerät annimmt; dass eine Einladung ohne Angebot
+  // abgelehnt statt gezeigt wird; und dass eine zurückgehaltene Adresse zu
+  // keiner der beiden Familien zählt.
+  family: {
+    label: 'Welche Adressen anbieten',
+    both: 'Beide — was dieses Gerät findet',
+    v4: 'nur IPv4',
+    v6: 'nur IPv6',
+    'both-ways': ({ family }) => `In beide Richtungen: dieses Gerät bietet nur ${family}-Kandidaten an und nimmt nur ${family} an. Das genügt, um auch das andere Gerät auf ${family} festzulegen — dort ist keine Einstellung nötig.`,
+    refuses: ({ family }) => `Hat dieses Gerät keinen ${family}-Kandidaten, wird die Einladung abgelehnt statt gezeigt. Diese Ablehnung ist die Antwort, und sie wird als solche aufgezeichnet.`,
+    mdns: 'Adressen, die der Browser als .local-Namen zurückhält, fallen weg: der Name verbirgt, für welche Familie er steht, und ein Lauf, der das nicht ausschließen kann, ist keine Messung. Alle Engines halten lokale Adressen standardmäßig zurück — ohne STUN-Server können das alle Kandidaten sein, und dann bleibt nichts zum Anbieten übrig.'
+  },
   paste: {
     summary: 'Mir wurde ein Link geschickt, und Antippen hat nicht funktioniert',
     label: 'Fügen Sie den Link ein, den man Ihnen geschickt hat',
@@ -74,11 +88,43 @@ export default {
     export: 'Als JSON exportieren',
     clear: 'Protokoll leeren',
     frames: ({ frames }) => `${frames} Bild${frames === 1 ? '' : 'er'}`,
+    familyFilter: ({ family }) => `nur ${family}`,
+    pair: ({ pair }) => `Paar ${pair}`,
     outcome: {
       connected: 'verbunden',
       failed: 'gescheitert',
       abandoned: 'abgebrochen'
     }
+  },
+  /**
+   * Prüfen, was aufgezeichnet wurde (#179) - die Stufe zwischen Messen und
+   * Veröffentlichen.
+   *
+   * Die Texte haben über das Benennen der drei Urteile hinaus eine Aufgabe: zu
+   * sagen, dass das Urteil der Person gehört und nichts anderes es fällen kann.
+   * „Bedienfehler" muss bequem zu wählen sein, sonst wählt es niemand - und
+   * dann füllt sich der Datensatz mit verpatzten Läufen, die wie Befunde
+   * aussehen.
+   */
+  review: {
+    heading: 'Prüfen, was aufgezeichnet wurde',
+    hint: 'Ein Urteil pro Zeile, und fällen kann es nur ein Mensch. Von Hand gesammelte Ergebnisse sind voll von verwackelten Kameras, Codes, die auf dem Weg ins andere Zimmer abgelaufen sind, und halb abgebrochenen Läufen - und kein Detail einer Aufzeichnung unterscheidet das von einem Netz, das es nicht kann. Nur als sauber markierte Zeilen könnten je veröffentlicht werden; der Rest bleibt hier als Ihre eigene Aufzeichnung. Ihre Notizen bleiben ohnehin hier — mitreisen würde das Urteil.',
+    show: 'Anzeigen',
+    all: 'Alle Läufe',
+    unreviewed: 'Noch nicht geprüft',
+    sound: 'Sauber — eine echte Messung',
+    'operator-error': 'Bedienfehler — mein Fehler, nicht der des Netzes',
+    retest: 'Muss erneut getestet werden',
+    verdictLabel: 'Was dieser Lauf wert war',
+    noteLabel: 'Notiz zu diesem Lauf',
+    noteHint: 'was schiefging — zum Nachlesen nächste Woche…',
+    tally: ({ total, reviewed, sound }) =>
+      `${reviewed} von ${total} ${total === 1 ? 'Lauf' : 'Läufen'} geprüft, ${sound} davon sauber.`,
+    tallyNone: 'Noch nichts aufgezeichnet, also nichts zu prüfen.',
+    unlabelled: ({ runs }) =>
+      `${runs === 1 ? 'Ein sauberer Lauf trägt' : `${runs} saubere Läufe tragen`} kein Szenario: wahre Beobachtungen, aber nichts sagt, was sie prüfen sollten — in einer Auswertung nach Szenario können sie deshalb nicht auftauchen.`,
+    nomatch: 'Kein Lauf passt zu diesem Filter. Das Protokoll ist nicht leer — ändern Sie oben „Anzeigen".',
+    publish: 'Von hier wird nichts veröffentlicht, und nichts hier verbindet sich mit irgendetwas. Veröffentlichen ist ein eigener, absichtlicher Schritt, den es noch nicht gibt (#179) — bis dahin heißt „sauber", dass diese Zeile zum Veröffentlichen taugen würde, nicht dass sie veröffentlicht wäre.'
   },
   /**
    * Ein Szenario absichtlich fahren (#179).
@@ -93,6 +139,7 @@ export default {
     hint: 'Ein markierter Lauf ist ein Beleg. Ein unmarkierter ist nur ein Versuch, den jemand gemacht hat, und hinterher unterscheidet die beiden nichts mehr. Markieren Sie einen Lauf nur, wenn der Aufbau unten wirklich zutrifft.',
     none: 'Nein - ich möchte nur eine Verbindung',
     'same-lan': 'A - beide Geräte im selben WLAN',
+    'across-networks': 'B - zwei Geräte in zwei Netzen, an zwei Orten',
     'mobile-data': 'C - beide Geräte im Mobilfunknetz',
     off: 'Die Aufzeichnung ist aus, ein markierter Lauf schreibt also überhaupt nichts. Setzen Sie zuerst den Haken bei „Aufzeichnen, was hier passiert" - auf beiden Geräten.',
     steps: {
@@ -101,6 +148,14 @@ export default {
         'Schalten Sie die Aufzeichnung auf beiden Geräten ein. Jedes schreibt seine eigene Zeile, und das Paar ist die Messung.',
         'Erzeugen Sie hier eine Einladung und scannen Sie sie mit dem anderen Gerät. Der Link trägt die Markierung mit, die zweite Zeile ist also auch markiert.',
         'Scannen Sie die Antwort hier zurück.'
+      ],
+      'across-networks': [
+        'Sie brauchen eine zweite Person, woanders, in deren eigenem Netz. Nicht Ihr WLAN und nicht Ihr Hotspot - das wäre Szenario A mit Umweg.',
+        'Schalten Sie beide die Aufzeichnung ein. Jedes Gerät schreibt seine eigene Zeile, und beide tragen dieselbe Kopplungs-ID, damit sich die Hälften hinterher zuordnen lassen.',
+        'Erzeugen Sie hier eine Einladung und schicken Sie den Link über den Chat, den Sie ohnehin benutzen. Der Link trägt die Markierung, die ID und die Anleitung mit.',
+        'Die andere Person öffnet ihn, ihre Seite erzeugt einen Antwort-Link, und den schickt sie zurück. Fügen Sie ihn hier ein.',
+        'Seien Sie beide gleichzeitig am Gerät. Eine Einladung wird binnen Minuten schal, weil die NAT-Bindungen dahinter ablaufen - ein heute Abend beantworteter Link verbindet sich mit nichts mehr.',
+        'Um das zu fragen, wofür B da ist - geht IPv6 zwischen diesen beiden Netzen? -, stellen Sie hier „Welche Adressen anbieten" ein, bevor Sie die Einladung erzeugen. Eine Seite genügt; die Gegenstelle braucht keine eigene Einstellung.'
       ],
       'mobile-data': [
         'Schalten Sie das WLAN auf beiden Geräten aus, damit beide wirklich im Mobilfunknetz sind.',
@@ -112,7 +167,20 @@ export default {
     },
     tally: ({ runs, connected }) => `${runs} markierte ${runs === 1 ? 'Messung' : 'Messungen'} auf diesem Gerät, davon ${connected} verbunden.`,
     tallyNone: 'Unter dieser Markierung ist noch nichts aufgezeichnet.',
-    pairing: 'B - zwei Geräte in zwei Netzen, an zwei Orten - fehlt hier absichtlich. Dafür müssen zwei Personen zu einer Aufzeichnung beitragen, und das ist ein Kopplungsablauf, keine Checkliste (#179).'
+    pairing: 'Die Zeile der anderen Person bleibt auf deren Gerät. Hier wird sie nicht eingesammelt: die beiden Hälften zusammenzubringen heißt, dass Sie beide exportieren und die Kopplungs-ID von Hand abgleichen - bis es einen absichtlichen Ort zum Veröffentlichen gibt (#179).'
+  },
+  /**
+   * Einen Lauf an jemanden übergeben, der nicht im Raum ist (#179 Schritt 5).
+   *
+   * `message` ist die einzige Zeichenkette in beiden Katalogen, die sich nicht
+   * an die Person vor dem Bildschirm richtet, sondern an deren Gegenüber im
+   * Chat - deshalb dort das Du, und deshalb erklärt sie sich aus dem Nichts.
+   * Sie sagt auch wann, nicht nur was: eine Einladung läuft in Minuten ab.
+   */
+  pair: {
+    sending: 'Die andere Person steht nicht neben Ihnen, der Link geht deshalb mit einer Anleitung hinaus. Kopieren oder Senden nimmt beides mit.',
+    replying: 'Schicken Sie das an die Person zurück, die Ihnen den Link geschickt hat - und zwar jetzt: deren Einladung läuft binnen Minuten ab.',
+    message: 'Ich teste gerade, ob sich zwei Telefone in verschiedenen Netzen direkt miteinander verbinden können. Öffne diesen Link auf deinem Telefon, in deinem eigenen Netz - nicht in meinem. Du bekommst dann einen Antwort-Link: schick mir den in den nächsten Minuten zurück, sonst müssen wir von vorn anfangen.'
   },
   view: {
     simple: 'Einfach',

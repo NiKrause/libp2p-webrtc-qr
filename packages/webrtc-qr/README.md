@@ -73,6 +73,7 @@ reports itself through `connect`, or `error` if it never does.
 | --- | --- | --- |
 | `rtcConfiguration` | `DEFAULT_RTC_CONFIGURATION` | passed to `RTCPeerConnection`; `{ iceServers: [] }` gathers on the local network only |
 | `compact` | `false` | produce v3 short codes (see below) |
+| `addressFamily` | `null` | offer `'v4'` or `'v6'` candidates only — a measuring lever, see below |
 | `iceGatheringTimeout` | 15000 | stop waiting for candidates |
 | `connectionTimeout` | 30000 | give up on `connected` |
 | `answerWaitTimeout` | — | how long the answering side holds its side open |
@@ -102,6 +103,50 @@ this* — a reflexive candidate carries the public address STUN discovered, so a
 local diagnostic already has it and needs no service to find out. It is also the
 field that must never leave a device unprojected, which is a property of what a
 consumer does with it rather than of this function.
+
+### Measuring one address family
+
+"Does IPv6 work between these two networks" is not a question a browser will
+answer. ICE gathers what it finds and nominates whichever pair succeeds first,
+and if that pair is IPv4 the IPv6 question was never asked — every attempt to
+measure one family ends up measuring both.
+
+You do not need the browser's permission, because you own the payload.
+`addressFamily` drops the other family's candidates from what this peer
+**offers** and from what it **accepts** — a value, or a function returning one,
+so a control on screen needs no new session:
+
+```js
+const session = new QRSession(node, { addressFamily: () => chosen })
+```
+
+Setting it on **one** device is enough. A peer only probes candidate pairs it
+knows about, and what the far side knows is what you sent it: it received one
+family, so it probes one family, without running a build that has ever heard of
+this option. Nothing travels with the invite, and nothing should — a link that
+silently restricted the recipient's connection would break their app to answer
+somebody else's question.
+
+Two things to know before turning it on:
+
+- **An mDNS candidate is dropped by either filter.** A `.local` name hides its
+  family, so a run labelled "IPv6 only" that connected over one would be
+  evidence of nothing. Every engine withholds host addresses this way by
+  default, so a filter needs candidates that carry a real address — reflexive
+  ones do. Gathering with `{ iceServers: [] }` can produce nothing *but* mDNS
+  names, and then a filtered invite has nothing to offer at all.
+- **`createOffer` throws when the filter leaves no candidate at all**, rather
+  than handing out an invite that encodes, signs, scans, verifies and describes
+  no address to connect to. "This device gathered no IPv6 candidate" is a
+  result; the same fact as a thirty-second ICE timeout is not.
+
+The pieces are exported for a host that measures for itself:
+`filterSdpCandidates`, `filterCandidateLines`, `familiesOffered`,
+`candidateAddress`, `familyOf`, `asAddressFamily`, `familyLabel` and
+`ADDRESS_FAMILIES`. `familiesOffered` is
+the half that keeps a filtered run legible afterwards: record what a payload
+*actually* offered, because `['v4']` from a filter and `['v4']` from a network
+with no IPv6 are different findings that look identical.
 
 ---
 
