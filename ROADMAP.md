@@ -540,7 +540,7 @@ contain it, which is a stronger promise than a flag nobody set.
 
 [`services/reader`](services/reader) is where the open-write decision above is
 paid for: noise is a reader's filter rather than somebody's gate. Building it
-corrected two beliefs, which is the usual pattern for this list.
+corrected three beliefs, which is the usual pattern for this list.
 
 The first publish probe saw no peer join in thirty seconds, which looked like
 *a relay forwards, it does not keep, so only our own service can hold this
@@ -555,6 +555,18 @@ avoid a native WebRTC dependency that a Node Helia drags in - and the relay
 consequently subscribed to the topic and never opened the database. With
 bitswap it joined in about two seconds. Serving blocks is not an extra for a
 holder; it is how a dataset acquires a second home at all.
+
+The third correction is about what counts as evidence. The relay's
+`/pinning/databases` going from 148 to 149 entries was read here as proof that
+it holds the data, and it is not: after the first real publish on 2 November
+2026 that same API reported `entryCount: 0` for this database, `has-entry`
+answered `Not found` for two and a half minutes, an explicit sync returned
+`receivedUpdate: false`, and a probe database the relay had joined three
+seconds earlier was absent from the list entirely. What settles it is a cold
+reopen - every local holder stopped, the address opened from an empty
+blockstore - and that returned the published row from the relay alone in
+6.3 seconds. The publish itself took **7.3 seconds end to end**, of which 2.8
+were the wait for a peer to join.
 
 ## 12. Put the camera and the code in modals, and show one thing at a time
 

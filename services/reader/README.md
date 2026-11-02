@@ -169,15 +169,29 @@ and given up rather than being stuck. A relay that learns a database from an
 announcement has only the **address**, and opening one by address means fetching
 its manifest block over bitswap. Nothing was serving it.
 
-With bitswap restored: the pinner **joined in about two seconds**, and
-`/pinning/databases` on the relay went from 148 to 149 entries with our address
-among them. So a publisher's thirty-second wait for a peer now resolves.
+With bitswap restored, the pinner **joined in about two seconds**.
 
-Still not retried end to end: **an actual publish.** The thirty seconds of
-silence on the first attempt was most likely the first holder of a brand-new
-database paying a bootstrap cost — the relay has to hear the announcement, fetch
-the manifest and open the database before it can join anybody — but that is a
-reading, not a measurement, because the publish was never repeated.
+**The publish, retried end to end on 2 November 2026.** A real run between two
+browser peers, reviewed and published from the demo: relay lookup 1.7 s, wait
+for a peer to join **2.8 s**, write 2.8 s, **7.3 s in all**. The thirty seconds
+of silence on the first attempt is accounted for and gone.
+
+**And a correction to the paragraph above: `/pinning/databases` is bookkeeping,
+not evidence.** Reading 148 → 149 as proof was a mistake. After the publish, the
+relay's own API reported `entryCount: 0` for this database and a day-old
+`lastSyncedAt`; `/pinning/has-entry` answered `Not found` five times over two
+and a half minutes; an explicit `POST /pinning/sync` returned
+`receivedUpdate: false`; and a throwaway probe database the relay had
+demonstrably joined three seconds earlier was not in the list at all. 118 of its
+149 listed databases show zero entries.
+
+The only test that settles it is a **cold reopen**: stop every local holder,
+open the address from a node with an empty blockstore and no stored identity,
+and count what comes back. Done both ways — the published row returned from the
+relay alone in **6.3 s** with this reader stopped, and the probe row in 5.7 s
+from a database no reader of ours had ever held. So the relay keeps what is
+written, a publisher does not depend on this service running, and the HTTP API
+is worth reading only as a hint.
 
 One field to read carefully in `/status.json`: `peers` is OrbitDB's own count of
 peers that have **joined**, and it is the authoritative one. `subscribers` is

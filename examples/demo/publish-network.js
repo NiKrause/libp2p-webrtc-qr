@@ -166,7 +166,7 @@ export async function publishRows (rows, { onProgress = () => {} } = {}) {
     // joined has no basis for telling the person their rows are safe to clear.
     await Promise.race([
       new Promise(resolve => db.events.once('join', resolve)),
-      timeout(JOIN_TIMEOUT_MS, 'Connected to a relay, but nobody is holding this database: no peer joined within 30 seconds. A relay forwards; it does not keep. Until something pins this address, there is nowhere for the rows to live - so nothing has been published and they are all still here.')
+      timeout(JOIN_TIMEOUT_MS, 'Connected to a relay, but no peer joined within 30 seconds, so nothing is holding this database right now. The relay that keeps databases usually joins within a few seconds; until something does, there is nowhere for the rows to live - so nothing has been published and they are all still here.')
     ])
 
     onProgress('writing', { address, total: rows.length })
