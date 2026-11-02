@@ -216,6 +216,60 @@ importers:
         specifier: ^1.5.4
         version: 1.5.4
 
+  services/reader:
+    dependencies:
+      '@chainsafe/libp2p-noise':
+        specifier: ^17.0.0
+        version: 17.0.0
+      '@chainsafe/libp2p-yamux':
+        specifier: ^8.0.1
+        version: 8.0.1
+      '@helia/bitswap':
+        specifier: ^4.0.6
+        version: 4.0.6(react-native@0.86.0(@babel/core@7.29.7)(react@19.2.8))
+      '@helia/libp2p':
+        specifier: ^1.0.6
+        version: 1.0.6(react-native@0.86.0(@babel/core@7.29.7)(react@19.2.8))
+      '@ipld/dag-cbor':
+        specifier: ^9.2.6
+        version: 9.2.7
+      '@le-space/aleph-bootstrap':
+        specifier: ^0.9.3
+        version: 0.9.9
+      '@libp2p/bootstrap':
+        specifier: ^12.0.25
+        version: 12.0.28
+      '@libp2p/circuit-relay-v2':
+        specifier: ^4.2.7
+        version: 4.2.10
+      '@libp2p/gossipsub':
+        specifier: ^16.1.0
+        version: 16.1.1
+      '@libp2p/identify':
+        specifier: ^4.1.11
+        version: 4.1.11
+      '@libp2p/ping':
+        specifier: ^3.1.10
+        version: 3.1.10
+      '@libp2p/websockets':
+        specifier: ^10.1.15
+        version: 10.1.18
+      '@orbitdb/core':
+        specifier: ^4.0.0
+        version: 4.0.0
+      blockstore-fs:
+        specifier: ^4.0.1
+        version: 4.0.1
+      datastore-fs:
+        specifier: ^12.0.1
+        version: 12.0.1
+      helia:
+        specifier: ^7.1.1
+        version: 7.1.1(react-native@0.86.0(@babel/core@7.29.7)(react@19.2.8))
+      libp2p:
+        specifier: ^3.3.7
+        version: 3.3.7
+
 packages:
 
   '@achingbrain/http-parser-js@0.5.9':
@@ -1197,6 +1251,9 @@ packages:
   blockstore-core@7.0.1:
     resolution: {integrity: sha512-HgLzdH8oL6DrMC6J7snxmV0TXzJ/BMPSbskH4v7BBuUO9foDBOMEKUfoMX9yoBpxbH+r3Z9afXHDgXlTifMxHQ==}
 
+  blockstore-fs@4.0.1:
+    resolution: {integrity: sha512-UXTG85jT+b4xumiHwqyZBnAqfxCqGgGl5ZszSGpnje7yEIrv2pO3NzttAz9DHwzaZxE2nBPMaPlg+SJ8VGlPrg==}
+
   braces@3.0.3:
     resolution: {integrity: sha512-yQbXgO/OSZVD2IsiLlro+7Hf6Q18EJrKSEsdoMzKePKXct3gvD8oLcOQdIzGupr5Fj+EDe8gO/lxc1BzfMpxvA==}
     engines: {node: '>=8'}
@@ -1337,6 +1394,9 @@ packages:
 
   datastore-core@12.0.1:
     resolution: {integrity: sha512-pfgIE5LG0Z5oyc6TxiLaF/0j4Gh1Yrs2+Ck/qssf9Oxw4s4YKC3zpqifuzThnKakAFWONr/vRv+66Koc0yJvyA==}
+
+  datastore-fs@12.0.1:
+    resolution: {integrity: sha512-e9Hp6h/STYxaUFIbJHTavXze2kMGeKHHVqfdqqjzolB0K7CspBsgqZ9ePEGSyghWzeZMlLSqmSCLUokkVj9p0A==}
 
   debug@2.6.9:
     resolution: {integrity: sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA==}
@@ -2599,6 +2659,10 @@ packages:
     resolution: {integrity: sha512-DvEy55V3DB7uknRo+4iOGT5fP1slR8wQohVdknigZPMpMstaKJQWhwiYBACJE3Ul2pTnATihhBYnRhZQHGBiRw==}
     engines: {node: '>= 0.8'}
 
+  steno@4.0.2:
+    resolution: {integrity: sha512-yhPIQXjrlt1xv7dyPQg2P17URmXbuM5pdGkpiMB3RenprfiBlvK415Lctfe0eshk90oA7/tNq7WEiMK8RSP39A==}
+    engines: {node: '>=18'}
+
   string-width@4.2.3:
     resolution: {integrity: sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==}
     engines: {node: '>=8'}
@@ -3304,7 +3368,7 @@ snapshots:
     dependencies:
       '@helia/interface': 7.1.0
       '@helia/utils': 3.0.4
-      '@libp2p/utils': 7.3.1
+      '@libp2p/utils': 7.4.5
       '@multiformats/multiaddr': 13.0.3
       '@multiformats/multiaddr-matcher': 3.0.2
       '@multiformats/multiaddr-to-uri': 12.0.0
@@ -3520,30 +3584,30 @@ snapshots:
       '@libp2p/peer-id': 5.1.9
       '@multiformats/mafmt': 12.1.6
       '@multiformats/multiaddr': 12.5.1
-      main-event: 1.0.4
+      main-event: 1.0.5
 
   '@libp2p/bootstrap@12.0.28':
     dependencies:
-      '@libp2p/interface': 3.2.5
-      '@libp2p/interface-internal': 3.1.10
-      '@libp2p/peer-id': 6.0.13
+      '@libp2p/interface': 3.4.0
+      '@libp2p/interface-internal': 3.2.2
+      '@libp2p/peer-id': 6.0.18
       '@multiformats/multiaddr': 13.0.3
       '@multiformats/multiaddr-matcher': 3.0.2
-      main-event: 1.0.4
+      main-event: 1.0.5
 
   '@libp2p/circuit-relay-v2@4.2.10':
     dependencies:
-      '@libp2p/crypto': 5.1.21
-      '@libp2p/interface': 3.2.5
-      '@libp2p/interface-internal': 3.1.10
-      '@libp2p/peer-collections': 7.0.25
-      '@libp2p/peer-id': 6.0.13
+      '@libp2p/crypto': 5.2.0
+      '@libp2p/interface': 3.4.0
+      '@libp2p/interface-internal': 3.2.2
+      '@libp2p/peer-collections': 7.0.32
+      '@libp2p/peer-id': 6.0.18
       '@libp2p/peer-record': 9.0.14
-      '@libp2p/utils': 7.3.1
+      '@libp2p/utils': 7.4.5
       '@multiformats/multiaddr': 13.0.3
       '@multiformats/multiaddr-matcher': 3.0.2
       any-signal: 4.2.0
-      main-event: 1.0.4
+      main-event: 1.0.5
       multiformats: 14.0.5
       nanoid: 6.0.0
       progress-events: 1.1.0
@@ -3666,17 +3730,17 @@ snapshots:
 
   '@libp2p/identify@4.1.11':
     dependencies:
-      '@libp2p/crypto': 5.1.21
-      '@libp2p/interface': 3.2.5
-      '@libp2p/interface-internal': 3.1.10
-      '@libp2p/peer-id': 6.0.13
+      '@libp2p/crypto': 5.2.0
+      '@libp2p/interface': 3.4.0
+      '@libp2p/interface-internal': 3.2.2
+      '@libp2p/peer-id': 6.0.18
       '@libp2p/peer-record': 9.0.14
-      '@libp2p/utils': 7.3.1
+      '@libp2p/utils': 7.4.5
       '@multiformats/multiaddr': 13.0.3
       '@multiformats/multiaddr-matcher': 3.0.2
       it-drain: 3.0.12
       it-parallel: 3.0.16
-      main-event: 1.0.4
+      main-event: 1.0.5
       protons-runtime: 7.0.0
       uint8arraylist: 3.0.2
       uint8arrays: 6.1.1
@@ -3708,7 +3772,7 @@ snapshots:
       '@multiformats/multiaddr': 12.5.1
       it-pushable: 3.2.4
       it-stream-types: 2.0.4
-      main-event: 1.0.4
+      main-event: 1.0.5
       multiformats: 13.4.2
       progress-events: 1.1.0
       uint8arraylist: 2.4.9
@@ -3852,7 +3916,7 @@ snapshots:
 
   '@libp2p/peer-id@5.1.9':
     dependencies:
-      '@libp2p/crypto': 5.1.21
+      '@libp2p/crypto': 5.2.0
       '@libp2p/interface': 2.11.0
       multiformats: 13.4.2
       uint8arrays: 5.1.1
@@ -3902,8 +3966,8 @@ snapshots:
 
   '@libp2p/ping@3.1.10':
     dependencies:
-      '@libp2p/interface': 3.2.5
-      '@libp2p/interface-internal': 3.1.10
+      '@libp2p/interface': 3.4.0
+      '@libp2p/interface-internal': 3.2.2
       p-event: 7.1.0
       race-signal: 2.0.0
       uint8arraylist: 3.0.2
@@ -3960,7 +4024,7 @@ snapshots:
     dependencies:
       '@chainsafe/is-ip': 2.1.0
       '@chainsafe/netmask': 2.0.0
-      '@libp2p/crypto': 5.1.21
+      '@libp2p/crypto': 5.2.0
       '@libp2p/interface': 2.11.0
       '@libp2p/logger': 5.2.0
       '@multiformats/multiaddr': 12.5.1
@@ -3974,7 +4038,7 @@ snapshots:
       it-pipe: 3.0.1
       it-pushable: 3.2.4
       it-stream-types: 2.0.4
-      main-event: 1.0.4
+      main-event: 1.0.5
       netmask: 2.1.1
       p-defer: 4.0.1
       race-event: 1.6.1
@@ -4079,12 +4143,12 @@ snapshots:
 
   '@libp2p/websockets@10.1.18':
     dependencies:
-      '@libp2p/interface': 3.2.5
-      '@libp2p/utils': 7.3.1
+      '@libp2p/interface': 3.4.0
+      '@libp2p/utils': 7.4.5
       '@multiformats/multiaddr': 13.0.3
       '@multiformats/multiaddr-matcher': 3.0.2
       '@multiformats/multiaddr-to-uri': 12.0.0
-      main-event: 1.0.4
+      main-event: 1.0.5
       p-event: 7.1.0
       progress-events: 1.1.0
       uint8arraylist: 3.0.2
@@ -4630,6 +4694,18 @@ snapshots:
       it-merge: 3.0.14
       multiformats: 14.0.5
 
+  blockstore-fs@4.0.1:
+    dependencies:
+      abort-error: 1.0.2
+      interface-blockstore: 7.0.1
+      interface-store: 8.0.0
+      it-glob: 3.0.6
+      it-map: 3.1.6
+      it-parallel-batch: 3.0.11
+      multiformats: 14.0.5
+      race-signal: 2.0.0
+      steno: 4.0.2
+
   braces@3.0.3:
     dependencies:
       fill-range: 7.1.1
@@ -4798,6 +4874,18 @@ snapshots:
       it-pipe: 3.0.1
       it-sort: 3.0.11
       it-take: 3.0.11
+
+  datastore-fs@12.0.1:
+    dependencies:
+      abort-error: 1.0.2
+      datastore-core: 12.0.1
+      interface-datastore: 10.0.1
+      interface-store: 8.0.0
+      it-glob: 3.0.6
+      it-map: 3.1.6
+      it-parallel-batch: 3.0.11
+      race-signal: 2.0.0
+      steno: 4.0.2
 
   debug@2.6.9:
     dependencies:
@@ -5096,8 +5184,8 @@ snapshots:
       '@ipld/dag-pb': 4.1.7
       '@ipshipyard/crypto': 1.1.0
       '@ipshipyard/keychain': 1.0.2
-      '@libp2p/interface': 3.2.5
-      '@libp2p/utils': 7.3.1
+      '@libp2p/interface': 3.4.0
+      '@libp2p/utils': 7.4.5
       '@multiformats/dns': 1.0.15
       '@multiformats/multiaddr': 13.0.3
       abort-error: 1.0.2
@@ -5112,7 +5200,7 @@ snapshots:
       it-filter: 3.1.6
       it-foreach: 2.1.7
       it-merge: 3.0.14
-      main-event: 1.0.4
+      main-event: 1.0.5
       mortice: 3.3.1
       multiformats: 14.0.5
       progress-events: 1.1.0
@@ -5407,7 +5495,7 @@ snapshots:
     dependencies:
       abort-error: 1.0.2
       it-pushable: 3.2.4
-      main-event: 1.0.4
+      main-event: 1.0.5
       race-event: 1.6.1
       race-signal: 2.0.0
 
@@ -5778,7 +5866,7 @@ snapshots:
     dependencies:
       abort-error: 1.0.2
       it-queue: 1.1.4
-      main-event: 1.0.4
+      main-event: 1.0.5
 
   ms@2.0.0: {}
 
@@ -6284,6 +6372,8 @@ snapshots:
   statuses@1.5.0: {}
 
   statuses@2.0.2: {}
+
+  steno@4.0.2: {}
 
   string-width@4.2.3:
     dependencies:

@@ -1,0 +1,42 @@
+{
+  "name": "@le-space/libp2p-webrtc-qr-reader",
+  "version": "0.1.0",
+  "description": "Holds the published field-results database and mirrors it into a queryable table",
+  "type": "module",
+  "private": true,
+  "license": "Apache-2.0 OR MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NiKrause/libp2p-webrtc-qr.git",
+    "directory": "services/reader"
+  },
+  "bin": {
+    "webrtc-qr-reader": "./bin/reader.js"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "start": "node bin/reader.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@chainsafe/libp2p-noise": "^17.0.0",
+    "@chainsafe/libp2p-yamux": "^8.0.1",
+    "@helia/bitswap": "^4.0.6",
+    "@helia/libp2p": "^1.0.6",
+    "@ipld/dag-cbor": "^9.2.6",
+    "@le-space/aleph-bootstrap": "^0.9.3",
+    "@libp2p/bootstrap": "^12.0.25",
+    "@libp2p/circuit-relay-v2": "^4.2.7",
+    "@libp2p/gossipsub": "^16.1.0",
+    "@libp2p/identify": "^4.1.11",
+    "@libp2p/ping": "^3.1.10",
+    "@libp2p/websockets": "^10.1.15",
+    "@orbitdb/core": "^4.0.0",
+    "blockstore-fs": "^4.0.1",
+    "datastore-fs": "^12.0.1",
+    "helia": "^7.1.1",
+    "libp2p": "^3.3.7"
+  }
+}
