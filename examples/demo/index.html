@@ -107,7 +107,15 @@
                relay to read, which this page does not do until somebody
                publishes - so it is a separate document rather than a tab, and
                nothing it loads is in this bundle. -->
-          <a class="nav-link" href="./results.html" data-i18n="results.nav.results">Field results</a>
+          <a class="nav-link" href="./results.html" data-i18n-attr="aria-label:results.nav.results" aria-label="Field results">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="4" y1="20" x2="4" y2="12" />
+              <line x1="10" y1="20" x2="10" y2="4" />
+              <line x1="16" y1="20" x2="16" y2="14" />
+              <line x1="22" y1="20" x2="22" y2="8" />
+            </svg>
+            <span data-i18n="results.nav.results">Field results</span>
+          </a>
 
           <!-- Labelled explicitly: the visible span is hidden on phones, which
                removes it from the accessibility tree along with the name. -->

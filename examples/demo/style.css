@@ -680,9 +680,11 @@ button.is-busy::before {
      longer there - an icon in a 14px-per-side pill.
      `a.nav-link` and not `.nav-link`: the view switch carries that class too and
      keeps its word on a phone, so it wants the padding the rule above gives it
-     rather than this one. */
+     rather than this one.
+     8px rather than 10 since the field-results link joined the row: three icon
+     pills at 10 put a 390px phone 6px over, and the page scrolled sideways. */
   a.nav-link {
-    padding: 7px 10px;
+    padding: 7px 8px;
   }
 
   /* Break the QR out of the card and page padding. On a 390px phone that is
