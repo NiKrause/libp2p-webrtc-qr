@@ -121,3 +121,50 @@ import {
 später noch lesbar macht: halten Sie fest, was eine Nutzlast *tatsächlich*
 angeboten hat — denn `['v4']` aus einem Filter und `['v4']` aus einem Netz ohne
 IPv6 sind zwei verschiedene Befunde, die gleich aussehen.
+
+## Was eine Einladung über Sie verrät
+
+Eine Einladung trägt die Adressen, unter denen eine Gegenstelle Sie erreichen
+kann — und wer sie zeigt, darf sie vorher sehen.
+
+```js
+const candidates = session.candidatesFor(sessionId)
+// [{ key, address, port, type, transport, family, offered }, …]
+
+const payload = await session.reissue(sessionId, {
+  exclude: candidates.filter(c => c.type === 'srflx').map(c => c.key)
+})
+```
+
+`candidatesFor` meldet, was der Browser **gesammelt** hat — auch die bereits
+ausgelassenen Kandidaten, damit eine daraus gezeichnete Liste eine Adresse nicht
+verschwinden lässt, sobald man sie abwählt. `family` ist `'mdns'` für die
+`.local`-Platzhalter, die jede Engine anstelle einer Host-Adresse einsetzt.
+
+`reissue` signiert dieselbe Einladung erneut. Die Peer-Verbindung bleibt
+unberührt — sie hat gesammelt, sie wartet auf eine Antwort, und die Session-ID
+ändert sich nicht, sodass eine Antwort auf die frühere Fassung weiterhin
+ankommt. Bleibt kein Kandidat übrig, wirft die Methode: den letzten zu
+verweigern ist besser als ein Code, der keinen Weg beschreibt. `candidateKey`
+und `omitSdpCandidates` sind die Bausteine darunter.
+
+### Das ist Offenlegung, kein Schutz
+
+Einen Kandidaten aus der Nutzlast zu lassen entscheidet, was die Einladung als
+**Weg** anbietet. Es hält diese Adresse nicht von der Leitung fern. Der lokale
+ICE-Agent hat sie gesammelt und paart sie weiterhin mit allem, was die
+Gegenstelle geschickt hat — Binding-Requests gehen also trotzdem von ihr aus.
+Gemessen in
+[#192](https://github.com/NiKrause/libp2p-webrtc-qr/issues/192): mit beiden
+Host-Kandidaten aus der Nutzlast entfernt entsprangen alle vier Kandidatenpaare
+des Anbietenden Kandidaten, die er nie angekündigt hatte — 24–25 Requests je
+Paar. Die Gegenstelle sieht eine solche Adresse als Quelle eines Pakets,
+gleichgültig ob ihr Stack sie als peer-reflexive verbucht.
+
+Was eine Adresse tatsächlich von der Leitung fernhält: sie nicht zu sammeln
+(`{ iceServers: [] }`) und das Routing des Betriebssystems.
+
+Und die Kosten laufen auch in die andere Richtung. Die `.local`-Host-Kandidaten
+sind genau die, die nichts verraten *und* den Fall „gleicher Raum, gleiches
+WLAN" tragen. Sie wegzulassen bringt keine Privatheit und kostet den direkten
+Weg.

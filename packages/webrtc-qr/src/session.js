@@ -12,7 +12,14 @@ import {
   setRemoteDescription
 } from './payload.js'
 import { DEFAULT_RTC_CONFIGURATION } from './elements/network.js'
-import { asAddressFamily, familyLabel, familyOf, filterSdpCandidates } from './families.js'
+import {
+  asAddressFamily,
+  candidateKey,
+  familyLabel,
+  familyOf,
+  filterSdpCandidates,
+  omitSdpCandidates
+} from './families.js'
 import { QR_TYPE_ANSWER, QR_TYPE_OFFER } from './signaling.js'
 
 /**
@@ -278,6 +285,16 @@ export class QRSession extends EventTarget {
     this.node = node
     this.options = { ...DEFAULTS, ...options }
     this.offers = new Map()
+    /**
+     * Answers this peer has signed, by session id.
+     *
+     * Kept for the same reason offers are: the payload on screen can be
+     * re-signed with a different set of candidates while the connection behind
+     * it stays the one that was already set up. Without this the answering side
+     * - the one on mobile data, the side with most to disclose - would be the
+     * only one that could not change its mind.
+     */
+    this.answers = new Map()
     this.inbound = new Set()
   }
 
@@ -309,11 +326,23 @@ export class QRSession extends EventTarget {
    * filtered run possible; without one, a same-network invite may have nothing
    * but mDNS names in it.
    */
-  #offered (sdp, family) {
-    if (family == null) return sdp
+  #offered (sdp, family, exclude = []) {
+    const excluded = [...exclude]
 
-    const filtered = filterSdpCandidates(sdp, family)
+    if (family == null && excluded.length === 0) return sdp
+
+    const filtered = omitSdpCandidates(filterSdpCandidates(sdp, family), excluded)
     const gathered = readCandidates(sdp)
+
+    // An exclusion that empties the invite is the caller's doing and reads
+    // nothing like a network finding, so it gets its own sentence rather than
+    // being explained as a family that was not gathered.
+    if (readCandidates(filtered).length === 0 && gathered.length > 0 && excluded.length > 0) {
+      throw new SessionError(
+        'Nothing to offer: every candidate has been left out of this invite, which would ' +
+        'describe no route at all. Leaving one out removes a way in; leaving all of them out ' +
+        'removes the invite.')
+    }
 
     if (readCandidates(filtered).length === 0 && gathered.length > 0) {
       const withheld = gathered.every(candidate => familyOf(candidate.address) === 'mdns')
@@ -370,9 +399,15 @@ export class QRSession extends EventTarget {
    * `{ compact: false }` produces a v2 payload for this offer only - for a host
    * that knows it is inviting an older peer, and for tests that need the large
    * payload the animated code exists for.
+   *
+   * `{ exclude }` leaves named candidates out of the payload - see
+   * `candidatesFor` for the names and `reissue` for changing the set without
+   * gathering again. Read `omitSdpCandidates` before building anything on it:
+   * it decides what the invite offers as a route, not what leaves the machine.
    */
   async createOffer (options = {}) {
     const compact = options.compact ?? this.options.compact
+    const exclude = [...(options.exclude ?? [])]
     const peerConnection = new RTCPeerConnection(this.#rtcConfiguration())
     const sessionId = newSessionId(compact)
     // Negotiated, so the remote never sees a `datachannel` event for it.
@@ -400,6 +435,12 @@ export class QRSession extends EventTarget {
          * rule than the offer it belongs to would be a measurement of neither.
          */
         addressFamily,
+        // Both kept so `reissue` can re-sign this exact invite rather than
+        // approximate it: a payload that came back in the other format, or
+        // under a different family rule, would be a different measurement
+        // wearing the same session id.
+        compact,
+        exclude,
         remotePeerId: null,
         upgradeContext: null
       })
@@ -408,7 +449,7 @@ export class QRSession extends EventTarget {
         privateKey: this.node.components.privateKey,
         peerId: this.node.peerId.toString(),
         sessionId,
-        sdp: this.#offered(peerConnection.localDescription.sdp, addressFamily),
+        sdp: this.#offered(peerConnection.localDescription.sdp, addressFamily, exclude),
         compact
       })
     } catch (error) {
@@ -462,6 +503,15 @@ export class QRSession extends EventTarget {
       // refusal twice - once as itself and once as a connection that failed.
       const sdp = this.#offered(peerConnection.localDescription.sdp, addressFamily)
 
+      this.answers.set(offer.sessionId, {
+        sessionId: offer.sessionId,
+        peerConnection,
+        offerPeerId: offer.peerId,
+        addressFamily,
+        compact,
+        exclude: []
+      })
+
       waitForConnected(peerConnection, this.options.answerWaitTimeout)
         .then(async () => {
           await this.node.components.upgrader.upgradeInbound(upgradeContext.connection, {
@@ -475,10 +525,14 @@ export class QRSession extends EventTarget {
             signal: AbortSignal.timeout(this.options.connectionTimeout)
           })
 
+          // Spent: the reply has been read and re-signing it would produce a
+          // code for a handshake that is over.
+          this.answers.delete(offer.sessionId)
           this.#emit('connect', { peerId: offer.peerId, peerConnection, direction: 'inbound' })
         })
         .catch(error => {
           this.inbound.delete(peerConnection)
+          this.answers.delete(offer.sessionId)
           peerConnection.close()
           this.#emit('error', { peerId: offer.peerId, peerConnection, error, direction: 'inbound' })
         })
@@ -496,6 +550,103 @@ export class QRSession extends EventTarget {
       peerConnection.close()
       throw error
     }
+  }
+
+  /**
+   * The candidates behind a pending invite, named, with whether it carries them.
+   *
+   * This is the list a person is shown before deciding what their invite says
+   * about them, so it reports what the browser *gathered* rather than what was
+   * sent: a candidate that was left out has to stay visible, or unchecking one
+   * makes it disappear and there is no way back.
+   *
+   * `family` is `'mdns'` for the `.local` stand-ins every engine substitutes
+   * for a host address. Those are the ones that disclose nothing and carry the
+   * same-network case, which is worth saying wherever this list is drawn.
+   *
+   * @param {string} sessionId
+   * @returns {{ key: string, address: string, port: string, type: string, family: string | null, offered: boolean }[]}
+   */
+  candidatesFor (sessionId) {
+    const session = this.offers.get(sessionId) ?? this.answers.get(sessionId)
+
+    if (session == null) return []
+
+    const excluded = new Set(session.exclude ?? [])
+    const sdp = session.peerConnection.localDescription?.sdp ?? ''
+
+    return (sdp.match(/^a=candidate:.*$/gmu) ?? []).map(line => {
+      const [, , transport, , address, port, , type] = line
+        .replace(/^a=candidate:/u, '').trim().split(/\s+/u)
+      const key = candidateKey(line)
+
+      return {
+        key,
+        address,
+        port,
+        type,
+        transport: String(transport ?? '').toLowerCase(),
+        family: familyOf(address),
+        offered: !excluded.has(key)
+      }
+    })
+  }
+
+  /**
+   * Sign the same invite again with a different set of candidates left out.
+   *
+   * The peer connection is untouched: it has already gathered, it is already
+   * waiting for a reply, and the session id stays the same, so a reply to the
+   * previous rendering of this invite still arrives at the right place. Only
+   * the payload is rebuilt - which is the whole point, because gathering again
+   * costs seconds and would hand the person a different invite than the one
+   * they were looking at.
+   *
+   * It throws rather than returning an empty invite when the exclusion leaves
+   * no candidate at all. The caller is a checkbox; refusing the last one is
+   * better than handing out a code that describes no route.
+   *
+   * @param {string} sessionId
+   * @param {object} [options]
+   * @param {Iterable<string>} [options.exclude] candidate keys from `candidatesFor`
+   */
+  async reissue (sessionId, options = {}) {
+    const session = this.offers.get(sessionId) ?? this.answers.get(sessionId)
+
+    if (session == null) {
+      throw new SessionError(`No pending invite with session id ${sessionId}`)
+    }
+
+    if (session.peerConnection.localDescription == null) {
+      throw new SessionError('This invite has no local description to re-sign')
+    }
+
+    const exclude = [...(options.exclude ?? [])]
+    const sdp = this.#offered(session.peerConnection.localDescription.sdp, session.addressFamily, exclude)
+    // Only after `#offered` has agreed: a refused exclusion must leave the
+    // session describing the invite that is actually on screen.
+    const isAnswer = this.answers.has(sessionId)
+
+    const payload = isAnswer
+      ? await encodeAnswer({
+          privateKey: this.node.components.privateKey,
+          peerId: this.node.peerId.toString(),
+          offerPeerId: session.offerPeerId,
+          sessionId,
+          sdp,
+          compact: session.compact
+        })
+      : await encodeOffer({
+          privateKey: this.node.components.privateKey,
+          peerId: this.node.peerId.toString(),
+          sessionId,
+          sdp,
+          compact: session.compact
+        })
+
+    session.exclude = exclude
+
+    return payload
   }
 
   /**
@@ -666,6 +817,7 @@ export class QRSession extends EventTarget {
     }
 
     this.offers.clear()
+    this.answers.clear()
     this.inbound.clear()
   }
 }

@@ -1149,11 +1149,13 @@ button.is-busy::before {
 }
 
 .invite-link-fallback,
+.invite-addresses,
 .paste-fallback {
   margin-top: 16px;
 }
 
 .invite-link-fallback summary,
+.invite-addresses summary,
 .paste-fallback summary {
   cursor: pointer;
   font-size: 0.84rem;
@@ -1161,8 +1163,83 @@ button.is-busy::before {
 }
 
 .invite-link-fallback[open] summary,
+.invite-addresses[open] summary,
 .paste-fallback[open] summary {
   margin-bottom: 10px;
+}
+
+/* ---------- what an invite discloses (#192) ---------- */
+
+/* Beside the summary and never hidden with it: folded, the count is the only
+   thing that says this invite offers fewer ways in than the device has. */
+.address-count:not(:empty) {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 194, 75, 0.16);
+  color: var(--ls-text);
+  font-size: 0.74rem;
+}
+
+.address-list {
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.address-list li + li {
+  margin-top: 4px;
+}
+
+/* The dialog sets its checkbox labels in small caps, which suits a three-word
+   switch and not an address: `2605:4840:3:26b3::1` upper-cased and letter-spaced
+   is unreadable, and the sentence under it was shouting. */
+.address-list label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.82rem;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--ls-text-dim);
+  /* An address wraps badly in a proportional face - the digits stop lining up
+     between rows. */
+  font-variant-numeric: tabular-nums;
+}
+
+.address-list label span {
+  word-break: break-all;
+}
+
+.address-list input {
+  flex: none;
+  margin: 0;
+}
+
+/* The rows nobody should untick, said on the row rather than in a paragraph
+   somewhere else: they disclose nothing and they are the same-room path. */
+.address-withheld {
+  margin: 1px 0 0 24px;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--ls-text-faint);
+}
+
+.address-empty {
+  font-size: 0.82rem;
+  color: var(--ls-text-faint);
+}
+
+.address-note {
+  margin: 0 0 10px;
+  font-size: 0.82rem;
+  color: var(--ls-amber);
+}
+
+.address-note[hidden] {
+  display: none;
 }
 
 #scan-reply[hidden] {

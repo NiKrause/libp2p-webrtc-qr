@@ -163,3 +163,58 @@ export function familiesOffered (addresses = []) {
 
   return families.size > 0 ? [...families].sort() : null
 }
+
+/**
+ * A stable name for one candidate, for a person to point at.
+ *
+ * Address alone will not do: a host candidate and the reflexive candidate
+ * discovered through it share a socket, so they share a port while differing in
+ * address - and a TCP candidate can share an address and port with a UDP one on
+ * another interface. Type, transport, address and port together are unique
+ * within one gathering and survive re-reading the same `localDescription`,
+ * which is what a checkbox needs: the same candidate has to keep the same name
+ * between the list being drawn and the selection coming back.
+ *
+ * @param {string} line a candidate line, with or without `a=candidate:`
+ */
+export function candidateKey (line) {
+  const parts = String(line).replace(/^a=candidate:/u, '').trim().split(/\s+/u)
+  const [, , transport, , address, port, , type] = parts
+
+  return `${type ?? '?'}|${String(transport ?? '?').toLowerCase()}|${address ?? '?'}|${port ?? '?'}`
+}
+
+/**
+ * The same SDP with named candidates removed.
+ *
+ * ## This does **not** inherit the guarantee at the top of this file
+ *
+ * The family filter can honestly say that dropping a family takes it out of
+ * play, because ICE never pairs across families: what the other side does not
+ * know about, it cannot probe, and what this side dropped on the way in, it
+ * cannot probe either. Both halves hold.
+ *
+ * Dropping a single address within a family keeps only the first half. The
+ * local ICE agent gathered that candidate and still holds it, so it pairs it
+ * against everything the other side *did* send and puts binding requests on the
+ * wire from it. Measured, not reasoned (#192): with both host candidates
+ * removed from the payload, every one of the offerer's four candidate pairs was
+ * sourced from a candidate the offerer had never advertised, 24-25 requests
+ * each. The far end learns such an address as the source of a packet whether or
+ * not its ICE stack files it as peer-reflexive.
+ *
+ * So this is a control over **what an invite offers as a route**, and it is
+ * worth having as that. It is not a control over what leaves the machine, and
+ * anything built on top of it must not say otherwise.
+ *
+ * @param {string} sdp
+ * @param {Iterable<string>} [keys] candidate keys, as `candidateKey` builds them
+ */
+export function omitSdpCandidates (sdp, keys = []) {
+  const excluded = new Set(keys)
+
+  if (excluded.size === 0 || sdp == null) return sdp
+
+  return sdp.replace(/^a=candidate:.*(?:\r?\n)?/gmu, line =>
+    excluded.has(candidateKey(line)) ? '' : line)
+}

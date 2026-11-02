@@ -150,6 +150,44 @@ with no IPv6 are different findings that look identical.
 
 ---
 
+## What an invite says about you
+
+An invite carries the addresses a peer can reach you at, and a person showing
+one is entitled to see them first. `candidatesFor(sessionId)` returns what the
+browser gathered — `{ key, address, port, type, transport, family, offered }`
+per candidate, including the ones already left out, so a list drawn from it does
+not make an address vanish when it is deselected. `family` is `'mdns'` for the
+`.local` stand-ins every engine substitutes for a host address.
+
+`reissue(sessionId, { exclude })` signs the same invite again with named
+candidates left out. The peer connection is untouched — it has gathered, it is
+waiting for a reply, and the session id does not change, so a reply to the
+earlier rendering still arrives. Only the payload is rebuilt, because gathering
+again costs seconds and would hand the person a different invite than the one
+they were looking at. It throws when the exclusion leaves nothing: refusing the
+last candidate beats emitting a code that describes no route.
+
+`candidateKey(line)` and `omitSdpCandidates(sdp, keys)` are the pieces, for a
+host doing this itself.
+
+**Read this before building a privacy control on it.** Leaving a candidate out
+of the payload decides what the invite offers *as a route*. It does not keep
+that address off the wire: the local ICE agent gathered it and still pairs it
+against everything the other side sent, so binding requests leave from it
+anyway. Measured in
+[#192](https://github.com/NiKrause/libp2p-webrtc-qr/issues/192) — with both host
+candidates removed from the payload, all four of the offerer's candidate pairs
+were sourced from candidates it had never advertised, 24–25 requests each. The
+far end sees such an address as the source of a packet whether or not its stack
+files it as peer-reflexive. The things that do keep an address off the wire are
+not gathering it (`{ iceServers: [] }`) and the operating system's own routing.
+
+And the cost is real in the other direction: the `.local` host candidates are
+the ones that disclose nothing *and* the ones that carry the same-room,
+same-Wi-Fi case. Dropping them buys no privacy and loses the direct path.
+
+---
+
 ## Staying alive while somebody leaves
 
 Sending an invite through a messenger means leaving the app, and a browser

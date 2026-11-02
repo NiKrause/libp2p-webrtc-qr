@@ -10,11 +10,13 @@ export {
   ADDRESS_FAMILIES,
   asAddressFamily,
   candidateAddress,
+  candidateKey,
   familiesOffered,
   familyLabel,
   familyOf,
   filterCandidateLines,
-  filterSdpCandidates
+  filterSdpCandidates,
+  omitSdpCandidates
 } from './families.js'
 export { createKeepAlive } from './keep-alive.js'
 export {

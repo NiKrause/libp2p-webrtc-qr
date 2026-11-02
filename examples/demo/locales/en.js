@@ -291,6 +291,34 @@ export default {
     copyByHand: 'Select and copy'
   },
   /**
+   * What the invite on screen says about this device (#192).
+   *
+   * Written as disclosure throughout, because that is what it is. The
+   * measurement behind the wording: a candidate left out of the payload is
+   * still used by the local ICE agent, which pairs it against everything the
+   * other side sent and puts binding requests on the wire from it. Promising
+   * privacy here would be promising something the browser does not offer.
+   */
+  addresses: {
+    summary: 'What this invite tells them',
+    port: ({ port }) => `port ${port}`,
+    left: ({ n }) => n === 1 ? '1 left out' : `${n} left out`,
+    lede: 'Each line is a way back to this device. Unticking one takes that route out of the invite - it does not take the address off the network, because the browser keeps using it to look for a path either way.',
+    kind: {
+      host: 'this device',
+      srflx: 'seen from outside',
+      relay: 'via a relay',
+      prflx: 'discovered mid-connection'
+    },
+    // The one row somebody might untick for the wrong reason, so the reason
+    // not to is on the row itself rather than in a paragraph underneath.
+    withheld: 'withheld by the browser - tells them nothing, and it is the route that works in the same room',
+    disclosure: 'What does keep an address off the network: a VPN that carries both IPv4 and IPv6, or starting the page with ?ice=host, which asks no STUN server and so finds no public address at all.',
+    lastOne: 'That is the last route in this invite. Leaving it out as well would produce a code nobody can connect to.',
+    failed: 'The invite could not be signed again - it still says what it said before.',
+    empty: 'This invite carries no addresses at all.'
+  },
+  /**
    * The public page (#179, step 7).
    *
    * The gap sentences are phrased as the question they block rather than as a

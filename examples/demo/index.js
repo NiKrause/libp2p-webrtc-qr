@@ -75,6 +75,18 @@ function applyLocale (next) {
   // The copy button carries its own state in its label, so it is not repainted
   // by anything else and has to be told the language changed.
   resetCopied()
+
+  // The address rows are built from candidates rather than from the markup, so
+  // `translateDocument` cannot reach them.
+  //
+  // Only once there are rows, and the guard is load-bearing rather than
+  // defensive: this function runs during module evaluation, above the `let`
+  // bindings the redraw reads, and touching one of those from here is a
+  // `ReferenceError` that takes the whole page down. Same trap as the comment
+  // beside `scanModalEl` further down, from the other direction.
+  if (addressListEl.childElementCount > 0) {
+    drawAddresses()
+  }
 }
 
 /**
@@ -308,6 +320,9 @@ const introEl = document.getElementById('intro')
 const peerCountEl = document.getElementById('peer-count')
 const networkStateEl = document.getElementById('network-state')
 const compactPayloadEl = document.getElementById('compact-payload')
+const addressCountEl = document.getElementById('invite-addresses-count')
+const addressListEl = document.getElementById('invite-address-list')
+const addressNoteEl = document.getElementById('invite-address-note')
 const setupCards = [document.getElementById('step-start'), document.getElementById('step-connect')]
 const dataCard = document.getElementById('step-data')
 
@@ -3084,11 +3099,203 @@ async function offeredFamilies (payload) {
  * payload, so a phone's own camera app opens the page with everything loaded -
  * the in-app scanner is no longer the only way in.
  */
-async function renderOutbound (payload, kind) {
+/**
+ * Which addresses the invite on screen is handing over (#192).
+ *
+ * A disclosure panel, and the wording everywhere here is careful to be only
+ * that. Unticking a row takes the address out of the payload, which decides
+ * what the invite offers *as a route* - it does not keep the address off the
+ * network. Measured: the local ICE agent still holds every candidate it
+ * gathered and pairs it against everything the other side sent, so binding
+ * requests leave from a candidate that was never advertised. Promising privacy
+ * with a checkbox would be promising something the browser does not offer.
+ *
+ * Nothing is unticked by default, and that is not timidity. The `.local` rows
+ * are the ones that disclose nothing *and* the ones that carry the
+ * same-room-same-Wi-Fi path; a panel that invited somebody to clear them would
+ * cost them the direct connection and buy nothing. So each row says which of
+ * the two it is.
+ */
+let outboundSessionId = null
+let outboundKind = null
+
+/**
+ * One row's heading.
+ *
+ * The port is in it because a browser gathers one withheld host candidate per
+ * interface and they are otherwise the same three words twice - two identical
+ * rows with a checkbox each is a choice nobody can make.
+ */
+function addressLabel (candidate) {
+  const kind = t(`addresses.kind.${candidate.type}`)
+  const where = candidate.family === 'mdns'
+    ? t('addresses.port', { port: candidate.port })
+    : candidate.address
+
+  return `${kind} · ${where}`
+}
+
+/**
+ * How many ways in this invite no longer offers.
+ *
+ * Read off the boxes rather than off the candidates, because this is also what
+ * runs after a re-signing - and re-drawing the rows there would replace the
+ * checkbox somebody has just operated, taking the keyboard focus with it.
+ */
+function countAddresses () {
+  const boxes = [...addressListEl.querySelectorAll('input[type="checkbox"]')]
+  const left = boxes.filter(box => !box.checked).length
+
+  addressCountEl.textContent = left === 0 ? '' : t('addresses.left', { n: left })
+}
+
+function drawAddresses () {
+  const candidates = session == null || outboundSessionId == null
+    ? []
+    : session.candidatesFor(outboundSessionId)
+
+  if (candidates.length === 0) {
+    addressCountEl.textContent = ''
+
+    // Said rather than hidden: an invite carrying no addresses is a finding,
+    // and a panel that disappears when there is something odd to report is a
+    // panel that reports only good news.
+    const empty = document.createElement('li')
+
+    empty.textContent = t('addresses.empty')
+    empty.className = 'address-empty'
+    addressListEl.replaceChildren(empty)
+    return
+  }
+
+  addressListEl.replaceChildren(...candidates.map(candidate => {
+    const item = document.createElement('li')
+    const label = document.createElement('label')
+    const box = document.createElement('input')
+    const text = document.createElement('span')
+
+    box.type = 'checkbox'
+    box.checked = candidate.offered
+    box.dataset.candidate = candidate.key
+    box.addEventListener('change', () => { reissue(box).catch(() => {}) })
+
+    text.textContent = addressLabel(candidate)
+    label.append(box, text)
+    item.append(label)
+
+    // Below the row rather than in its label: it is a sentence, and a label
+    // that long is a click target the size of a paragraph and a mouthful for
+    // a screen reader announcing the checkbox.
+    if (candidate.family === 'mdns') {
+      const note = document.createElement('p')
+
+      note.className = 'address-withheld'
+      note.textContent = t('addresses.withheld')
+      item.append(note)
+    }
+
+    return item
+  }))
+
+  countAddresses()
+}
+
+/**
+ * Sign the invite again without the unticked addresses.
+ *
+ * The session id does not change, so a reply to the code somebody already
+ * photographed still arrives - which is why this re-signs rather than creating
+ * a new invite. Gathering again would also cost seconds and hand them a
+ * different invite than the one they were looking at.
+ */
+async function reissue (changed) {
+  const boxes = [...addressListEl.querySelectorAll('input[type="checkbox"]')]
+  const exclude = boxes.filter(box => !box.checked).map(box => box.dataset.candidate)
+
+  try {
+    const payload = await session.reissue(outboundSessionId, { exclude })
+
+    paintCode(payload, paintLink(payload, outboundKind))
+    addressNoteEl.hidden = true
+    countAddresses()
+  } catch (error) {
+    // The package refuses to sign an invite with no route left in it, and that
+    // refusal has to show up as the tick coming back - a message beside a box
+    // that stayed clear reads as a warning about something that happened.
+    changed.checked = true
+    countAddresses()
+    addressNoteEl.hidden = false
+    addressNoteEl.textContent = exclude.length === boxes.length
+      ? t('addresses.lastOne')
+      : t('addresses.failed')
+    appendLog(`Could not re-sign the invite: ${error.message}`)
+  }
+}
+
+async function showAddresses (payload, kind) {
+  outboundKind = kind
+  addressNoteEl.hidden = true
+
+  try {
+    outboundSessionId = (await parsePayload(payload)).sessionId ?? null
+  } catch {
+    // A payload this build cannot read is not worth failing an invite over -
+    // the same call stands one function away, for the same reason.
+    outboundSessionId = null
+  }
+
+  drawAddresses()
+}
+
+/**
+ * The link and the field, for a payload that is about to be shown or has just
+ * been re-signed.
+ *
+ * Split out of `renderOutbound` so that changing which addresses an invite
+ * offers repaints the invite without reopening the dialog, restarting the
+ * countdown or re-deciding which buttons belong on screen - none of which has
+ * changed just because one candidate was left out.
+ */
+function paintLink (payload, kind) {
   const link = linkFor(kind === QR_TYPE_OFFER ? INVITE_PARAM : REPLY_PARAM, payload)
 
   inviteLinkEl.value = link
   resetCopied()
+  outboundPayload = payload
+
+  return link
+}
+
+/** And the code itself, which is the same decision either way. */
+function paintCode (payload, link) {
+  if (link.length > MAX_QR_PAYLOAD_LENGTH) {
+    qrImage.value = ''
+    appendLog('Link is too long for a reliable QR code - send it as a link instead.')
+    return
+  }
+
+  logbook.note({
+    format: isCompactPayload(payload) ? 'v3' : 'v2',
+    sent: payload.length,
+    linkLength: link.length
+  })
+
+  // The element decides whether one code fits or a sequence is needed, and
+  // animates it if so. What used to be eighty lines here is now an attribute.
+  qrImage.value = link
+
+  // After the code is on screen, never before. Working out which families were
+  // offered means parsing the payload and checking its signature, and a
+  // diagnostic that delays the thing somebody is waiting for has its priorities
+  // backwards - it cost a click timeout in keep-alive.spec.js when it sat one
+  // line higher. The entry stays open until the attempt ends, so a late note
+  // lands in the same row.
+  offeredFamilies(payload).then(families => logbook.note({ families })).catch(() => {})
+  appendLog(`QR payload size: ${payload.length} characters.`)
+}
+
+async function renderOutbound (payload, kind) {
+  const link = paintLink(payload, kind)
 
   /**
    * The share sheet, only where there is one.
@@ -3124,37 +3331,17 @@ async function renderOutbound (payload, kind) {
   pairNoteEl.hidden = scenario !== 'across-networks'
   pairNoteEl.textContent = pairNoteEl.hidden ? '' : t(waitingForReply ? 'pair.sending' : 'pair.replying')
 
-  outboundPayload = payload
   outboundIsOffer = waitingForReply
   playAnswerButton.hidden = waitingForReply
   labelPlayButton()
   openModal(inviteBoxEl)
   startInviteCountdown()
 
-  if (link.length > MAX_QR_PAYLOAD_LENGTH) {
-    qrImage.value = ''
-    appendLog('Link is too long for a reliable QR code - send it as a link instead.')
-    return link
-  }
+  paintCode(payload, link)
 
-  logbook.note({
-    format: isCompactPayload(payload) ? 'v3' : 'v2',
-    sent: payload.length,
-    linkLength: link.length
-  })
-
-  // The element decides whether one code fits or a sequence is needed, and
-  // animates it if so. What used to be eighty lines here is now an attribute.
-  qrImage.value = link
-
-  // After the code is on screen, never before. Working out which families were
-  // offered means parsing the payload and checking its signature, and a
-  // diagnostic that delays the thing somebody is waiting for has its priorities
-  // backwards - it cost a click timeout in keep-alive.spec.js when it sat one
-  // line higher. The entry stays open until the attempt ends, so a late note
-  // lands in the same row.
-  offeredFamilies(payload).then(families => logbook.note({ families })).catch(() => {})
-  appendLog(`QR payload size: ${payload.length} characters.`)
+  // Last, and never awaited by the caller: reading the candidates means
+  // parsing the payload, and nothing about the code on screen depends on it.
+  showAddresses(payload, kind).catch(() => {})
 
   return link
 }

@@ -119,3 +119,48 @@ import {
 afterwards: record what a payload actually offered, because `['v4']` from a
 filter and `['v4']` from a network with no IPv6 are different findings that look
 identical.
+
+## What an invite says about you
+
+An invite carries the addresses a peer can reach you at, and a person showing
+one is entitled to see them first.
+
+```js
+const candidates = session.candidatesFor(sessionId)
+// [{ key, address, port, type, transport, family, offered }, …]
+
+const payload = await session.reissue(sessionId, {
+  exclude: candidates.filter(c => c.type === 'srflx').map(c => c.key)
+})
+```
+
+`candidatesFor` reports what the browser **gathered**, including candidates
+already left out, so a list drawn from it does not make an address vanish when
+it is deselected. `family` is `'mdns'` for the `.local` stand-ins every engine
+substitutes for a host address.
+
+`reissue` signs the same invite again. The peer connection is untouched — it has
+gathered, it is waiting for a reply, and the session id does not change, so a
+reply to the earlier rendering still arrives. It throws when the exclusion
+leaves no candidate at all: refusing the last one beats emitting a code that
+describes no route. `candidateKey` and `omitSdpCandidates` are the underlying
+pieces.
+
+### This is disclosure, not protection
+
+Leaving a candidate out of the payload decides what the invite offers *as a
+route*. It does not keep that address off the wire. The local ICE agent
+gathered it and still pairs it against everything the other side sent, so
+binding requests leave from it anyway — measured in
+[#192](https://github.com/NiKrause/libp2p-webrtc-qr/issues/192): with both host
+candidates removed from the payload, all four of the offerer's candidate pairs
+were sourced from candidates it had never advertised, 24–25 requests each. The
+far end sees such an address as the source of a packet whether or not its stack
+files it as peer-reflexive.
+
+What does keep an address off the wire: not gathering it (`{ iceServers: [] }`),
+and the operating system's own routing.
+
+And the cost runs the other way too. The `.local` host candidates are the ones
+that disclose nothing *and* the ones that carry the same-room, same-Wi-Fi case.
+Dropping them buys no privacy and loses the direct path.

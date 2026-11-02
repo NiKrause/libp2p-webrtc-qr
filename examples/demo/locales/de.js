@@ -280,6 +280,32 @@ export default {
     copyByHand: 'Markieren und kopieren'
   },
   /**
+   * Was die Einladung auf dem Bildschirm über dieses Gerät sagt (#192).
+   *
+   * Durchgehend als Offenlegung formuliert, denn das ist es. Die Messung
+   * dahinter: einen Kandidaten aus der Nutzlast zu lassen hindert den lokalen
+   * ICE-Agenten nicht daran, ihn zu benutzen - er paart ihn mit allem, was die
+   * Gegenstelle geschickt hat, und sendet von ihm aus. Hier Privatheit zu
+   * versprechen hieße, etwas zu versprechen, das der Browser nicht hergibt.
+   */
+  addresses: {
+    summary: 'Was diese Einladung verrät',
+    port: ({ port }) => `Port ${port}`,
+    left: ({ n }) => n === 1 ? '1 weggelassen' : `${n} weggelassen`,
+    lede: 'Jede Zeile ist ein Rückweg zu diesem Gerät. Ein Häkchen zu entfernen nimmt diesen Weg aus der Einladung — es nimmt die Adresse nicht vom Netz, denn der Browser sucht so oder so über sie nach einem Pfad.',
+    kind: {
+      host: 'dieses Gerät',
+      srflx: 'von außen gesehen',
+      relay: 'über ein Relay',
+      prflx: 'während des Verbindens entdeckt'
+    },
+    withheld: 'vom Browser zurückgehalten — verrät nichts, und es ist der Weg, der im selben Raum funktioniert',
+    disclosure: 'Was eine Adresse wirklich vom Netz fernhält: ein VPN, das IPv4 und IPv6 zugleich führt — oder die Seite mit ?ice=host zu öffnen, die keinen STUN-Server fragt und deshalb gar keine öffentliche Adresse findet.',
+    lastOne: 'Das ist der letzte Weg in dieser Einladung. Auch ihn wegzulassen ergäbe einen Code, zu dem niemand verbinden kann.',
+    failed: 'Die Einladung ließ sich nicht neu signieren — sie sagt weiterhin, was sie vorher sagte.',
+    empty: 'Diese Einladung trägt überhaupt keine Adressen.'
+  },
+  /**
    * Die öffentliche Seite (#179, Schritt 7).
    *
    * Die Lückensätze sind als die Frage formuliert, die sie blockieren, nicht
