@@ -172,7 +172,8 @@ export default {
     waiting: 'Waiting for somebody to be holding it…',
     writing: ({ written, total }) => `Writing ${written} of ${total}…`,
     done: ({ rows }) => `${rows} row${rows === 1 ? '' : 's'} published. They cannot be taken back.`,
-    failed: ({ reason }) => `Nothing was published: ${reason}`
+    failed: ({ reason }) => `Nothing was published: ${reason}`,
+    seeResults: 'See what has been published'
   },
   /**
    * Running a scenario on purpose (#179).
@@ -288,6 +289,118 @@ export default {
     copied: 'Copied',
     starting: 'Starting…',
     copyByHand: 'Select and copy'
+  },
+  /**
+   * The public page (#179, step 7).
+   *
+   * The gap sentences are phrased as the question they block rather than as a
+   * shortfall: "no run has been published from a mobile network yet" invites
+   * somebody to make one; "insufficient data" does not.
+   */
+  results: {
+    title: 'Where this actually works',
+    lede: 'Nobody publishes where direct WebRTC connects — not per country, not per carrier, not per browser pair. This is the attempt: every row is one measured attempt, reviewed by the person who made it before it was published.',
+    connects: 'This page connects to a relay to read the public database — that is the whole of what it does, and it writes nothing. The demo itself still connects to nothing until you press publish.',
+    unlabelled: 'no scenario',
+    nav: {
+      demo: 'The demo',
+      method: 'The method',
+      results: 'Field results'
+    },
+    state: {
+      starting: 'Starting…',
+      finding: 'Looking for a relay…',
+      connecting: 'Connecting…',
+      opening: 'Opening the database…',
+      waiting: 'Waiting for somebody who has the rows…',
+      reading: 'Reading…',
+      loaded: ({ rows, peers }) => `${rows} ${rows === 1 ? 'row' : 'rows'}, from ${peers} ${peers === 1 ? 'peer' : 'peers'}.`,
+      empty: 'Nobody has published a row yet. The database exists and is empty — which is a fact about the dataset, not an error.',
+      offline: ({ reason }) => `Could not read the database: ${reason}`,
+      unverified: ({ peers }) => `${peers === 1 ? 'A peer is' : `${peers} peers are`} holding this database and nothing readable came back. Checking a row means fetching its author's key over bitswap, and nobody a browser tab can reach is serving it. So this is not necessarily an empty dataset — it may be one this page cannot verify.`
+    },
+    gaps: {
+      heading: 'What this cannot tell you yet',
+      lede: 'A dataset that overstates its coverage is worth less than one that says plainly what is missing. Each line below is a question nobody can answer from these rows — and an invitation, because the way to close one is to run it.',
+      cta: 'Run a scenario and publish it',
+      nothing: 'Nothing has been published yet, so this page can tell you nothing at all.',
+      scenario: {
+        'same-lan': 'No run on a single LAN has been published, so the case that is supposed to be reliable is unmeasured here.',
+        'across-networks': 'No run between two separate networks has been published — which is the scenario the whole dataset exists for.',
+        'mobile-data': 'No run on a mobile network has been published, so nothing here says anything about a carrier.'
+      },
+      unlabelled: ({ runs }) => `${runs} ${runs === 1 ? 'row carries' : 'rows carry'} no scenario label, so ${runs === 1 ? 'it belongs' : 'they belong'} to no scenario and ${runs === 1 ? 'is' : 'are'} counted separately rather than quietly joining one.`,
+      noV6Offered: ({ runs }) => `None of the ${runs} published ${runs === 1 ? 'run' : 'runs'} offered an IPv6 candidate, so the IPv6 question — the one this was built to ask — is still open.`,
+      thinV6: ({ offered, reflexive }) => `IPv6 was offered in ${offered} ${offered === 1 ? 'run' : 'runs'} and came back reflexive in ${reflexive}. Too few either way to be a rate.`,
+      countries: ({ countries }) => `${countries === 0 ? 'No row names a country' : 'Every row comes from one country'}, so nothing here compares two networks in different places.`,
+      providers: ({ providers }) => `${providers === 0 ? 'No row names a provider' : 'Only one provider appears'}, and a carrier-level finding needs at least two to be a finding rather than an anecdote.`,
+      engines: ({ engines }) => `Only ${engines} has been measured. A browser-pair result needs two engines, which is where the known Chrome-versus-Firefox difference would show up.`,
+      pairs: ({ runs }) => `${runs} ${runs === 1 ? 'row has' : 'rows have'} no matching second half, so no two-network run can be seen from both ends yet.`,
+      thin: ({ runs }) => `${runs} ${runs === 1 ? 'row' : 'rows'} in total. Read every number here as an observation, not as a rate.`
+    },
+    headline: {
+      heading: 'What is here',
+      runs: 'Attempts',
+      connected: 'Connected',
+      failed: 'Failed',
+      countries: 'Countries',
+      providers: 'Providers',
+      engines: 'Browser engines',
+      rejected: 'Entries not mirrored'
+    },
+    networks: {
+      heading: 'By network',
+      lede: 'One line per country and carrier. The two IPv6 columns are a pair on purpose: without the number of runs that offered IPv6 at all, "no reflexive IPv6" cannot be told apart from "IPv6 was never tried here".'
+    },
+    rows: {
+      heading: 'Every row',
+      lede: 'One attempt per row, because aggregating can be done afterwards and disaggregating cannot. The filters below offer only values that are actually in the data.',
+      count: ({ shown, total }) => shown === total ? `${total} ${total === 1 ? 'row' : 'rows'}.` : `${shown} of ${total} rows.`,
+      csv: 'Download CSV',
+      json: 'Download JSON'
+    },
+    rejected: {
+      heading: 'What was not mirrored',
+      lede: 'Anyone may write to this log, so a reader filters rather than a person gatekeeping. A filter whose removals cannot be inspected is an opinion with a URL, so here they are.'
+    },
+    about: {
+      heading: 'How to read this',
+      body: 'Every row was measured locally, reviewed by hand, and then published deliberately. The time is rounded to the hour, candidate addresses have become counts, and free text somebody typed never leaves their device — <a href="https://github.com/NiKrause/libp2p-webrtc-qr/issues/179" target="_blank" rel="noopener noreferrer">the method</a> says what travels and why.',
+      address: 'The database:'
+    },
+    filters: {
+      any: 'any'
+    },
+    column: {
+      at: 'Hour',
+      scenario: 'Scenario',
+      role: 'Role',
+      carrier: 'Carrier',
+      outcome: 'Outcome',
+      ms: 'ms',
+      engine: 'Engine',
+      version: 'Version',
+      browser: 'Browser',
+      platform: 'Platform',
+      country: 'Country',
+      provider: 'Provider',
+      ipv4: 'IPv4',
+      ipv6: 'IPv6',
+      families: 'Offered',
+      reason: 'Reason',
+      runs: 'Runs',
+      connected: 'Connected',
+      failed: 'Failed',
+      engines: 'Engines',
+      offeredV6: 'Offered v6',
+      reflexiveV6: 'Reflexive v6',
+      reflexiveV4: 'Reflexive v4',
+      familyFilter: 'Filter',
+      format: 'Format',
+      author: 'Author',
+      pairId: 'Pair',
+      network: 'Network'
+    }
   },
   status: {
     idle: 'Not connected',

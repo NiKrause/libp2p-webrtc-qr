@@ -12,21 +12,6 @@
  * there: this file holds what is this demo's to say.
  */
 
-import {
-  QR_INTRO_STRINGS,
-  QR_INTRO_STRINGS_DE,
-  QR_LISTEN_STRINGS,
-  QR_LISTEN_STRINGS_DE,
-  QR_INVITE_STRINGS,
-  QR_INVITE_STRINGS_DE,
-  QR_PEERS_STRINGS,
-  QR_PEERS_STRINGS_DE,
-  QR_SCANNER_STRINGS,
-  QR_SCANNER_STRINGS_DE,
-  QR_STATUS_STRINGS,
-  QR_STATUS_STRINGS_DE
-} from '@le-space/libp2p-webrtc-qr/elements'
-
 import de from './locales/de.js'
 import en from './locales/en.js'
 
@@ -34,26 +19,6 @@ export const SUPPORTED = ['en', 'de']
 const STORAGE_KEY = 'webrtc-qr.locale'
 
 const CATALOGUES = { en, de }
-
-/** The element tables that go with each locale, kept beside the app's own. */
-const ELEMENTS = {
-  en: {
-    intro: QR_INTRO_STRINGS,
-    invite: QR_INVITE_STRINGS,
-    listen: QR_LISTEN_STRINGS,
-    peers: QR_PEERS_STRINGS,
-    scanner: QR_SCANNER_STRINGS,
-    status: QR_STATUS_STRINGS
-  },
-  de: {
-    intro: QR_INTRO_STRINGS_DE,
-    invite: QR_INVITE_STRINGS_DE,
-    listen: QR_LISTEN_STRINGS_DE,
-    peers: QR_PEERS_STRINGS_DE,
-    scanner: QR_SCANNER_STRINGS_DE,
-    status: QR_STATUS_STRINGS_DE
-  }
-}
 
 let current = 'en'
 
@@ -94,11 +59,6 @@ export function setLocale (next) {
 
 export function locale () {
   return current
-}
-
-/** The element string tables for the current locale. */
-export function elementStrings () {
-  return ELEMENTS[current]
 }
 
 /**

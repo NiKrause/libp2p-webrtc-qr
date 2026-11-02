@@ -63,7 +63,15 @@ test.describe('the catalogues', () => {
   test('no German entry was left in English', () => {
     // Copying the file and translating most of it is the likely way this goes
     // wrong, and it passes every check above.
-    const shared = ['English', 'Deutsch', 'libp2p WebRTC over QR']
+    // Words that are the same in both languages, so an identical entry is a
+    // translation rather than an oversight. Mostly column headers on the
+    // results page: German writes Engine, Version, Browser, Format, Filter and
+    // the address families exactly as English does, and inventing a difference
+    // to satisfy a test would make the page worse.
+    const shared = [
+      'English', 'Deutsch', 'libp2p WebRTC over QR',
+      'ms', 'Engine', 'Engines', 'Version', 'Browser', 'Format', 'Filter', 'IPv4', 'IPv6'
+    ]
     const same = flatten(en).filter(key => {
       const value = lookup(en, key)
       return typeof value === 'string' && value === lookup(de, key) && !shared.includes(value)

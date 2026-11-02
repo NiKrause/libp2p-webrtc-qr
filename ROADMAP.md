@@ -536,7 +536,30 @@ contain it, which is a stronger promise than a flag nobody set.
    part of the address and an allow-list would strand everything written before
    the second contributor; a one-sided failure is published, because half the
    interesting failures never reach a peer
-7. Open - the public page, including the gaps
+7. **Done** - the public page, including the gaps. The gaps are the page:
+   they are computed from the same summary as the headline numbers, they sit
+   *above* the table they qualify, and each is phrased as the question it
+   blocks rather than as a shortfall - "no run on a mobile network has been
+   published" invites somebody to make one, "insufficient data" does not
+
+And the page found the next problem, which is the dataset's rather than the
+page's. A browser tab that opens the published database receives the entry and
+cannot turn it into a row: checking a signature means fetching the author's
+identity block over bitswap, the publisher signs with an identity it creates in
+memory and throws away three seconds later, and the relay replicates the log
+without serving those blocks. The reader service holds all three blocks on disk
+and is reachable only over a circuit, which a browser does not dial. So a row
+is readable by whoever was online when it was written and by nobody afterwards.
+That is a hole in the design, not a bug in a page, and the page's job for now is
+to say so rather than to report an empty dataset.
+
+[`results.html`](examples/demo/results.html) is a second document rather than
+a tab in the demo, and that is the whole of why it is a second document: it
+reads the published database, which means it loads a libp2p stack, and the
+demo's claim is that its own page contains none until somebody publishes. Two
+Vite entries keep that true by construction rather than by discipline. It
+imports the reader service's `mirror.js` rather than reimplementing it, so the
+page and the service cannot quietly disagree about what a published row is.
 
 [`services/reader`](services/reader) is where the open-write decision above is
 paid for: noise is a reader's filter rather than somebody's gate. Building it
