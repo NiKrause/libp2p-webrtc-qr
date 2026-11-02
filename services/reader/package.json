@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "Holds the published field-results database and mirrors it into a queryable table",
   "type": "module",
+  "exports": {
+    "./mirror": "./src/mirror.js"
+  },
   "private": true,
   "license": "Apache-2.0 OR MIT",
   "repository": {

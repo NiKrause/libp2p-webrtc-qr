@@ -52,6 +52,24 @@ const stamp = {
 }
 
 export default defineConfig({
+  /**
+   * Two documents, not two tabs.
+   *
+   * The results page reads the published database, which means it loads a
+   * libp2p stack - and the demo's whole claim is that its own page does not
+   * contain one until somebody publishes. A second entry keeps that true by
+   * construction: the chunks the results page needs are reachable from
+   * `results.html` and from nothing in `index.html`.
+   */
+  build: {
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        results: fileURLToPath(new URL('./results.html', import.meta.url))
+      }
+    }
+  },
+
   plugins: [{
     name: 'build-stamp',
     transformIndexHtml: {

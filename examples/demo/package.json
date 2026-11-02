@@ -25,6 +25,7 @@
     "@ipld/dag-cbor": "^9.2.6",
     "@le-space/aleph-bootstrap": "^0.9.3",
     "@le-space/libp2p-webrtc-qr": "workspace:*",
+    "@le-space/libp2p-webrtc-qr-reader": "workspace:*",
     "@libp2p/bootstrap": "^12.0.25",
     "@libp2p/circuit-relay-v2": "^4.2.7",
     "@libp2p/crypto": "^5.1.21",

@@ -1902,3 +1902,156 @@ input[type='checkbox'] {
   color: var(--ls-text-faint);
   overflow-wrap: anywhere;
 }
+
+/*
+ * The results page.
+ *
+ * Shares every token above, so a change to the palette reaches both documents
+ * and the two never drift into looking like two projects. What is here is only
+ * what a page of tables needs and the demo does not have: a definition list
+ * used as a counter row, and a table that has to survive a phone.
+ */
+.results {
+  max-width: var(--ls-max-width);
+  margin: 0 auto;
+  padding: 0 1rem 4rem;
+}
+
+.results-connects {
+  border-left: 2px solid var(--ls-accent);
+  padding-left: 0.85rem;
+}
+
+.results-state {
+  color: var(--ls-text-dim);
+  font-family: var(--ls-font-mono);
+  font-size: 0.85rem;
+}
+
+/* The gaps are the point of the page, so they are the one card that looks
+   like something rather than like a footnote. */
+.results-gaps {
+  border-color: rgba(255, 194, 75, 0.35);
+}
+
+.results-gap-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--ls-text-dim);
+  line-height: 1.55;
+}
+
+.results-gap-list li {
+  margin-bottom: 0.45rem;
+}
+
+.results-headline {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  gap: 0.75rem 1.25rem;
+  margin: 0.5rem 0 0;
+}
+
+.results-headline dt {
+  color: var(--ls-text-faint);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.results-headline dd {
+  margin: 0.15rem 0 0;
+  font-family: var(--ls-font-mono);
+  font-size: 1.5rem;
+  color: var(--ls-text);
+}
+
+.results-headline dd.results-warn {
+  color: var(--ls-amber);
+}
+
+.results-scenarios {
+  font-family: var(--ls-font-mono);
+  margin-top: 1rem;
+}
+
+/* A horizontal scroller rather than a reflow: these columns only mean
+   anything side by side, and a stacked card per row hides the comparison the
+   table exists to make. */
+.results-table-scroll {
+  overflow-x: auto;
+  margin-top: 0.75rem;
+}
+
+.results-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.82rem;
+  font-family: var(--ls-font-mono);
+}
+
+.results-table th,
+.results-table td {
+  text-align: left;
+  padding: 0.4rem 0.7rem 0.4rem 0;
+  border-bottom: 1px solid var(--ls-card-border);
+  white-space: nowrap;
+}
+
+.results-table th {
+  color: var(--ls-text-faint);
+  font-weight: 500;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.results-table td {
+  color: var(--ls-text-dim);
+}
+
+/* The one column that is a sentence. Clipped rather than wrapped: a wrapping
+   cell sets the height of every cell in its row, and three words of ICE
+   failure were leaving finger-deep gaps between one-line rows. The whole
+   string is in the title attribute and in the CSV. */
+.results-table td:last-child {
+  max-width: 22rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.results-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  margin-top: 0.75rem;
+}
+
+.results-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--ls-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.results-filter select {
+  font-family: var(--ls-font-mono);
+  font-size: 0.8rem;
+  text-transform: none;
+  letter-spacing: 0;
+  background: var(--ls-bg-2);
+  color: var(--ls-text);
+  border: 1px solid var(--ls-card-border);
+  border-radius: var(--ls-radius-sm);
+  padding: 0.25rem 0.4rem;
+}
+
+.results-address {
+  font-family: var(--ls-font-mono);
+  font-size: 0.75rem;
+  word-break: break-all;
+  color: var(--ls-text-dim);
+}

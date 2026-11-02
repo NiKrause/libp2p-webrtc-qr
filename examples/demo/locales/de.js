@@ -158,7 +158,8 @@ export default {
     waiting: 'Warte darauf, dass jemand sie hält…',
     writing: ({ written, total }) => `Schreibe ${written} von ${total}…`,
     done: ({ rows }) => `${rows} ${rows === 1 ? 'Zeile' : 'Zeilen'} veröffentlicht. Zurückholen lässt sich das nicht.`,
-    failed: ({ reason }) => `Es wurde nichts veröffentlicht: ${reason}`
+    failed: ({ reason }) => `Es wurde nichts veröffentlicht: ${reason}`,
+    seeResults: 'Ansehen, was veröffentlicht ist'
   },
   /**
    * Ein Szenario absichtlich fahren (#179).
@@ -277,6 +278,118 @@ export default {
     copied: 'Kopiert',
     starting: 'Startet…',
     copyByHand: 'Markieren und kopieren'
+  },
+  /**
+   * Die öffentliche Seite (#179, Schritt 7).
+   *
+   * Die Lückensätze sind als die Frage formuliert, die sie blockieren, nicht
+   * als Mangel: „aus einem Mobilfunknetz ist noch kein Lauf veröffentlicht"
+   * lädt jemanden ein, einen zu machen; „zu wenig Daten" nicht.
+   */
+  results: {
+    title: 'Wo das wirklich funktioniert',
+    lede: 'Niemand veröffentlicht, wo direktes WebRTC zustande kommt — nicht pro Land, nicht pro Anbieter, nicht pro Browser-Paar. Das hier ist der Versuch: jede Zeile ist ein gemessener Verbindungsversuch, von der Person geprüft, die ihn gemacht hat, bevor er veröffentlicht wurde.',
+    connects: 'Diese Seite verbindet sich mit einem Relay, um die öffentliche Datenbank zu lesen — mehr tut sie nicht, und sie schreibt nichts. Die Demo selbst verbindet sich weiterhin mit nichts, bis Sie auf Veröffentlichen drücken.',
+    unlabelled: 'ohne Szenario',
+    nav: {
+      demo: 'Zur Demo',
+      method: 'Die Methode',
+      results: 'Feldergebnisse'
+    },
+    state: {
+      starting: 'Startet…',
+      finding: 'Suche ein Relay…',
+      connecting: 'Verbinde…',
+      opening: 'Öffne die Datenbank…',
+      waiting: 'Warte auf jemanden, der die Zeilen hat…',
+      reading: 'Lese…',
+      loaded: ({ rows, peers }) => `${rows} ${rows === 1 ? 'Zeile' : 'Zeilen'}, von ${peers} ${peers === 1 ? 'Peer' : 'Peers'}.`,
+      empty: 'Es hat noch niemand eine Zeile veröffentlicht. Die Datenbank existiert und ist leer — das ist eine Tatsache über den Datensatz, kein Fehler.',
+      offline: ({ reason }) => `Die Datenbank war nicht lesbar: ${reason}`,
+      unverified: ({ peers }) => `${peers === 1 ? 'Ein Peer hält' : `${peers} Peers halten`} diese Datenbank, und zurückgekommen ist nichts Lesbares. Eine Zeile zu prüfen heißt, den Schlüssel ihres Autors über Bitswap zu holen, und aus einem Browser-Tab heraus liefert ihn niemand aus. Das muss also kein leerer Datensatz sein — es kann einer sein, den diese Seite nicht prüfen kann.`
+    },
+    gaps: {
+      heading: 'Was das hier noch nicht sagen kann',
+      lede: 'Ein Datensatz, der seine Abdeckung übertreibt, ist weniger wert als einer, der klar sagt, was fehlt. Jede Zeile unten ist eine Frage, die aus diesen Daten niemand beantworten kann — und eine Einladung, denn geschlossen wird so eine Lücke, indem jemand den Lauf macht.',
+      cta: 'Ein Szenario durchlaufen und veröffentlichen',
+      nothing: 'Es ist noch nichts veröffentlicht, also kann diese Seite überhaupt nichts sagen.',
+      scenario: {
+        'same-lan': 'Aus einem einzelnen LAN ist kein Lauf veröffentlicht — ausgerechnet der Fall, der als zuverlässig gilt, ist hier ungemessen.',
+        'across-networks': 'Zwischen zwei getrennten Netzen ist kein Lauf veröffentlicht — das ist das Szenario, für das der ganze Datensatz existiert.',
+        'mobile-data': 'Aus einem Mobilfunknetz ist kein Lauf veröffentlicht, also sagt hier nichts etwas über einen Anbieter aus.'
+      },
+      unlabelled: ({ runs }) => `${runs} ${runs === 1 ? 'Zeile trägt' : 'Zeilen tragen'} kein Szenario, ${runs === 1 ? 'gehört' : 'gehören'} also zu keinem und ${runs === 1 ? 'wird' : 'werden'} getrennt gezählt, statt still einem beizutreten.`,
+      noV6Offered: ({ runs }) => `Keiner der ${runs} veröffentlichten ${runs === 1 ? 'Lauf' : 'Läufe'} hat einen IPv6-Kandidaten angeboten — die IPv6-Frage, für die das hier gebaut wurde, ist damit weiter offen.`,
+      thinV6: ({ offered, reflexive }) => `IPv6 wurde in ${offered} ${offered === 1 ? 'Lauf' : 'Läufen'} angeboten und kam in ${reflexive} reflexiv zurück. Für eine Quote ist beides zu wenig.`,
+      countries: ({ countries }) => `${countries === 0 ? 'Keine Zeile nennt ein Land' : 'Alle Zeilen kommen aus einem Land'}, hier vergleicht also nichts zwei Netze an verschiedenen Orten.`,
+      providers: ({ providers }) => `${providers === 0 ? 'Keine Zeile nennt einen Anbieter' : 'Es taucht nur ein Anbieter auf'}, und ein Befund über Anbieter braucht mindestens zwei, um ein Befund statt einer Anekdote zu sein.`,
+      engines: ({ engines }) => `Gemessen wurde nur ${engines}. Ein Ergebnis über Browser-Paare braucht zwei Engines — genau dort zeigt sich der bekannte Unterschied zwischen Chrome und Firefox.`,
+      pairs: ({ runs }) => `${runs} ${runs === 1 ? 'Zeile hat' : 'Zeilen haben'} keine passende zweite Hälfte, also ist noch kein Lauf über zwei Netze von beiden Enden zu sehen.`,
+      thin: ({ runs }) => `Insgesamt ${runs} ${runs === 1 ? 'Zeile' : 'Zeilen'}. Lesen Sie jede Zahl hier als Beobachtung, nicht als Quote.`
+    },
+    headline: {
+      heading: 'Was da ist',
+      runs: 'Versuche',
+      connected: 'Verbunden',
+      failed: 'Fehlgeschlagen',
+      countries: 'Länder',
+      providers: 'Anbieter',
+      engines: 'Browser-Engines',
+      rejected: 'Nicht gespiegelte Einträge'
+    },
+    networks: {
+      heading: 'Nach Netz',
+      lede: 'Eine Zeile pro Land und Anbieter. Die beiden IPv6-Spalten gehören absichtlich zusammen: ohne die Zahl der Läufe, die IPv6 überhaupt angeboten haben, lässt sich „kein reflexives IPv6" nicht von „IPv6 wurde hier nie versucht" unterscheiden.'
+    },
+    rows: {
+      heading: 'Jede Zeile',
+      lede: 'Ein Versuch pro Zeile, denn zusammenfassen lässt sich hinterher, aufschlüsseln nicht. Die Filter unten bieten nur Werte an, die wirklich in den Daten stehen.',
+      count: ({ shown, total }) => shown === total ? `${total} ${total === 1 ? 'Zeile' : 'Zeilen'}.` : `${shown} von ${total} Zeilen.`,
+      csv: 'CSV herunterladen',
+      json: 'JSON herunterladen'
+    },
+    rejected: {
+      heading: 'Was nicht gespiegelt wurde',
+      lede: 'Jeder darf in dieses Log schreiben, also filtert ein Leser, statt dass jemand an der Tür steht. Ein Filter, dessen Streichungen man nicht ansehen kann, ist eine Meinung mit einer URL — hier sind sie.'
+    },
+    about: {
+      heading: 'Wie das zu lesen ist',
+      body: 'Jede Zeile wurde lokal gemessen, von Hand geprüft und dann bewusst veröffentlicht. Die Zeit ist auf die Stunde gerundet, aus Kandidaten-Adressen sind Anzahlen geworden, und frei eingetippter Text verlässt das Gerät nie — <a href="https://github.com/NiKrause/libp2p-webrtc-qr/issues/179" target="_blank" rel="noopener noreferrer">die Methode</a> sagt, was reist und warum.',
+      address: 'Die Datenbank:'
+    },
+    filters: {
+      any: 'alle'
+    },
+    column: {
+      at: 'Stunde',
+      scenario: 'Szenario',
+      role: 'Rolle',
+      carrier: 'Weg',
+      outcome: 'Ergebnis',
+      ms: 'ms',
+      engine: 'Engine',
+      version: 'Version',
+      browser: 'Browser',
+      platform: 'Plattform',
+      country: 'Land',
+      provider: 'Anbieter',
+      ipv4: 'IPv4',
+      ipv6: 'IPv6',
+      families: 'Angeboten',
+      reason: 'Grund',
+      runs: 'Läufe',
+      connected: 'Verbunden',
+      failed: 'Fehlgeschlagen',
+      engines: 'Engines',
+      offeredV6: 'v6 angeboten',
+      reflexiveV6: 'v6 reflexiv',
+      reflexiveV4: 'v4 reflexiv',
+      familyFilter: 'Filter',
+      format: 'Format',
+      author: 'Autor',
+      pairId: 'Paar',
+      network: 'Netz'
+    }
   },
   status: {
     idle: 'Nicht verbunden',

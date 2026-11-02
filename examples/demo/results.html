@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0B0E15" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+
+    <title>Where this works — field results — Le-Space</title>
+    <meta name="description" content="An open dataset of where direct WebRTC over QR actually connects: per country, carrier, browser and scenario — with its coverage gaps stated." />
+
+    <link rel="stylesheet" href="./style.css" />
+
+    <link rel="canonical" href="https://webrtc-qr.le-space.de/results.html" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Where direct WebRTC actually works" />
+    <meta property="og:description" content="An open, append-only dataset of field measurements — with the gaps stated rather than hidden." />
+    <meta property="og:url" content="https://webrtc-qr.le-space.de/results.html" />
+  </head>
+
+  <body>
+    <nav class="nav">
+      <div class="nav-inner">
+        <a class="brand" href="https://local-first.le-space.de" target="_blank" rel="noopener noreferrer">
+          <svg viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Le-Space">
+            <line x1="42.7" y1="49.96" x2="58.56" y2="34.94" stroke="#58C7F3" stroke-width="4" stroke-linecap="round" />
+            <line x1="47.43" y1="63.58" x2="62.8" y2="64.98" stroke="#58C7F3" stroke-width="4" stroke-linecap="round" stroke-dasharray="0.1 8" />
+            <line x1="69.85" y1="38.36" x2="72.41" y2="55.37" stroke="#58C7F3" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="0.1 6" opacity="0.65" />
+            <circle cx="30" cy="62" r="15" fill="#FF6B5B" />
+            <circle cx="68" cy="26" r="8" fill="none" stroke="#58C7F3" stroke-width="5" />
+            <circle cx="74" cy="66" r="6.5" fill="none" stroke="#58C7F3" stroke-width="4.5" />
+            <circle cx="17" cy="21" r="2.6" fill="#58C7F3" opacity="0.55" />
+          </svg>
+          <span class="brand-name">
+            Le-Space
+            <span class="brand-tag">WebRTC over QR</span>
+          </span>
+        </a>
+
+        <div class="nav-links">
+          <div class="nav-flags">
+            <button id="locale-de" class="nav-flag" type="button" lang="de" data-i18n-attr="aria-label:language.de" aria-label="Deutsch">&#127465;&#127466;</button>
+            <button id="locale-en" class="nav-flag" type="button" lang="en" data-i18n-attr="aria-label:language.en" aria-label="English">&#127468;&#127463;</button>
+          </div>
+
+          <a class="nav-link" href="./" data-i18n="results.nav.demo">The demo</a>
+
+          <a class="nav-link" href="https://github.com/NiKrause/libp2p-webrtc-qr/issues/179" target="_blank" rel="noopener noreferrer" data-i18n="results.nav.method">The method</a>
+        </div>
+      </div>
+    </nav>
+
+    <main class="results">
+      <div class="intro">
+        <h1 data-i18n="results.title">Where this actually works</h1>
+        <p data-i18n="results.lede">
+          Nobody publishes where direct WebRTC connects — not per country, not per carrier, not per
+          browser pair. This is the attempt: every row is one measured attempt, reviewed by the
+          person who made it before it was published.
+        </p>
+
+        <!--
+          Above the fold and before anything happens, because this page breaks
+          the promise the demo makes and should say so rather than be caught
+          at it. The demo connects to nothing until somebody publishes; this
+          page exists to read a public database, so it connects on arrival.
+        -->
+        <p class="hint results-connects" data-i18n="results.connects">
+          This page connects to a relay to read the public database — that is the whole of what it
+          does, and it writes nothing. The demo itself still connects to nothing until you press
+          publish.
+        </p>
+
+        <p id="results-state" class="results-state" role="status" aria-live="polite" data-i18n="results.state.starting">Starting…</p>
+      </div>
+
+      <!--
+        The gaps come before the numbers they qualify. A reader who sees "1
+        country" after a table has already formed an impression of the table;
+        a reader who sees it first reads the table as what it is.
+      -->
+      <section class="card results-gaps" id="results-gaps-card" hidden>
+        <h2 data-i18n="results.gaps.heading">What this cannot tell you yet</h2>
+        <p class="hint" data-i18n="results.gaps.lede">
+          A dataset that overstates its coverage is worth less than one that says plainly what is
+          missing. Each line below is a question nobody can answer from these rows — and an
+          invitation, because the way to close one is to run it.
+        </p>
+        <ul id="results-gaps" class="results-gap-list"></ul>
+        <p class="hint">
+          <a href="./" data-i18n="results.gaps.cta">Run a scenario and publish it</a>
+        </p>
+      </section>
+
+      <section class="card" id="results-headline-card" hidden>
+        <h2 data-i18n="results.headline.heading">What is here</h2>
+        <dl id="results-headline" class="results-headline"></dl>
+        <p id="results-scenarios" class="hint results-scenarios"></p>
+      </section>
+
+      <section class="card" id="results-networks-card" hidden>
+        <h2 data-i18n="results.networks.heading">By network</h2>
+        <p class="hint" data-i18n="results.networks.lede">
+          One line per country and carrier. The two IPv6 columns are a pair on purpose: without
+          the number of runs that offered IPv6 at all, "no reflexive IPv6" cannot be told apart
+          from "IPv6 was never tried here".
+        </p>
+        <div class="results-table-scroll">
+          <table class="results-table" id="results-networks"></table>
+        </div>
+      </section>
+
+      <section class="card" id="results-rows-card" hidden>
+        <h2 data-i18n="results.rows.heading">Every row</h2>
+        <p class="hint" data-i18n="results.rows.lede">
+          One attempt per row, because aggregating can be done afterwards and disaggregating
+          cannot. The filters below offer only values that are actually in the data.
+        </p>
+
+        <div id="results-filters" class="results-filters"></div>
+
+        <p id="results-count" class="hint" role="status" aria-live="polite"></p>
+
+        <div class="results-table-scroll">
+          <table class="results-table" id="results-rows"></table>
+        </div>
+
+        <div class="actions">
+          <button id="results-csv" type="button" data-i18n="results.rows.csv">Download CSV</button>
+          <button id="results-json" type="button" data-i18n="results.rows.json">Download JSON</button>
+        </div>
+      </section>
+
+      <section class="card" id="results-rejected-card" hidden>
+        <h2 data-i18n="results.rejected.heading">What was not mirrored</h2>
+        <p class="hint" data-i18n="results.rejected.lede">
+          Anyone may write to this log, so a reader filters rather than a person gatekeeping. A
+          filter whose removals cannot be inspected is an opinion with a URL, so here they are.
+        </p>
+        <ul id="results-rejected" class="results-gap-list"></ul>
+      </section>
+
+      <section class="card">
+        <h2 data-i18n="results.about.heading">How to read this</h2>
+        <p class="hint" data-i18n-html="results.about.body">
+          Every row was measured locally, reviewed by hand and then published deliberately.
+        </p>
+        <p class="hint">
+          <span data-i18n="results.about.address">The database:</span>
+          <code id="results-address" class="results-address">—</code>
+        </p>
+      </section>
+    </main>
+
+    <script type="module" src="./results.js"></script>
+  </body>
+</html>
