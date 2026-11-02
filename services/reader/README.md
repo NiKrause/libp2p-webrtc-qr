@@ -169,15 +169,42 @@ and given up rather than being stuck. A relay that learns a database from an
 announcement has only the **address**, and opening one by address means fetching
 its manifest block over bitswap. Nothing was serving it.
 
-With bitswap restored: the pinner **joined in about two seconds**, and
-`/pinning/databases` on the relay went from 148 to 149 entries with our address
-among them. So a publisher's thirty-second wait for a peer now resolves.
+With bitswap restored, the pinner **joined in about two seconds**.
 
-Still not retried end to end: **an actual publish.** The thirty seconds of
-silence on the first attempt was most likely the first holder of a brand-new
-database paying a bootstrap cost — the relay has to hear the announcement, fetch
-the manifest and open the database before it can join anybody — but that is a
-reading, not a measurement, because the publish was never repeated.
+**The publish, retried end to end on 2 November 2026.** A real run between two
+browser peers, reviewed and published from the demo: relay lookup 1.7 s, wait
+for a peer to join **2.8 s**, write 2.8 s, **7.3 s in all**. The thirty seconds
+of silence on the first attempt is accounted for and gone.
+
+**And a correction to the paragraph above: `/pinning/databases` was the wrong
+evidence.** Reading 148 → 149 as proof that the relay holds the data was a
+mistake. The listing records past syncs, not what the relay can serve now:
+after the publish it still reported `entryCount: 0` for this database, an
+explicit `POST /pinning/sync` returned `receivedUpdate: false, entryCount: 0`,
+and a throwaway probe database the relay had demonstrably joined three seconds
+earlier was not in the listing at all. 118 of its 149 listed databases show
+zero entries.
+
+`/pinning/has-entry` is the honest one — but only when asked correctly. It is
+**POST**, with a `{ dbAddress, entryHash }` body; five GETs produced five plain
+`Not found` 404s that read exactly like an answer and are not one. Asked
+properly it replies `hasEntry: null, source: "database-not-open"`: the relay
+declines to answer rather than claiming the entry is absent, because it keeps
+these databases open only while it is syncing them.
+
+The test that settles it is therefore a **cold reopen**: stop every local
+holder, open the address from a node with an empty blockstore and no stored
+identity, and count what comes back. Done both ways — the published row
+returned in **6.3 s** with this reader stopped, and the probe row in 5.7 s from
+a database no reader of ours had ever held, each with the join coming from the
+relay's peer id. So the relay does serve what was written, and a publisher does
+not depend on this service running. Which part of the relay served it, while
+its own OrbitDB copy reports zero entries, is not established here.
+
+None of this is load-bearing: the reader never calls that API, and it is worth
+keeping at arm's length, because the relay's app-facing pinning routes are to
+be replaced by a libp2p protocol and kept only for operators
+([orbitdb-relay#61](https://github.com/NiKrause/orbitdb-relay/issues/61)).
 
 One field to read carefully in `/status.json`: `peers` is OrbitDB's own count of
 peers that have **joined**, and it is the authoritative one. `subscribers` is
