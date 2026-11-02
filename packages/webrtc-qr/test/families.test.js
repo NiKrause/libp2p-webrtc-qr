@@ -6,8 +6,10 @@ import {
   candidateAddress,
   familiesOffered,
   familyOf,
+  candidateKey,
   filterCandidateLines,
-  filterSdpCandidates
+  filterSdpCandidates,
+  omitSdpCandidates
 } from '../src/families.js'
 
 /**
@@ -162,4 +164,68 @@ test('familyOf separates the three answers, including "it did not say"', () => {
   assert.equal(familyOf(''), null)
   assert.equal(familyOf(null), null)
   assert.equal(familyOf(undefined), null)
+})
+
+/**
+ * Leaving named candidates out of one invite (#192).
+ *
+ * The same string work as the family filter and the same reason to assert it
+ * here: a key that drifts between the list being drawn and the selection coming
+ * back unchecks the wrong address, and in a browser that looks like a
+ * connection which failed for no stated reason.
+ */
+
+test('a candidate key survives re-reading the same description', () => {
+  const twice = candidateLines(SDP).map(candidateKey)
+
+  assert.deepEqual(twice, candidateLines(SDP).map(candidateKey))
+  assert.equal(new Set(twice).size, twice.length, 'keys are unique within one gathering')
+})
+
+test('a key distinguishes candidates that share a port', () => {
+  // A reflexive candidate and the host candidate it was discovered through
+  // share a socket, so they share a port. Address alone would merge them and a
+  // checkbox would silently remove both.
+  const host = 'a=candidate:1 1 udp 2122260223 192.168.0.14 54321 typ host generation 0'
+  const srflx = 'a=candidate:3 1 udp 1686052607 203.0.113.9 54321 typ srflx raddr 0.0.0.0 rport 0'
+
+  assert.notEqual(candidateKey(host), candidateKey(srflx))
+})
+
+test('a key reads a bare candidate line the same as an SDP one', () => {
+  const line = 'a=candidate:1 1 udp 2122260223 192.168.0.14 54321 typ host generation 0'
+
+  assert.equal(candidateKey(line), candidateKey(line.replace(/^a=candidate:/, '')))
+})
+
+test('omitting a candidate removes its line and leaves every other one', () => {
+  const lines = candidateLines(SDP)
+  const dropped = candidateKey(lines[2])
+  const out = omitSdpCandidates(SDP, [dropped])
+  const kept = candidateLines(out)
+
+  assert.equal(kept.length, lines.length - 1)
+  assert.ok(!kept.some(line => candidateKey(line) === dropped))
+  assert.ok(out.includes('a=end-of-candidates'), 'the rest of the description is untouched')
+  assert.ok(!/\r\n\r\n/.test(out), 'no blank line is left behind')
+})
+
+test('omitting nothing returns the description unchanged, not rebuilt', () => {
+  assert.equal(omitSdpCandidates(SDP, []), SDP)
+  assert.equal(omitSdpCandidates(SDP), SDP)
+  assert.equal(omitSdpCandidates(null, ['anything']), null)
+})
+
+test('a key that matches nothing removes nothing', () => {
+  assert.equal(omitSdpCandidates(SDP, ['host|udp|10.0.0.1|1']), SDP)
+})
+
+test('the family filter and the exclusion compose', () => {
+  const v4 = filterSdpCandidates(SDP, 'v4')
+  const [first] = candidateLines(v4)
+
+  assert.deepEqual(
+    candidateLines(omitSdpCandidates(v4, [candidateKey(first)])).map(candidateAddress),
+    ['203.0.113.9']
+  )
 })
