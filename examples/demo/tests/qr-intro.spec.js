@@ -182,6 +182,68 @@ test.describe('qr-intro', () => {
     expect(remembered).toEqual([false, true])
   })
 
+  test('a host that reopens it at once hears one close, and can close it again', async ({ page }) => {
+    await mount(page)
+
+    const seen = await page.evaluate(async () => {
+      const intro = window.__intro
+      const settle = () => new Promise(resolve => setTimeout(resolve, 150))
+      let closes = 0
+
+      await intro.open()
+      // A host that finds it cannot proceed after all - a field left empty -
+      // opens the dialog again in the handler, before the browser has reported
+      // the close that just happened.
+      intro.addEventListener('close', () => {
+        closes += 1
+        if (closes === 1) void intro.open()
+      })
+
+      intro.close()
+      // Long enough for that report to arrive.
+      await settle()
+      const reopened = { closes, isOpen: intro.isOpen }
+
+      intro.close()
+      await settle()
+
+      return { reopened, closes, isOpen: intro.isOpen }
+    })
+
+    // The report of the first close arrives while the dialog is showing again.
+    // Taken for a second close, it was announced as one, and the element then
+    // held itself for closed: every later `close()` returned without a word,
+    // with the dialog still on screen.
+    expect(seen.reopened).toEqual({ closes: 1, isOpen: true })
+    expect(seen).toMatchObject({ closes: 2, isOpen: false })
+  })
+
+  test('Escape is a close too, and is said once', async ({ page }) => {
+    await mount(page)
+
+    await page.evaluate(async () => {
+      window.__closes = 0
+      window.__intro.addEventListener('close', () => { window.__closes += 1 })
+      await window.__intro.open()
+    })
+
+    await page.keyboard.press('Escape')
+
+    await expect.poll(() => page.evaluate(() => window.__intro.isOpen)).toBe(false)
+    expect(await page.evaluate(() => window.__closes)).toBe(1)
+
+    // And the element knows it is closed: it opens and closes as before.
+    const again = await page.evaluate(async () => {
+      await window.__intro.open()
+      window.__intro.close()
+      await new Promise(resolve => setTimeout(resolve, 150))
+
+      return { closes: window.__closes, isOpen: window.__intro.isOpen }
+    })
+
+    expect(again).toEqual({ closes: 2, isOpen: false })
+  })
+
   test('German reaches the element', async ({ page }) => {
     await mount(page, { locale: 'de', technical: true })
     await page.evaluate(() => window.__intro.open())
