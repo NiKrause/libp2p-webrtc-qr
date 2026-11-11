@@ -411,6 +411,15 @@ export class QrIntroElement extends HTMLElement {
     // twice.
     dialog.addEventListener('close', () => {
       if (!this.#open) return
+      // The browser reports a close one task after it happened. A host that
+      // finds it cannot proceed after all opens the dialog again in its `close`
+      // handler - so this report, of our own `close()`, arrives with `#open`
+      // set again. Taken for an Escape it was announced a second time, and the
+      // element then held itself for closed with the dialog on screen: every
+      // later `close()` returned at its first line. A report that finds the
+      // dialog showing is about a close that is already over; one that Escape
+      // or the backdrop caused finds it closed.
+      if (dialog.open) return
       this.#open = false
       this.#emitClose()
     })
