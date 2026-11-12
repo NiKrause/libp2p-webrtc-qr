@@ -409,6 +409,12 @@ export class QrIntroElement extends HTMLElement {
     // this project's own CI demonstrated, silently does not in others. Relying
     // on it alone loses the event; relying on both without a guard sends it
     // twice.
+    // The gate, for the way out that does not pass through `close()`. Escape
+    // asks first, and the answer while the statement is unaccepted is no.
+    dialog.addEventListener('cancel', event => {
+      if (!this.accepted) event.preventDefault()
+    })
+
     dialog.addEventListener('close', () => {
       if (!this.#open) return
       // The browser reports a close one task after it happened. A host that
@@ -420,6 +426,15 @@ export class QrIntroElement extends HTMLElement {
       // dialog showing is about a close that is already over; one that Escape
       // or the backdrop caused finds it closed.
       if (dialog.open) return
+      // And when the browser closed it regardless - it honours a refused
+      // `cancel` only so often, and a backdrop close may not ask at all - the
+      // gate still holds: the dialog comes back, and nobody is told it closed.
+      // `close()` has refused an unaccepted statement all along; a host that
+      // starts on `close` was let through here.
+      if (!this.accepted) {
+        dialog.showModal()
+        return
+      }
       this.#open = false
       this.#emitClose()
     })

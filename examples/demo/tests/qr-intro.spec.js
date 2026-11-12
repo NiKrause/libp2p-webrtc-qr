@@ -218,6 +218,40 @@ test.describe('qr-intro', () => {
     expect(seen).toMatchObject({ closes: 2, isOpen: false })
   })
 
+  test('Escape is not a way past an unaccepted statement', async ({ page }) => {
+    await mount(page)
+
+    await page.evaluate(async () => {
+      window.__closes = 0
+      window.__intro.addEventListener('close', () => { window.__closes += 1 })
+      window.__intro.privacy = { accept: true, clauses: () => ['a clause'] }
+      await window.__intro.open()
+    })
+
+    // Twice: a browser lets a page refuse the first and closes on the second.
+    await page.keyboard.press('Escape')
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(300)
+
+    // A host that starts when this element says `close` must not hear it.
+    expect(await page.evaluate(() => ({
+      isOpen: window.__intro.isOpen,
+      closes: window.__closes,
+      accepted: window.__intro.accepted
+    }))).toEqual({ isOpen: true, closes: 0, accepted: false })
+
+    // Accepted, Escape is a way out like any other, and it is said once.
+    await page.evaluate(() => {
+      window.__intro.shadowRoot.querySelector('input[part=accept]').click()
+    })
+    await page.keyboard.press('Escape')
+
+    await expect.poll(() => page.evaluate(() => window.__intro.isOpen)).toBe(false)
+    // Polled as well: the dialog is closed a task before the browser says so,
+    // and the element speaks when the browser does.
+    await expect.poll(() => page.evaluate(() => window.__closes)).toBe(1)
+  })
+
   test('Escape is a close too, and is said once', async ({ page }) => {
     await mount(page)
 
@@ -230,7 +264,9 @@ test.describe('qr-intro', () => {
     await page.keyboard.press('Escape')
 
     await expect.poll(() => page.evaluate(() => window.__intro.isOpen)).toBe(false)
-    expect(await page.evaluate(() => window.__closes)).toBe(1)
+    // Polled as well: the dialog is closed a task before the browser says so,
+    // and the element speaks when the browser does.
+    await expect.poll(() => page.evaluate(() => window.__closes)).toBe(1)
 
     // And the element knows it is closed: it opens and closes as before.
     const again = await page.evaluate(async () => {
