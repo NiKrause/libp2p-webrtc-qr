@@ -109,7 +109,13 @@ export const QR_INTRO_STRINGS = {
 
 const STYLE = `
   :host { --qr-intro-radius: 14px; }
+  /* Border-box, so the caps below measure the whole dialog. On the content box
+     the padding and the border came on top of them: 42px past the height cap,
+     and at a window 800px high the dialog ran 5px past the top and the bottom,
+     foot and all (found at 1512x800, 2026-11-17). The width cap had the same
+     overshoot, on a phone. */
   dialog {
+    box-sizing: border-box;
     max-width: 34rem;
     width: calc(100vw - 2rem);
     border: 1px solid var(--qr-intro-border, rgba(255,255,255,0.14));
