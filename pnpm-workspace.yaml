@@ -7,3 +7,5 @@ allowBuilds:
   esbuild: set this to true or false
   node-datachannel: true
 verifyDepsBeforeRun: false
+overrides:
+  '@libp2p/crypto@<5.1.22': 5.1.22
