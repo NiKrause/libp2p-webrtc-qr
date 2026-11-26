@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 // The elements extend HTMLElement and register themselves, neither of which
@@ -107,3 +108,33 @@ test('the measurement and the relay rule are reachable from the package root', (
     assert.equal(typeof elements[name], 'function', `${name} must stay reachable from ./elements too`)
   }
 })
+
+/**
+ * `import '@le-space/libp2p-webrtc-qr/elements'` - the line the barrel tells a
+ * consumer to write - binds nothing. Its whole effect is the
+ * `customElements.define` calls at the top of the bundle, so a bundler told the
+ * file has no side effects drops the import without a word: the build passes
+ * and no element ships. That was the state through 0.14.3, because
+ * `sideEffects` named `./src/elements/*.js` while `./elements` resolves to
+ * `./dist/elements.js`. A dynamic `import()` is never dropped, which is why
+ * nobody noticed.
+ *
+ * Read from the manifest rather than the bundle: the unit tests run before the
+ * bundle is built, in CI and in the publish gate.
+ */
+test('the ./elements entry is declared to have side effects', () => {
+  const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+  const target = pkg.exports['./elements']
+
+  assert.ok(
+    pkg.sideEffects.some(pattern => matchesGlob(target, pattern)),
+    `${target} must match a "sideEffects" pattern, or a bare import of ./elements is tree-shaken away`
+  )
+})
+
+// Enough of a glob for a `sideEffects` list: `*` within one path segment.
+function matchesGlob (path, pattern) {
+  const strip = s => s.replace(/^\.\//, '')
+  const source = strip(pattern).split('*').map(s => s.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*')
+  return new RegExp(`^${source}$`).test(strip(path))
+}
