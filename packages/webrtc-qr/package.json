@@ -30,7 +30,8 @@
     "dist"
   ],
   "sideEffects": [
-    "./src/elements/*.js"
+    "./src/elements/*.js",
+    "./dist/elements.js"
   ],
   "scripts": {
     "test": "node --test test/*.test.js",
